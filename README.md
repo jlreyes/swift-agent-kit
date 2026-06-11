@@ -1,22 +1,36 @@
 # swift-agent-kit
 
-**Claude Code as your Swift editor. Xcode as the attached worker.**
+Skills, lessons, and pitfalls from a year of building a complex Swift app
+with an agentic CLI as the primary editor and Xcode as an attached worker.
+Agents are bad at Swift in specific, fixable ways — they write last year's
+patterns, can't tell a new API from a hallucinated one, and drive Xcode's
+MCP tools badly — and Apple's own fixes (the agent skills bundled in
+Xcode 27) aren't redistributable. This plugin bundles the fixes: house
+doctrine, ground-truth doc lookup, an empirical operating guide for
+Xcode's MCP server, and Apple's skills extracted locally from *your*
+Xcode.
 
-This plugin exists to make one workflow actually good: you write Swift in
-an agentic CLI (Claude Code today; the pieces are portable to Codex/Cursor),
-and Xcode stays open purely as a service — build system, simulator,
-debugger, doc index, device driver — reached over its bundled MCP server.
-Nobody is editing in Xcode.
+## What it does
 
-That workflow has real gaps today. Each layer of this kit closes one:
-
-| Gap | What closes it |
-|---|---|
-| Agents write stale Swift — old patterns (ObservableObject, DispatchQueue, XCTest), pre-cutoff APIs, wrong concurrency | **`swift-standards`** — house doctrine, in force for all Swift work: Swift 6 strict concurrency, Observation, SwiftUI invalidation discipline, reactive-over-imperative, Apple's own agent conventions |
-| Agents hallucinate APIs and can't tell "new API" from "doesn't exist" | **`apple-docs`** — lookup recipes with a falsification path: local SDK `.swiftinterface` grep (0 hits = doesn't exist; semantic search can never tell you that), DocC JSON for prose/examples/HIG, WWDC transcripts, Swift Evolution — plus empirically-derived routing rules for when Xcode's `DocumentationSearch` beats each of them |
-| Agents post-date the current SDK generation | **`apple-api-updates`** (Apple's iOS/macOS-26-era adoption guides, extracted locally) + **`swiftui-whats-new-27`** and Apple's other Xcode 27 skills (extracted locally) |
-| Agents drive Xcode's MCP server badly — wrong tool for the job, 26KB dumps in context, missed state gates | **`xcode-tools`** — an operating guide built from ~190 live probe calls: division-of-labor table (native tools vs xcode-tools vs CLI, the `.xcodeproj` membership rule, the SwiftPM exception), measured timings, noise table, per-tool verdicts and failure modes |
-| Apple's skills are excellent but not redistributable | **Stub + extract + hook**: this repo ships zero Apple content; an install script extracts the real skills from *your* Xcode (see below) |
+1. **Enforces Swift doctrine** (`swift-standards`) — the rules that survive
+   contact with a real codebase: Swift 6 strict concurrency, Observation,
+   SwiftUI invalidation discipline, reactive-over-imperative state,
+   preview pitfalls, SwiftData actor-safety, Apple's agent conventions.
+2. **Grounds every API claim** (`apple-docs`) — recipes with a
+   falsification path: grep the local SDK interfaces (0 hits = the API
+   doesn't exist — semantic search can never tell you that), DocC JSON for
+   prose and examples, the HIG, WWDC transcripts, Swift Evolution, plus
+   measured routing rules for when Xcode's `DocumentationSearch` beats
+   each.
+3. **Operates Xcode as a service** (`xcode-tools`) — division of labor
+   between native tools, Xcode's 47 MCP tools, and the CLI, from ~190
+   live probe calls: the `.xcodeproj` membership rule, measured timings,
+   output-noise control, debugger/device/preview workflows, failure modes.
+4. **Ships Apple's knowledge without shipping Apple's content** — the ten
+   Xcode 27 agent skills (SwiftUI specialist, SDK-27 changes, test
+   modernization, device driving, …) install as stubs; one script extracts
+   the real content from your own Xcode, and a SessionStart hook nudges
+   until it has run.
 
 ## Install
 
@@ -25,17 +39,14 @@ That workflow has real gaps today. Each layer of this kit closes one:
 /plugin install swift-agent-kit@swift-agent-kit
 ```
 
-Then extract Apple's skills from your local Xcode (requires Xcode 27+,
-license accepted, ~5 seconds): **just start a session** — a SessionStart
-hook notices the missing content and prints the exact
-`…/scripts/extract-apple-skills.sh` path to run (ask Claude to run it, or
-run it yourself). Any agent that triggers a stub skill is likewise
-instructed to run it and re-invoke; extracted bodies are picked up
-immediately, no restart needed. The notice disappears once extraction has
-run.
+Then start a session: the hook prints the path of
+`scripts/extract-apple-skills.sh` (Xcode 27+, ~5s) — run it, or ask the
+agent to. Extracted skill bodies are picked up immediately; the notice
+disappears once extraction has run. Re-run after plugin or Xcode updates
+(the hook reminds you).
 
-Wire up the Xcode MCP server (one-time; Xcode must be running when a
-session starts for its tools to enumerate):
+Wire up Xcode's MCP server (one-time; Xcode must be running when a session
+starts for its tools to enumerate):
 
 ```bash
 claude mcp add --scope user xcode-tools \
@@ -43,64 +54,41 @@ claude mcp add --scope user xcode-tools \
   -- /Applications/Xcode-beta.app/Contents/Developer/usr/bin/mcpbridge
 ```
 
-## How the extraction works (and why)
+Recommended companions:
 
-Apple ships ten agent skills inside Xcode 27 and provides a supported
-export command (`xcrun agent skills export`) — but the Xcode license grants
-internal use only and expressly reserves redistribution. So this repo ships
-**stubs**: real frontmatter (our own words, so triggering works from the
-first session) with a body that says "not extracted yet." The script:
+- `~/.claude/CLAUDE.md` push layer (skills don't auto-load for
+  familiar-looking tasks — measured, not vibes): *"For any Swift work,
+  load swift-agent-kit:swift-standards first. For any @State compile error
+  after an SDK update, consult swift-agent-kit:swiftui-whats-new-27 before
+  proposing a fix."*
+- Toolchain permissions in `~/.claude/settings.json`: `Bash(swift:*)`,
+  `Bash(xcodebuild:*)`, `Bash(xcrun:*)`, `Bash(xcodegen:*)`.
+- [instruments-analyzer](https://github.com/jlreyes/instruments-analyzer)
+  — the performance half of the loop: programmatic Instruments-trace
+  analysis (DuckDB/SQL). This kit makes the agent write and verify correct
+  Swift; that one lets it diagnose why frames drop.
 
-1. runs Apple's own export for the seven globally available skills,
-2. copies the two localization skills from Xcode's frameworks (adding our
-   frontmatter — Apple ships them without one),
-3. carves `ios-dynamic-text` from the binary that embeds it,
-4. copies Apple's 20 API-update guides into `apple-api-updates/references/`,
-5. stamps `.apple-content-extracted` with your Xcode build.
+## What's included
 
-Everything lands in your installed copy only; `.gitignore` and the LICENSE
-make clear extracted content is Apple's and must not be committed back.
+| Path | Description |
+|------|-------------|
+| `skills/swift-standards/` | Doctrine + per-topic references (ours, MIT) |
+| `skills/apple-docs/` | Doc-lookup recipes + DocumentationSearch routing (ours, MIT) |
+| `skills/xcode-tools/` | Xcode MCP operating guide + per-tool verdicts (ours, MIT) |
+| `skills/apple-api-updates/` | Routing wrapper for Apple's 20 API-update guides (wrapper ours; guides extracted) |
+| `skills/<ten Apple skills>/` | Stubs with our trigger descriptions until extracted |
+| `scripts/extract-apple-skills.sh` | Official export + framework copies + binary carve, stamped with your Xcode build |
+| `scripts/check-apple-content.sh` + `hooks/hooks.json` | SessionStart nudge until extraction has run |
 
-**Plugin updates** install a fresh copy without the extracted content — the
-hook notices and asks you to re-run (the script is idempotent). Same after
-upgrading Xcode: re-run to pick up Apple's latest skill revisions.
+## License
 
-## Recommended companion setup
-
-Skill auto-loading has an empirically measured blind spot: models route
-reliably to skills for lookup-shaped questions, but often answer
-familiar-looking tasks (inline review, test writing, recognizable compile
-errors) from memory without consulting anything — including the case where
-that's most dangerous (`@State` compile errors after an SDK update, where
-the "obvious" fix is documentedly wrong). Push-layer mitigation — add to
-`~/.claude/CLAUDE.md`:
-
-> For any Swift work, load `swift-agent-kit:swift-standards` first. For any
-> `@State` compile error after an SDK update, consult
-> `swift-agent-kit:swiftui-whats-new-27` before proposing a fix.
-
-And allow the Swift toolchain in `~/.claude/settings.json` permissions:
-`Bash(swift:*)`, `Bash(xcodebuild:*)`, `Bash(xcrun:*)`, `Bash(xcodegen:*)`.
-
-## What's inside
-
-- `skills/swift-standards/` — doctrine + per-topic references (ours, MIT)
-- `skills/apple-docs/` — doc-lookup recipes + DocumentationSearch routing (ours, MIT)
-- `skills/xcode-tools/` — MCP-server operating guide + per-tool reference (ours, MIT)
-- `skills/apple-api-updates/` — routing wrapper (ours, MIT); references extracted
-- `skills/<ten Apple skills>/` — stubs (ours, MIT) until extracted
-- `scripts/extract-apple-skills.sh`, `scripts/check-apple-content.sh`, `hooks/hooks.json`
-
-## Licensing
-
-Original content is MIT. Apple-authored content is **never** in this
-repository or its history; the extraction script places it on your machine
-under your own Xcode license (internal use). Don't commit extracted content
+Original content MIT. Apple-authored content is never in this repository
+or its history — the extraction script places it on your machine under
+your own Xcode license (internal use). Don't commit extracted content
 back; PRs containing Apple-authored skill bodies will be closed.
 
 ## Status
 
-Built against Xcode 27.0 beta (27A5194q). The xcode-tools guide and the
-routing rules are empirical — derived from live probing and headless
-routing tests — and will drift as Xcode betas rev; re-extraction and issue
-reports welcome.
+Built against Xcode 27.0 beta (27A5194q). The operating guide and routing
+rules are empirical (live probing + headless routing tests) and will drift
+as betas rev — re-extract after Xcode updates; issue reports welcome.

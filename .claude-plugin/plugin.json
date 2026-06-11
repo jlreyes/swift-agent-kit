@@ -21,6 +21,5 @@
     "instruments",
     "performance",
     "codex"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

@@ -73,9 +73,10 @@ harness (point your harness's MCP config at `mcpbridge`); note that our
 docs print tool names in Claude Code's `mcp__xcode-tools__*` convention —
 adjust the prefix for yours.
 
-After extraction: `/reload-plugins` in Claude Code (or start a new
-session) — skill bodies can be cached per session. Re-run the script after
-Xcode or plugin updates.
+After extraction, run `/reload-plugins` (or start a new session) — skill
+bodies are cached per session, and agents can't run slash commands, so the
+agent will answer from the extracted files directly and ask you to reload.
+Re-run the script after Xcode or plugin updates.
 
 Wire up Xcode's MCP server (one-time; Xcode must be running when a session
 starts for its tools to enumerate):

@@ -38,9 +38,10 @@ metadata:
 > as scripts/extract-apple-skills.sh. If apple-api-updates is not
 > installed alongside, install it — the script ships inside it.)
 >
-> If you are an agent reading this: resolve this SKILL.md's path, run that
-> script with your shell tool, then run /reload-plugins (Claude Code) or
-> note that a fresh session picks it up, and re-invoke this skill. If
-> re-invocation still shows this stub — skill bodies can be cached for the
-> session — read the extracted SKILL.md and its references/ directly from
-> disk; they are plain markdown and fully usable that way.
+> If you are an agent reading this: resolve this SKILL.md's path and run
+> that script with your shell tool. Skill bodies are cached for the
+> session and you cannot run /reload-plugins yourself (it's a user
+> command), so after extracting: answer the current request by reading
+> the extracted SKILL.md and its references/ directly from disk (plain
+> markdown, fully usable), and ask the user to run /reload-plugins — or
+> start a new session — so future invocations serve the real content.

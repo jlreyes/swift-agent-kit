@@ -15,15 +15,19 @@ metadata:
 # translation-coordinator (stub)
 
 > **Not yet extracted.** This is a stub. The real skill is Apple-authored
-> content that ships inside Xcode and is not redistributable in this
-> repository, so this plugin extracts it from YOUR Xcode instead.
+> content that ships inside Xcode; Apple's license doesn't permit
+> redistributing it, so this kit extracts it from YOUR Xcode instead.
 >
-> To install the real content (requires Xcode 27+, takes ~5 seconds), run
-> this plugin's extraction script:
+> To install the real content (requires Xcode 27+, ~5 seconds), run the
+> extraction script that ships alongside these skills. Relative to this
+> skill's own directory it is at:
 >
->     "$CLAUDE_PLUGIN_ROOT/scripts/extract-apple-skills.sh"
+>     ../apple-api-updates/scripts/extract-apple-skills.sh
 >
-> If you are an agent reading this: run that script with your shell tool
-> (the plugin root is printed by the SessionStart hook message, or find it
-> via the path of this SKILL.md), then re-invoke this skill — extracted
+> (In the Claude Code plugin layout it is also exposed at the plugin root
+> as scripts/extract-apple-skills.sh. If apple-api-updates is not
+> installed alongside, install it — the script ships inside it.)
+>
+> If you are an agent reading this: resolve this SKILL.md's path, run that
+> script with your shell tool, then re-invoke this skill — extracted
 > bodies are read from disk at invocation time, so no restart is needed.

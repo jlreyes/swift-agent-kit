@@ -36,16 +36,37 @@ Xcode.
 
 ## Install
 
+### Any agent, via skills.sh (primary)
+
+```bash
+npx skills add jlreyes/swift-agent-kit
+```
+
+Then extract Apple's skills from your local Xcode (Xcode 27+, ~5s):
+
+```bash
+~/.claude/skills/apple-api-updates/scripts/extract-apple-skills.sh
+```
+
+(The script ships inside the `apple-api-updates` skill so it survives any
+installer; the stub skills also tell the agent exactly how to run it, so
+triggering one self-heals.)
+
+### Claude Code plugin (adds the reminder hook)
+
 ```
 /plugin marketplace add jlreyes/swift-agent-kit
 /plugin install swift-agent-kit@swift-agent-kit
 ```
 
-Then start a session: the hook prints the path of
-`scripts/extract-apple-skills.sh` (Xcode 27+, ~5s) — run it, or ask the
-agent to. Extracted skill bodies are picked up immediately; the notice
-disappears once extraction has run. Re-run after plugin or Xcode updates
-(the hook reminds you).
+Same content, plus a SessionStart hook that prints the extraction command
+until it has been run — hooks aren't part of the open skills standard, so
+only this route gets the automatic nudge. (The `marketplace.json` in this
+repo is just Claude Code's way of making a repo directly installable;
+there's no separate marketplace to maintain.)
+
+Either way: extracted skill bodies are picked up immediately, no restart;
+re-run the script after Xcode or plugin updates.
 
 Wire up Xcode's MCP server (one-time; Xcode must be running when a session
 starts for its tools to enumerate):

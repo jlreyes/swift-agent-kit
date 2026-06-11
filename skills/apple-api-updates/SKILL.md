@@ -79,5 +79,5 @@ Platform features:
 ## References missing?
 
 If `references/` is empty, the guides haven't been extracted from your
-local Xcode yet — run `scripts/extract-apple-skills.sh` at this plugin's
-root, then re-invoke this skill.
+local Xcode yet — run `scripts/extract-apple-skills.sh` inside THIS skill's
+directory, then re-invoke this skill.

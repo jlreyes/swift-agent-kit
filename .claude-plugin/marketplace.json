@@ -1,0 +1,12 @@
+{
+  "name": "swift-agent-kit",
+  "owner": { "name": "James Reyes" },
+  "description": "Swift coding standards, Apple docs lookup, Xcode MCP operation, and locally-extracted Apple Xcode-27 skills.",
+  "plugins": [
+    {
+      "name": "swift-agent-kit",
+      "source": "./",
+      "description": "Swift standards + Apple docs lookup + Xcode MCP operating guide + Apple's Xcode 27 skills (extracted locally on install)."
+    }
+  ]
+}

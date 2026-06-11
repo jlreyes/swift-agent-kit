@@ -1,0 +1,17 @@
+{
+  "description": "Nudges until Apple skill content has been extracted from the local Xcode",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/check-apple-content.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

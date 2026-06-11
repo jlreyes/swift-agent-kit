@@ -1,0 +1,5 @@
+.DS_Store
+# Written by scripts/extract-apple-skills.sh — never commit extracted state
+.apple-content-extracted
+# Extracted Apple content (the script fills this; only .gitkeep is tracked)
+skills/apple-api-updates/references/*.md

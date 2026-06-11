@@ -26,11 +26,13 @@ Xcode.
    between native tools, Xcode's 47 MCP tools, and the CLI, from ~190
    live probe calls: the `.xcodeproj` membership rule, measured timings,
    output-noise control, debugger/device/preview workflows, failure modes.
-4. **Ships Apple's knowledge without shipping Apple's content** — the ten
-   Xcode 27 agent skills (SwiftUI specialist, SDK-27 changes, test
-   modernization, device driving, …) install as stubs; one script extracts
-   the real content from your own Xcode, and a SessionStart hook nudges
-   until it has run.
+4. **Installs Apple's ten Xcode 27 agent skills** (SwiftUI specialist,
+   SDK-27 changes, test modernization, device driving, …). To be clear:
+   the extraction step exists because Apple's Xcode license doesn't permit
+   redistributing these files, not because it's a nice architecture. The
+   repo ships stubs; `scripts/extract-apple-skills.sh` pulls the real
+   content from your own Xcode; a SessionStart hook nudges until it has
+   run.
 
 ## Install
 

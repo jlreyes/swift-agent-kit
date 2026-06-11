@@ -1,9 +1,23 @@
 {
   "name": "swift-agent-kit",
-  "description": "Swift development kit for Claude Code: house Swift 6/SwiftUI standards, real Apple docs lookup (local SDK + DocC JSON), an empirically-built operating guide for Xcode 27's MCP server, and Apple's own Xcode 27 agent skills — extracted from YOUR Xcode by an install script (never redistributed), with a SessionStart hook that nudges until extraction has run.",
-  "author": { "name": "James Reyes" },
-  "license": "MIT (original content; extracted Apple content remains Apple's — see README)",
+  "description": "Swift development kit for Claude Code: house Swift 6/SwiftUI standards, real Apple docs lookup (local SDK + DocC JSON), an empirically-built operating guide for Xcode 27's MCP server, and Apple's own Xcode 27 agent skills \u2014 installed by extracting them from your local Xcode, since Apple's license doesn't permit redistributing them. A SessionStart hook nudges until extraction has run.",
+  "author": {
+    "name": "James Reyes"
+  },
+  "license": "MIT (original content; extracted Apple content remains Apple's \u2014 see README)",
   "homepage": "https://github.com/jlreyes/swift-agent-kit",
-  "keywords": ["swift", "swiftui", "swift6", "apple", "ios", "macos", "xcode", "mcp", "skills", "liquid-glass", "testing"],
+  "keywords": [
+    "swift",
+    "swiftui",
+    "swift6",
+    "apple",
+    "ios",
+    "macos",
+    "xcode",
+    "mcp",
+    "skills",
+    "liquid-glass",
+    "testing"
+  ],
   "hooks": "./hooks/hooks.json"
 }

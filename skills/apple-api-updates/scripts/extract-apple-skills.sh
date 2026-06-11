@@ -117,5 +117,6 @@ fi
 printf 'xcode_build=%s\nextracted_at=%s\n' "${XCODE_BUILD:-unknown}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
 echo
 echo "Done. Extracted from Xcode build ${XCODE_BUILD:-unknown}."
-echo "Active sessions pick up extracted skill bodies immediately;"
-echo "run /reload-plugins (or start a new session) to refresh skill listings."
+echo "In Claude Code: run /reload-plugins, then re-invoke the skill (bodies"
+echo "can be cached per session; a new session also works). Agents may also"
+echo "read the extracted SKILL.md files directly."

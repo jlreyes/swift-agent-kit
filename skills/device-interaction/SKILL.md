@@ -31,5 +31,8 @@ metadata:
 > installed alongside, install it — the script ships inside it.)
 >
 > If you are an agent reading this: resolve this SKILL.md's path, run that
-> script with your shell tool, then re-invoke this skill — extracted
-> bodies are read from disk at invocation time, so no restart is needed.
+> script with your shell tool, then run /reload-plugins (Claude Code) or
+> note that a fresh session picks it up, and re-invoke this skill. If
+> re-invocation still shows this stub — skill bodies can be cached for the
+> session — read the extracted SKILL.md and its references/ directly from
+> disk; they are plain markdown and fully usable that way.

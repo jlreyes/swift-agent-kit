@@ -1,6 +1,6 @@
 {
   "name": "swift-agent-kit",
-  "description": "Swift development kit for Claude Code: house Swift 6/SwiftUI standards, real Apple docs lookup (local SDK + DocC JSON), an empirically-built operating guide for Xcode 27's MCP server, and Apple's own Xcode 27 agent skills \u2014 installed by extracting them from your local Xcode, since Apple's license doesn't permit redistributing them. A SessionStart hook nudges until extraction has run.",
+  "description": "Swift development kit for agentic coding: avoids common Swift pitfalls (house Swift 6/SwiftUI standards), provides all Apple documentation (SDK grep, DocC, HIG, WWDC, Swift Evolution + DocumentationSearch routing), installs Apple's Xcode 27 skills by extracting them from your local Xcode (their license doesn't permit redistribution), drives Xcode as a build/run/debug worker over MCP, and embeds instruments-analyzer for programmatic Instruments-trace analysis.",
   "author": {
     "name": "James Reyes"
   },
@@ -17,7 +17,10 @@
     "mcp",
     "skills",
     "liquid-glass",
-    "testing"
+    "testing",
+    "instruments",
+    "performance",
+    "codex"
   ],
   "hooks": "./hooks/hooks.json"
 }

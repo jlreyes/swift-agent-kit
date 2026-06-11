@@ -26,16 +26,13 @@ That workflow has real gaps today. Each layer of this kit closes one:
 ```
 
 Then extract Apple's skills from your local Xcode (requires Xcode 27+,
-license accepted, ~5 seconds):
-
-```bash
-"$(claude plugin dir swift-agent-kit 2>/dev/null || echo ~/.claude/plugins/cache/swift-agent-kit/swift-agent-kit)"/scripts/extract-apple-skills.sh
-```
-
-Easier: just start a session — a SessionStart hook notices the missing
-content and prints the exact command (and any agent that triggers a stub
-skill is instructed to run it, then re-invoke; extracted bodies are picked
-up immediately, no restart). The notice disappears once extraction has run.
+license accepted, ~5 seconds): **just start a session** — a SessionStart
+hook notices the missing content and prints the exact
+`…/scripts/extract-apple-skills.sh` path to run (ask Claude to run it, or
+run it yourself). Any agent that triggers a stub skill is likewise
+instructed to run it and re-invoke; extracted bodies are picked up
+immediately, no restart needed. The notice disappears once extraction has
+run.
 
 Wire up the Xcode MCP server (one-time; Xcode must be running when a
 session starts for its tools to enumerate):

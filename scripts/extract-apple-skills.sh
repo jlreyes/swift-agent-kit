@@ -31,7 +31,7 @@ echo "Using Xcode at: $APP_CONTENTS (build ${XCODE_BUILD:-unknown})"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 echo "Exporting skills via mcpbridge…"
 DEVELOPER_DIR="$DEV" "$DEV/usr/bin/mcpbridge" run-agent skills export \
-  --output-dir "$TMP/export" --replace-existing &
+  --output-dir "$TMP/export" --replace-existing > "$TMP/export.log" 2>&1 &
 EXPORT_PID=$!
 for _ in $(seq 1 60); do kill -0 "$EXPORT_PID" 2>/dev/null || break; sleep 1; done
 if kill -0 "$EXPORT_PID" 2>/dev/null; then
@@ -39,7 +39,8 @@ if kill -0 "$EXPORT_PID" 2>/dev/null; then
   echo "error: export stalled. Launch the Xcode app once, then re-run this script." >&2
   exit 1
 fi
-wait "$EXPORT_PID" || { echo "error: skills export failed." >&2; exit 1; }
+wait "$EXPORT_PID" || { echo "error: skills export failed:" >&2; cat "$TMP/export.log" >&2; exit 1; }
+head -1 "$TMP/export.log"
 
 EXPORTED=(swiftui-specialist swiftui-whats-new-27 uikit-app-modernization \
           c-bounds-safety audit-xcode-security-settings test-modernizer device-interaction)

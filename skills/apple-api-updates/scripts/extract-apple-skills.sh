@@ -37,6 +37,21 @@ echo "Installing into: $SKILLS_DIR"
 
 # ── 2. Official export: the 7 globally available skills ─────────────────────
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+# Snapshot stub descriptions before replacement: each stub's description is a
+# hand-curated <=1024 compression of the skill's full trigger set — better for
+# standard-compliant agents than truncating Apple's oversized one.
+STUBDESC="$TMP/stubdesc"; mkdir -p "$STUBDESC"
+/usr/bin/python3 - "$SKILLS_DIR" "$STUBDESC" <<'SNAPEOF'
+import glob, os, re, sys
+root, out = sys.argv[1], sys.argv[2]
+for p in glob.glob(os.path.join(root, '*', 'SKILL.md')):
+    t = open(p).read()
+    if 'stub: "true"' not in t: continue
+    m = re.search(r'description: >-\n((?:  .*\n)+?)(?=\w)', t)
+    if not m: continue
+    desc = ' '.join(l.strip() for l in m.group(1).splitlines())
+    open(os.path.join(out, os.path.basename(os.path.dirname(p))), 'w').write(desc)
+SNAPEOF
 echo "Exporting skills via mcpbridge…"
 DEVELOPER_DIR="$DEV" "$DEV/usr/bin/mcpbridge" run-agent skills export \
   --output-dir "$TMP/export" --replace-existing > "$TMP/export.log" 2>&1 &
@@ -119,9 +134,9 @@ fi
 # rejects the whole skill. Apple's swiftui-whats-new-27 description is ~2.7k.
 # Cap it and stash the full text in `when_to_use` (Claude Code reads it;
 # standard-compliant agents ignore unknown fields).
-/usr/bin/python3 - "$SKILLS_DIR" <<'CAPEOF'
+/usr/bin/python3 - "$SKILLS_DIR" "$STUBDESC" <<'CAPEOF'
 import glob, os, re, sys
-root, CAP = sys.argv[1], 1024
+root, stubdir, CAP = sys.argv[1], sys.argv[2], 1024
 for p in glob.glob(os.path.join(root, '*', 'SKILL.md')):
     t = open(p).read()
     m = re.match(r'^---\n(.*?\n)---\n', t, re.S)
@@ -140,12 +155,19 @@ for p in glob.glob(os.path.join(root, '*', 'SKILL.md')):
             block = '  ' + desc + '\n'
     if desc is None or len(desc) <= CAP: continue
     os.chmod(p, os.stat(p).st_mode | 0o200)
-    cut = desc[:CAP-1].rsplit(' ', 1)[0].rstrip(' ;,.') + '…'
+    name = os.path.basename(os.path.dirname(p))
+    stub_file = os.path.join(stubdir, name)
+    if os.path.exists(stub_file):
+        cut, how = open(stub_file).read().strip(), 'stub description'
+        if len(cut) > CAP:
+            cut, how = cut[:CAP-1].rsplit(' ', 1)[0].rstrip(' ;,.') + '…', 'truncated'
+    else:
+        cut, how = desc[:CAP-1].rsplit(' ', 1)[0].rstrip(' ;,.') + '…', 'truncated'
     repl = 'description: "' + cut.replace('"', "'") + '"\n' \
          + 'when_to_use: >-\n' + block
     fm2 = fm[:span[0]] + repl + fm[span[1]:]
     open(p, 'w').write('---\n' + fm2 + '---\n' + t[m.end():])
-    print(f"  \u2713 capped description: {os.path.basename(os.path.dirname(p))} ({len(desc)} chars \u2192 \u22641024 + when_to_use)")
+    print(f"  \u2713 capped description: {name} ({len(desc)} chars \u2192 {how} + when_to_use)")
 CAPEOF
 
 # ── 6. Marker ────────────────────────────────────────────────────────────────

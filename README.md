@@ -63,6 +63,12 @@ Hooks aren't part of the open skills standard, so there's no automatic
 nudge on this route — but the stub skills carry the same instructions, so
 an agent that triggers one self-heals.
 
+Running Claude Code AND another agent on one machine? Install the plugin
+for Claude Code and skills.sh for the others — but note recent Claude Code
+versions may also surface `~/.agents/skills/` entries unnamespaced,
+duplicating the plugin's. If you see doubles, hide the unnamespaced ones
+via `skillOverrides` in `~/.claude/settings.json`, or pick one route.
+
 ### Codex and other harnesses
 
 The skills — including the stub + extraction flow — follow the Agent

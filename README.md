@@ -128,5 +128,9 @@ containing Apple-authored skill bodies will be closed.
 - Built against Xcode 27.0 beta (27A5194q); the operating guide and routing
   rules are empirical and will drift as betas rev — re-extract after Xcode
   updates.
+- Updating a skills.sh install: `npx skills add` does NOT refresh skill
+  directories that already exist — remove the kit's skill dirs from
+  `~/.agents/skills/` (or your agent's skills dir) first, then re-add and
+  re-run the extraction script.
 - Pull instruments-analyzer upstream:
   `git subtree pull --prefix=skills/instruments-analyzer https://github.com/jlreyes/instruments-analyzer.git main --squash`

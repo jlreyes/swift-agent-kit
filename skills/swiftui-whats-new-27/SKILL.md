@@ -16,7 +16,6 @@ description: >-
   actions outside List via swipeActionsContainer; when building document
   apps with ReadableDocument/WritableDocument; for @ContentBuilder
   result-builder source breaks; or when asked what's new in SwiftUI.
-  (Content extracted from your local Xcode on install.)
 metadata:
   stub: "true"
   content: Apple-authored; extracted locally from Xcode by scripts/extract-apple-skills.sh

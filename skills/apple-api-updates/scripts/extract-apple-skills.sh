@@ -113,6 +113,41 @@ else
   echo "  ! AdditionalDocumentation not found" >&2
 fi
 
+
+# ── 5.5 Standard compliance: cap descriptions at 1024 chars ─────────────────
+# The Agent Skills standard caps `description` at 1024; Codex enforces it and
+# rejects the whole skill. Apple's swiftui-whats-new-27 description is ~2.7k.
+# Cap it and stash the full text in `when_to_use` (Claude Code reads it;
+# standard-compliant agents ignore unknown fields).
+/usr/bin/python3 - "$SKILLS_DIR" <<'CAPEOF'
+import glob, os, re, sys
+root, CAP = sys.argv[1], 1024
+for p in glob.glob(os.path.join(root, '*', 'SKILL.md')):
+    t = open(p).read()
+    m = re.match(r'^---\n(.*?\n)---\n', t, re.S)
+    if not m: continue
+    fm = m.group(1)
+    desc, span, block = None, None, None
+    bm = re.search(r'(?m)^description:[ \t]*[|>][+-]?[ \t]*\n((?:[ \t]+.*\n)+)', fm)
+    if bm:
+        block = bm.group(1)
+        desc = ' '.join(l.strip() for l in block.splitlines())
+        span = bm.span()
+    else:
+        sm = re.search(r'(?m)^description:[ \t]*"?(.+?)"?[ \t]*$', fm)
+        if sm:
+            desc, span = sm.group(1), sm.span()
+            block = '  ' + desc + '\n'
+    if desc is None or len(desc) <= CAP: continue
+    os.chmod(p, os.stat(p).st_mode | 0o200)
+    cut = desc[:CAP-1].rsplit(' ', 1)[0].rstrip(' ;,.') + '…'
+    repl = 'description: "' + cut.replace('"', "'") + '"\n' \
+         + 'when_to_use: >-\n' + block
+    fm2 = fm[:span[0]] + repl + fm[span[1]:]
+    open(p, 'w').write('---\n' + fm2 + '---\n' + t[m.end():])
+    print(f"  \u2713 capped description: {os.path.basename(os.path.dirname(p))} ({len(desc)} chars \u2192 \u22641024 + when_to_use)")
+CAPEOF
+
 # ── 6. Marker ────────────────────────────────────────────────────────────────
 printf 'xcode_build=%s\nextracted_at=%s\n' "${XCODE_BUILD:-unknown}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
 echo

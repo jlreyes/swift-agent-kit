@@ -1,0 +1,101 @@
+/* Canonical token set for the mac-chrome layer. Every color, radius, blur,
+   and shadow in the chrome stylesheets resolves here. --brand carries product
+   identity; --accent drives controls and focus rings. */
+
+:root {
+  /* Identity */
+  --brand: #34c759;
+  --brand-strong: #2ca84f;
+  --brand-soft: rgba(52, 199, 89, 0.13);
+
+  /* Controls + focus */
+  --accent: #0a7aff;
+  --accent-strong: #0863d2;
+  --accent-soft: rgba(10, 122, 255, 0.14);
+
+  /* Ink scale */
+  --ink: #202124;
+  --muted: #76797e;
+  --faint: #9a9da2;
+  /* Foreground for toolbar/window chrome (softer than --ink) */
+  --chrome-ink: #3e4146;
+
+  /* Hairlines */
+  --line: rgba(0, 0, 0, 0.1);
+  --line-soft: rgba(0, 0, 0, 0.065);
+
+  /* Glass surfaces */
+  --glass: rgba(247, 248, 250, 0.76);
+  --glass-strong: rgba(252, 252, 253, 0.9);
+  --sidebar-glass: rgba(232, 235, 239, 0.78);
+  --menu-bar-glass: rgba(9, 13, 19, 0.38);
+  --toolbar-glass: rgba(247, 248, 250, 0.68);
+  --capsule-glass: rgba(255, 255, 255, 0.42);
+  --capsule-glass-hover: rgba(255, 255, 255, 0.62);
+  --capsule-glass-selected: rgba(255, 255, 255, 0.84);
+  --capsule-border: rgba(0, 0, 0, 0.11);
+  --dock-glass: rgba(224, 229, 238, 0.66);
+  --popover-surface: rgba(248, 248, 249, 0.97);
+  --popover-border: rgba(0, 0, 0, 0.12);
+
+  /* Window chrome */
+  --window-border: rgba(0, 0, 0, 0.15);
+  --window-edge: rgba(255, 255, 255, 0.72);
+  --traffic-close: #ff5f57;
+  --traffic-minimize: #febc2e;
+  --traffic-zoom: #28c840;
+  --traffic-disabled: #c9ccd1;
+
+  /* Backdrop behind the desktop canvas */
+  --desktop-backdrop: #101720;
+
+  /* Radii */
+  --radius-window: 12px;
+  --radius-control: 7px;
+  --radius-capsule: 999px;
+  --radius-popover: 11px;
+  /* Aliases kept for extracted CSS written against the older names */
+  --window-radius: var(--radius-window);
+  --control-radius: var(--radius-control);
+
+  /* Blur scale */
+  --blur-chrome: 24px;
+  --blur-capsule: 14px;
+  --blur-dock: 28px;
+  --blur-toolbar: 20px;
+  --blur-window: 34px;
+  --blur-popover: 28px;
+
+  /* Shadows */
+  --shadow-window:
+    0 34px 80px rgba(10, 15, 24, 0.28),
+    0 4px 18px rgba(10, 15, 24, 0.17);
+  --shadow-popover: 0 18px 48px rgba(0, 0, 0, 0.24);
+
+  /* Windows-layer surfaces (Finder / Chooser / Setup Assistant / Chat) */
+  --text-strong: #1d1d1f;
+  --text: #303338;
+  --text-soft: #65696e;
+  --text-faint: #8a8e93;
+  --on-accent: #ffffff;
+  --accent-tint: rgba(10, 122, 255, 0.16);
+  --selection-tint: rgba(57, 125, 196, 0.15);
+  --selection-strong: #397dc4;
+  --focus-ring: rgba(10, 122, 255, 0.55);
+  --window-surface: rgba(249, 249, 250, 0.985);
+  --content-surface: rgba(251, 252, 253, 0.88);
+  --toolbar-surface: rgba(247, 248, 249, 0.78);
+  --footer-surface: rgba(246, 246, 247, 0.94);
+  --scrim: rgba(32, 37, 43, 0.18);
+  --bubble-owner: rgba(10, 122, 255, 0.14);
+  --bubble-agent: rgba(0, 0, 0, 0.05);
+  --system-tint: rgba(120, 122, 128, 0.14);
+  --radius-card: 9px;
+  --radius-sheet: 12px;
+  --blur-glass: 28px;
+  --blur-soft: 14px;
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+  --font-mac: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  color-scheme: light;
+}

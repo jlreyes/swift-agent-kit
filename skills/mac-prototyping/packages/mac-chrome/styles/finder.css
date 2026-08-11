@@ -1,0 +1,549 @@
+/* FinderWindow. Toolbar capsule/button internals are the toolbar layer's;
+   only layout overrides for them live here. */
+
+.mc-finder-window {
+  position: relative;
+  overflow: hidden;
+  border: 0.5px solid var(--glass-strong);
+  border-radius: var(--radius-window);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-window);
+  backdrop-filter: blur(var(--blur-glass)) saturate(135%);
+}
+
+/* The react-resizable-panels Group (sidebar | content | preview). Panels are
+   flex containers (inline style); each pane surface stretches to fill. */
+.mc-finder-split {
+  width: 100%;
+  height: 100%;
+}
+
+/* Sidebar */
+
+.mc-finder-sidebar {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 0.5px solid var(--line);
+  background: var(--sidebar-glass);
+  backdrop-filter: blur(var(--blur-glass)) saturate(130%);
+}
+
+.mc-finder-sidebar-top {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 13px 0 15px;
+  flex: 0 0 auto;
+}
+
+/* Flat on the sidebar material: no background, no border. Insets match the
+   sidebar items' text inset (nav 9px + item 8px). */
+.mc-finder-sidebar-header {
+  flex: 0 0 auto;
+  padding: 0 17px 8px;
+}
+
+/* Source list (SwiftUI List(.sidebar) inside NavigationSplitView), rendered by
+   a react-aria Tree (role=treegrid; rows are flattened siblings): quiet
+   section headers with hover-revealed trailing chevrons, 28px symbol+label
+   rows with a 6px tinted selection, and spacing — never dividers — between
+   sections. */
+
+.mc-finder-sidebar nav {
+  min-height: 0;
+  flex: 1;
+  padding: 0 9px 10px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The tree is the flex column the rows live in (rows are its direct children,
+   so a product's bottom-anchored section can use margin-top: auto). */
+.mc-sidebar-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  outline: none;
+}
+
+/* Section lead rows (a titled section's header, or an untitled section's
+   first item) separate sections by spacing. */
+.mc-sidebar-section:not(:first-child) {
+  margin-top: 14px;
+}
+
+.mc-sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-control);
+}
+
+.mc-sidebar-section-header.mc-selected {
+  color: var(--text-strong);
+  background: var(--glass);
+  box-shadow: inset 0 0 0 0.5px var(--line-soft);
+}
+
+.mc-sidebar-section-header[data-focus-visible],
+.mc-sidebar-item[data-focus-visible] {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--focus-ring);
+}
+
+.mc-sidebar-section-label {
+  min-width: 0;
+  height: 20px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.mc-sidebar-section-label > small {
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 550;
+}
+
+/* Trailing disclosure: hidden until the header is hovered or keyboard-focused
+   (macOS Finder/Notes behavior) — never a permanent web-tree affordance. */
+.mc-sidebar-disclosure-button {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.mc-sidebar-section-header:hover .mc-sidebar-disclosure-button,
+.mc-sidebar-section-header[data-focus-visible] .mc-sidebar-disclosure-button,
+.mc-sidebar-disclosure-button:focus-visible {
+  opacity: 1;
+}
+
+.mc-sidebar-disclosure-button:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.mc-sidebar-disclosure {
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+  transition: transform 110ms ease;
+}
+
+.mc-sidebar-disclosure svg {
+  width: 9px;
+  height: 9px;
+}
+
+.mc-sidebar-disclosure.mc-open {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-sidebar-disclosure-button,
+  .mc-sidebar-disclosure {
+    transition: none;
+  }
+
+  .mc-sidebar-item[data-level="2"] {
+    animation: none;
+  }
+}
+
+/* Collapsible-section rows mount on expand; the reveal rides that mount. */
+.mc-sidebar-item[data-level="2"] {
+  transform-origin: top;
+  animation: mc-sidebar-section-reveal 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mc-sidebar-section-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scaleY(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+/* Rows: 28px, SF-style symbol in the accent color + 13px label, 6px-radius
+   tinted selection. */
+.mc-sidebar-item {
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+}
+
+.mc-sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.mc-sidebar-item.mc-selected {
+  color: var(--text-strong);
+  background: var(--accent-tint);
+}
+
+.mc-sidebar-item.mc-indent {
+  padding-left: 28px;
+}
+
+.mc-sidebar-item-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.mc-sidebar-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mc-sidebar-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-sidebar-item-badge {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Main column */
+
+.mc-finder-main {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--content-surface);
+}
+
+/* The toolbar itself is the toolbar layer's (mc-toolbar): translucent glass
+   bar, left-aligned 13px title, capsule controls. Only flex sizing within the
+   window column lives here. */
+.mc-finder-toolbar {
+  flex: 0 0 auto;
+}
+
+/* Content grid */
+
+.mc-finder-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.mc-finder-content.mc-icons {
+  display: grid;
+  align-content: start;
+  grid-template-columns: repeat(4, minmax(70px, 1fr));
+  grid-auto-rows: max-content;
+  gap: 18px 7px;
+  padding: 22px 13px;
+}
+
+.mc-finder-content.mc-icons .mc-finder-entry {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+}
+
+.mc-finder-content.mc-icons .mc-finder-entry-icon {
+  width: 55px;
+  height: 55px;
+  display: grid;
+  place-items: center;
+}
+
+.mc-finder-content.mc-icons .mc-finder-name {
+  max-width: 100%;
+  padding: 1px 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 9.5px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.mc-finder-content.mc-icons .mc-finder-entry.mc-selected .mc-finder-name {
+  color: var(--on-accent);
+  background: var(--selection-strong);
+}
+
+.mc-finder-content.mc-icons .mc-finder-modified,
+.mc-finder-content.mc-icons .mc-finder-size {
+  display: none;
+}
+
+.mc-finder-list-head {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 108px 56px;
+  gap: 7px;
+  flex: 0 0 auto;
+  margin: 8px 10px 0;
+  padding: 4px 7px 6px;
+  border-bottom: 0.5px solid var(--line-soft);
+  color: var(--text-faint);
+  font-size: 8.5px;
+}
+
+.mc-finder-content.mc-list {
+  padding: 4px 10px 8px;
+}
+
+.mc-finder-content.mc-list .mc-finder-entry {
+  width: 100%;
+  height: 30px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 108px 56px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 9.5px;
+  text-align: left;
+}
+
+.mc-finder-content.mc-list .mc-finder-entry:nth-child(even) {
+  background: rgba(0, 0, 0, 0.018);
+}
+
+.mc-finder-content.mc-list .mc-finder-entry.mc-selected {
+  color: var(--text-strong);
+  background: var(--selection-tint);
+}
+
+.mc-finder-content.mc-list .mc-finder-entry-icon {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+}
+
+.mc-finder-content.mc-list .mc-finder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-finder-modified,
+.mc-finder-size {
+  color: var(--text-faint);
+  font-size: 8.5px;
+}
+
+.mc-finder-badge {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: var(--radius-capsule);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+/* Drop affordance: painted, never hit-tested. */
+.mc-finder-content.mc-drop-active::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: var(--accent-tint);
+  pointer-events: none;
+}
+
+.mc-finder-status {
+  height: 23px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border-top: 0.5px solid var(--line-soft);
+  color: var(--text-faint);
+  background: var(--toolbar-surface);
+  font-size: 8.5px;
+}
+
+/* Preview column */
+
+.mc-finder-preview {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--content-surface);
+}
+
+/* The react-resizable-panels Separator (ARIA window splitter: focusable,
+   arrow/Home/End resize, Enter collapses). Zero-width flex item — the library
+   hit-tests pointer proximity, so the visual is just the hairline. */
+.mc-preview-resize-handle {
+  position: relative;
+  z-index: 4;
+  width: 0;
+  border: 0;
+  outline: 0;
+  cursor: col-resize;
+}
+
+.mc-preview-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -0.5px;
+  width: 1px;
+  background: var(--line);
+  transition: background 100ms ease, width 100ms ease;
+}
+
+.mc-preview-resize-handle:hover::after,
+.mc-preview-resize-handle:focus-visible::after,
+.mc-preview-resize-handle[data-separator="active"]::after {
+  width: 2px;
+  background: var(--focus-ring);
+}
+
+.mc-finder-preview-body {
+  min-height: 0;
+  height: 100%;
+  padding: 18px 14px;
+  overflow: auto;
+}
+
+/* Quick Look */
+
+.mc-quicklook-scrim {
+  position: absolute;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--scrim);
+}
+
+.mc-quicklook-panel {
+  width: 340px;
+  min-height: 310px;
+  overflow: hidden;
+  border: 0.5px solid var(--glass-strong);
+  border-radius: var(--radius-sheet);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-popover);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+.mc-quicklook-panel > header {
+  height: 38px;
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  padding: 0 7px;
+  border-bottom: 0.5px solid var(--line);
+  font-size: 11px;
+  text-align: center;
+}
+
+.mc-quicklook-panel > header button {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-soft);
+}
+
+.mc-quicklook-panel > header button svg {
+  width: 10px;
+  height: 10px;
+}
+
+.mc-quicklook-panel > div {
+  padding: 36px 30px;
+  text-align: center;
+}
+
+.mc-quicklook-icon {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 76px;
+  margin: 0 auto 15px;
+}
+
+.mc-quicklook-panel h2 {
+  margin: 0 0 7px;
+  font-size: 15px;
+}
+
+.mc-quicklook-panel small {
+  color: var(--text-faint);
+  font-size: 10px;
+}

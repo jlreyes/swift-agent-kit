@@ -1,0 +1,350 @@
+/* Popover surfaces: ARIA menus, details-menus, and the menu-bar-extra shell. */
+
+.mc-menu {
+  position: relative;
+}
+
+/* The menu surface (react-aria positions and portals the popover around it;
+   this class carries the look). Items are .mc-menu-item rows — react-aria
+   renders them as role=menuitem/-radio divs, or <a> when they carry href. */
+.mc-menu-popover {
+  display: grid;
+  width: 350px;
+  max-height: 392px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-popover);
+  background: var(--popover-surface);
+  box-shadow: var(--shadow-popover);
+  backdrop-filter: blur(var(--blur-popover));
+  outline: none;
+}
+
+/* Selection wrappers (radio groups, labeled sections) are layout-transparent
+   so every row sits directly on the popover grid. */
+.mc-menu-popover .mc-menu-group {
+  display: contents;
+}
+
+.mc-menu-popover .mc-menu-item {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  text-decoration: none;
+  cursor: default;
+}
+
+.mc-menu-popover .mc-menu-item > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.mc-menu-popover .mc-menu-item > svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mc-menu-popover .mc-menu-item > svg:last-child {
+  grid-column: 3;
+  width: 13px;
+  height: 13px;
+}
+
+/* react-aria menus move focus with the pointer; [data-focused] covers both
+   hover and keyboard highlight. */
+.mc-menu-popover .mc-menu-item[data-focused],
+.mc-menu-popover .mc-menu-item[data-hovered] {
+  outline: none;
+  background: var(--accent);
+  color: white;
+}
+
+.mc-menu-popover strong {
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.mc-menu-popover small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.mc-menu-popover .mc-menu-item[data-focused] small,
+.mc-menu-popover .mc-menu-item[data-hovered] small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.menu-section-label {
+  padding: 9px 10px 3px;
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 660;
+  letter-spacing: 0.055em;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.mc-details-menu {
+  position: relative;
+}
+
+.mc-details-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 29px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.8), 0 1px 3px rgba(0, 0, 0, 0.06);
+  color: var(--chrome-ink);
+  list-style: none;
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.mc-details-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.mc-details-menu > div {
+  position: absolute;
+  z-index: 40;
+  top: 35px;
+  right: 0;
+  display: grid;
+  gap: 2px;
+  width: 264px;
+  padding: 10px;
+  border: 1px solid var(--popover-border);
+  border-radius: var(--radius-popover);
+  background: var(--popover-surface);
+  box-shadow: var(--shadow-popover);
+  backdrop-filter: blur(var(--blur-popover));
+}
+
+.mc-details-menu > div b {
+  padding: 3px 4px 0;
+  font-size: 13px;
+}
+
+.mc-details-menu > div small {
+  padding: 0 4px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.mc-details-menu > div button {
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+}
+
+.mc-details-menu > div button:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* Menu bar extra: overlay layer, glyph trigger in the menu bar, popover shell.
+   The absolute layer/right-offset below is the STANDALONE fallback; extras
+   passed through DesktopShell's menuBarExtras slot render in flow instead
+   (see .mc-menubar-extras overrides further down). */
+
+.mc-menubar-layer {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mc-menubar-layer > * {
+  pointer-events: auto;
+}
+
+.mc-menubar-trigger {
+  position: absolute;
+  top: 0;
+  right: var(--mc-menubar-extra-right, 177px);
+  height: 24px;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.96);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.mc-menubar-trigger.active,
+.mc-menubar-trigger:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.mc-menubar-trigger img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: invert(1);
+}
+
+.mc-menubar-trigger svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mc-menubar-badge {
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  min-width: 13px;
+  height: 13px;
+  display: grid;
+  place-items: center;
+  padding: 0 3px;
+  border: 1.5px solid rgba(34, 43, 69, 0.9);
+  border-radius: var(--radius-capsule);
+  color: white;
+  background: #d64f52;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+  font-size: 7px;
+  line-height: 1;
+  text-shadow: none;
+}
+
+/* Menu-bar popover surface (activity/menu extras hang off the menu bar). */
+.menu-popover {
+  position: absolute;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 0.5px solid var(--window-edge);
+  border-radius: var(--radius-popover);
+  background: var(--popover-surface);
+  box-shadow: var(--shadow-popover);
+  backdrop-filter: blur(var(--blur-popover)) saturate(145%);
+}
+
+.mc-menubar-popover {
+  top: 30px;
+  right: 8px;
+  width: 382px;
+}
+
+.menu-popover > header {
+  height: 53px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.menu-popover > header img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.menu-popover > header svg {
+  width: 26px;
+  height: 26px;
+}
+
+.menu-popover > header span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.menu-popover > header strong { font-size: 11.5px; }
+.menu-popover > header small { color: var(--muted); font-size: 9px; }
+
+.menu-popover > header button {
+  width: 27px;
+  height: 27px;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+}
+
+.menu-popover > footer {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9px 0 12px;
+  border-top: 0.5px solid var(--line);
+  background: rgba(239, 241, 244, 0.7);
+}
+
+.menu-popover > footer button {
+  height: 25px;
+  padding: 0 7px;
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  background: transparent;
+  font-size: 8.5px;
+}
+
+.menu-popover > footer button:hover {
+  background: rgba(255, 255, 255, 0.64);
+}
+
+/* In-flow menu-bar extras (DesktopShell menuBarExtras slot): the extra sits in
+   the status-item row instead of absolutely overlaying it, so it can never
+   collide with the clock/date whatever their text. The popover still hangs
+   below the bar, anchored near the trigger. */
+
+.mc-menubar-extras {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mc-menubar-extras .mc-menubar-layer {
+  position: relative;
+  z-index: 100;
+  inset: auto;
+  pointer-events: auto;
+}
+
+.mc-menubar-extras .mc-menubar-trigger {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+
+.mc-menubar-extras .mc-menubar-popover {
+  top: 30px;
+  right: -8px;
+}

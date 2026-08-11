@@ -1,0 +1,85 @@
+"use client";
+
+import type { CSSProperties, ReactNode } from "react";
+
+import { MacMenu, type MenuSpec } from "./menu";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/popover.css";
+
+const defaultMenuItems = ["File", "Edit", "View", "Window", "Help"] as const;
+
+/* Accepts a full CSS <image> value or a bare URL for the wallpaper prop. */
+const cssImagePattern = /^(url\(|linear-gradient\(|radial-gradient\(|conic-gradient\(|image-set\(|var\()/;
+
+type DesktopCanvasStyle = CSSProperties & { readonly "--mc-wallpaper"?: string };
+
+/** A menu-bar title backed by a real dropdown (MacMenu machinery). */
+export type MenuBarMenu = {
+  readonly title: string;
+  readonly items: MenuSpec;
+};
+
+export interface DesktopShellProps {
+  readonly appName: string;
+  /** Plain strings render as inert titles; `{ title, items }` entries open a real dropdown. */
+  readonly menuItems?: readonly (string | MenuBarMenu)[];
+  readonly date?: string;
+  readonly clock?: string;
+  /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
+  readonly menuBarExtras?: ReactNode;
+  /** CSS image value (url(...), gradient, var(...)) or a bare image URL. */
+  readonly wallpaper?: string;
+  readonly children: ReactNode;
+}
+
+export function DesktopShell({
+  appName,
+  menuItems = defaultMenuItems,
+  date = "Wed Aug 6",
+  clock = "9:47 AM",
+  menuBarExtras,
+  wallpaper,
+  children,
+}: DesktopShellProps) {
+  const canvasStyle: DesktopCanvasStyle | undefined = wallpaper
+    ? { "--mc-wallpaper": cssImagePattern.test(wallpaper) ? wallpaper : `url("${wallpaper}")` }
+    : undefined;
+  return (
+    <main className="showcase-viewport">
+      <div className="desktop-canvas" style={canvasStyle}>
+        <header className="mac-menu-bar">
+          <div className="menu-left">
+            <span className="apple-mark" aria-hidden="true"></span>
+            <strong>{appName}</strong>
+            {menuItems.map((item) =>
+              typeof item === "string" ? (
+                <span key={item}>{item}</span>
+              ) : (
+                <MacMenu
+                  key={item.title}
+                  className="mc-menubar-menu"
+                  triggerClassName="mc-menubar-menu-title"
+                  label={`${item.title} menu`}
+                  trigger={item.title}
+                  items={item.items}
+                  // Menu-bar menus lead-align under the title (macOS anatomy);
+                  // the class swaps the popover to the compact NSMenu skin.
+                  popover={{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 5 }}
+                />
+              ),
+            )}
+          </div>
+          <div className="menu-right" aria-label="Mac status items">
+            {menuBarExtras !== undefined ? <span className="mc-menubar-extras">{menuBarExtras}</span> : null}
+            <span className="status-battery" aria-label="Battery"><i /></span>
+            <span className="status-wifi" aria-label="Wi-Fi"><i /><i /><i /></span>
+            <span>{date}</span>
+            <span>{clock}</span>
+          </div>
+        </header>
+        {children}
+      </div>
+    </main>
+  );
+}

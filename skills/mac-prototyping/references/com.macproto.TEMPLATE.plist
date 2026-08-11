@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- launchd template for serving a prototype durably. Every ALL-CAPS
+     placeholder below (label suffix, working directory, dev-server port,
+     pnpm binary and its parent) is substituted by the serve recipe in
+     references/workflows.md; do not load this file unfilled. -->
+<dict>
+  <key>Label</key>
+  <string>com.macproto.NAME</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>PNPM</string>
+    <string>dev</string>
+    <string>--port</string>
+    <string>PORT</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>DIR</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>PNPM_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/com.macproto.NAME.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.macproto.NAME.err.log</string>
+</dict>
+</plist>

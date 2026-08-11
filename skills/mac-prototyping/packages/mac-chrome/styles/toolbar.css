@@ -1,0 +1,163 @@
+/* Liquid-glass Finder toolbar: capsule controls over a translucent bar. */
+
+.mc-toolbar {
+  position: relative;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px;
+  border-bottom: 0.5px solid var(--line);
+  background: var(--toolbar-glass);
+  backdrop-filter: blur(var(--blur-toolbar)) saturate(125%);
+  -webkit-backdrop-filter: blur(var(--blur-toolbar)) saturate(125%);
+}
+
+.mc-toolbar-title {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  color: var(--chrome-ink);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.1;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  /* Trailing cluster stays right-aligned even without a flexible title. */
+  margin-left: auto;
+}
+
+.mc-capsule,
+.mc-search-bubble {
+  min-height: 30px;
+  border: 0.5px solid var(--capsule-border);
+  border-radius: var(--radius-capsule);
+  background: var(--capsule-glass);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+  backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
+  -webkit-backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
+}
+
+.mc-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 1px 2px;
+}
+
+.mc-toolbar-button {
+  min-width: 28px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  color: var(--chrome-ink);
+  background: transparent;
+}
+
+/* Standalone toolbar buttons (outside a capsule) carry their own pill. */
+.mc-toolbar-actions > .mc-toolbar-button,
+.mc-toolbar > .mc-toolbar-button {
+  min-height: 30px;
+  flex: 0 0 30px;
+  border: 0.5px solid var(--capsule-border);
+  background: var(--capsule-glass);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+  backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
+  -webkit-backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
+}
+
+.mc-capsule[data-divided] > .mc-toolbar-button + .mc-toolbar-button {
+  border-left: 0.5px solid var(--line);
+  border-radius: 0 var(--radius-capsule) var(--radius-capsule) 0;
+}
+
+.mc-toolbar-button:disabled {
+  opacity: 0.3;
+}
+
+.mc-toolbar-button:not(:disabled):hover,
+.mc-search-bubble > button:hover {
+  background: var(--capsule-glass-hover);
+}
+
+.mc-toolbar-button.selected {
+  background: var(--capsule-glass-selected);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.mc-toolbar-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mc-search-bubble {
+  width: 30px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  transition: width 150ms ease, background 150ms ease;
+}
+
+.mc-search-bubble.open {
+  width: 112px;
+  padding-right: 8px;
+  background: var(--capsule-glass-hover);
+}
+
+.mc-search-bubble > button {
+  flex: 0 0 29px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-capsule);
+  color: var(--chrome-ink);
+  background: transparent;
+}
+
+.mc-search-bubble input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--chrome-ink);
+  background: transparent;
+  font: inherit;
+  font-size: 9.5px;
+}
+
+.mc-toolbar-glyph {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.mc-toolbar-glyph.fill-dots circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-search-bubble {
+    transition: none;
+  }
+}

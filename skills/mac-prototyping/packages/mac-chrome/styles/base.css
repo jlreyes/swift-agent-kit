@@ -1,0 +1,356 @@
+/* Reset, desktop canvas, menu bar, window shell, and system-symbol strokes. */
+
+* {
+  box-sizing: border-box;
+}
+
+.visually-hidden,
+.mc-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+html,
+body {
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: auto;
+  color: var(--ink);
+  background: var(--desktop-backdrop);
+  font-family: var(--font-mac);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  border: 0;
+}
+
+button:not(:disabled),
+a {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+img {
+  display: block;
+}
+
+/* The fixed 1200px prototype desktop; scrolls when the real viewport is smaller. */
+.showcase-viewport {
+  width: 100vw;
+  height: 100dvh;
+  min-width: 1200px;
+  min-height: 750px;
+  overflow: auto;
+}
+
+.desktop-canvas {
+  position: relative;
+  width: 1200px;
+  height: max(750px, 100dvh);
+  margin: 0 auto;
+  overflow: hidden;
+  /* Default wallpaper: the original abstract SVG shipped beside this sheet.
+     Consumers override per-shell via the DesktopShell `wallpaper` prop
+     (sets --mc-wallpaper). */
+  --mc-wallpaper-default: url("./wallpaper.svg");
+  background:
+    linear-gradient(180deg, rgba(7, 14, 24, 0.04), rgba(7, 14, 24, 0.12)),
+    var(--mc-wallpaper, var(--mc-wallpaper-default));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.mac-menu-bar {
+  position: absolute;
+  z-index: 80;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  color: rgba(255, 255, 255, 0.95);
+  background: var(--menu-bar-glass);
+  box-shadow: inset 0 -0.5px rgba(255, 255, 255, 0.16);
+  font-size: 11.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(var(--blur-chrome)) saturate(145%);
+}
+
+.menu-left,
+.menu-right {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  white-space: nowrap;
+}
+
+.menu-left strong {
+  font-weight: 650;
+}
+
+.apple-mark {
+  width: 13px;
+  color: white;
+  font-size: 14px;
+  text-align: center;
+}
+
+.menu-right {
+  gap: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Menu-bar dropdown menus (DesktopShell menuItems with { title, items }).
+   The trigger reads exactly like an inert title; the open state highlights it
+   with the macOS pill; the popover is the compact NSMenu look built on the
+   popover.css idiom. */
+
+.menu-left .mc-menubar-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mc-menu-trigger.mc-menubar-menu-title {
+  margin: -3px -9px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-shadow: inherit;
+  white-space: nowrap;
+}
+
+.mc-menu-trigger.mc-menubar-menu-title:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.mc-menu-trigger.mc-menubar-menu-title[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* The popover is portalled by react-aria (placement/offset set where
+   DesktopShell composes MacMenu), so the compact skin keys off its own class
+   rather than the wrapper. */
+.mc-menu-popover.mc-menubar-menu-popover {
+  width: max-content;
+  min-width: 196px;
+  max-width: 300px;
+  padding: 4px;
+  text-shadow: none;
+}
+
+.mc-menu-popover.mc-menubar-menu-popover .mc-menu-item {
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 6px;
+  min-height: 25px;
+  padding: 3px 9px 3px 6px;
+}
+
+.mc-menu-popover.mc-menubar-menu-popover strong {
+  font-size: 12px;
+  font-weight: 470;
+  white-space: nowrap;
+}
+
+.status-glyph {
+  font-size: 13px;
+}
+
+.status-battery {
+  position: relative;
+  width: 18px;
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+}
+
+.status-battery::after {
+  position: absolute;
+  top: 2px;
+  right: -3px;
+  width: 2px;
+  height: 4px;
+  border-radius: 0 1px 1px 0;
+  background: rgba(255, 255, 255, 0.9);
+  content: "";
+}
+
+.status-battery i {
+  position: absolute;
+  inset: 1px;
+  width: 70%;
+  border-radius: 1px;
+  background: white;
+}
+
+.status-wifi {
+  position: relative;
+  width: 15px;
+  height: 11px;
+}
+
+.status-wifi i {
+  position: absolute;
+  left: 50%;
+  border: 1.3px solid white;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-radius: 50%;
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.status-wifi i:nth-child(1) { top: -3px; width: 14px; height: 14px; }
+.status-wifi i:nth-child(2) { top: 1px; width: 9px; height: 9px; }
+.status-wifi i:nth-child(3) { top: 5px; width: 4px; height: 4px; background: white; }
+
+.mac-window {
+  position: absolute;
+  overflow: hidden;
+  border: 0.5px solid var(--window-edge);
+  border-radius: var(--radius-window);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-window), inset 0 0.5px rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(var(--blur-window)) saturate(140%);
+}
+
+/* Minimize: quick scale/opacity out (transform + opacity set inline by
+   WindowChrome so it composes with the drag translate). */
+.mac-window.mc-minimizing {
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mac-window.mc-minimizing {
+    transition: none;
+  }
+}
+
+.traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.traffic-lights span,
+.traffic-lights button {
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0.5px solid var(--window-border);
+  border-radius: 50%;
+}
+
+.traffic-lights button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.traffic-close { color: rgba(77, 6, 10, 0.62); background: var(--traffic-close); }
+.traffic-minimize { color: rgba(122, 76, 0, 0.68); background: var(--traffic-minimize); }
+.traffic-zoom { color: rgba(0, 79, 13, 0.62); background: var(--traffic-zoom); }
+
+/* macOS reveal behavior: hovering anywhere over the cluster (or keyboard focus
+   within it) shows the x / - / + glyphs on all three at once. */
+.traffic-lights svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transition: opacity 90ms ease;
+}
+
+.traffic-lights svg .mc-traffic-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.traffic-lights:hover svg,
+.traffic-lights:focus-within svg {
+  opacity: 1;
+}
+
+/* Disabled cluster: solid gray, no glyphs, no actions. */
+.traffic-lights.mc-disabled span {
+  border-color: rgba(0, 0, 0, 0.07);
+  background: var(--traffic-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .traffic-lights svg {
+    transition: none;
+  }
+}
+
+/* System symbols: stroke style inherits from context; --system-symbol-knockout
+   lets a colored surface punch through fills with its own color. */
+svg[data-system-symbol] {
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+svg[data-system-symbol] :is(path, rect, circle) {
+  fill: none;
+  stroke: currentColor;
+}
+
+svg[data-system-symbol] .symbol-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+svg[data-system-symbol] .symbol-knockout {
+  fill: none;
+  stroke: var(--system-symbol-knockout, white);
+}
+
+@media (max-height: 749px) {
+  .showcase-viewport {
+    min-height: 0;
+  }
+
+  .desktop-canvas {
+    height: 100vh;
+  }
+}

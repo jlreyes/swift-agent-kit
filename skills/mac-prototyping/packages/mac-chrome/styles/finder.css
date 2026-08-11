@@ -40,6 +40,13 @@
   flex: 0 0 auto;
 }
 
+/* Flat on the sidebar material: no background, no border. Insets match the
+   sidebar items' text inset (nav 9px + item 8px). */
+.mc-finder-sidebar-header {
+  flex: 0 0 auto;
+  padding: 0 17px 8px;
+}
+
 .mc-finder-sidebar nav {
   min-height: 0;
   flex: 1;

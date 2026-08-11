@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BrandIcon } from "../../components/BrandIcon.tsx";
 import { SFSymbol } from "../../components/SFSymbol.tsx";
 import { DesktopShell, MacDock, MacToolbar, TrafficLights, WindowChrome } from "../../lib/mac-chrome/index.ts";
+import { FinderDemo } from "./finder-demo.tsx";
 
 export const metadata: Metadata = { title: "Example · Mac Prototype" };
 
@@ -25,6 +26,7 @@ export default function ExamplePage() {
           </p>
         </section>
       </WindowChrome>
+      <FinderDemo />
       <MacDock
         label="Mac Dock"
         items={[

@@ -135,6 +135,115 @@ export function MacDock({ items, label = "Dock" }: {
   );
 }
 
+export type FinderViewMode = "icons" | "list";
+
+export type FinderEntry = {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly icon: ReactNode;
+  readonly modified?: string;
+  readonly size?: string;
+  readonly badge?: string;
+  readonly draggable?: boolean;
+};
+
+export type SidebarItem = {
+  readonly id: string;
+  readonly icon?: ReactNode;
+  readonly label: string;
+  readonly badge?: ReactNode;
+  readonly indent?: boolean;
+  readonly selected?: boolean;
+  readonly onSelect: () => void;
+};
+
+export type SidebarSection = {
+  readonly id: string;
+  readonly title?: string;
+  readonly collapsible?: boolean;
+  readonly count?: number;
+  readonly selected?: boolean;
+  readonly onTitleSelect?: () => void;
+  readonly action?: ReactNode;
+  readonly items: readonly SidebarItem[];
+};
+
+export type FinderSelection = {
+  readonly selectedId: string | null;
+  readonly onSelect: (id: string | null) => void;
+};
+
+export type FinderSearch = {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+};
+
+// Static Finder shell mirroring the real package's rendered structure (window
+// label, sidebar header/sections, listbox/option roles, mc-finder-* classes).
+// Callback props are accepted for API parity but never wired — server-safe.
+export function FinderWindow({ sidebar, sidebarHeader, entries, mode, selection, title, label }: {
+  readonly sidebar: readonly SidebarSection[];
+  readonly sidebarHeader?: ReactNode;
+  readonly entries: readonly FinderEntry[];
+  readonly mode: FinderViewMode;
+  readonly onModeChange: (mode: FinderViewMode) => void;
+  readonly search: FinderSearch;
+  readonly selection: FinderSelection;
+  readonly onOpen: (entry: FinderEntry) => void;
+  readonly preview?: (selection: FinderEntry | null) => ReactNode;
+  readonly statusBar?: ReactNode;
+  readonly toolbarExtras?: ReactNode;
+  readonly title?: string;
+  readonly label?: string;
+  readonly iconColumns?: number;
+}) {
+  return (
+    <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"}>
+      <aside className="mc-finder-sidebar">
+        <div className="mc-finder-sidebar-top">
+          <TrafficLights />
+        </div>
+        {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
+        <nav aria-label="Sidebar">
+          {sidebar.map((section) => (
+            <section key={section.id} className="mc-sidebar-section">
+              {section.title !== undefined ? <strong className="mc-sidebar-section-label">{section.title}</strong> : null}
+              <div className="mc-sidebar-items">
+                {section.items.map((item) => (
+                  <span key={item.id} className={`mc-sidebar-item${item.selected ? " mc-selected" : ""}`}>
+                    {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
+                    <span className="mc-sidebar-item-label">{item.label}</span>
+                    {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
+                  </span>
+                ))}
+              </div>
+            </section>
+          ))}
+        </nav>
+      </aside>
+      <main className="mc-finder-main">
+        <div role="listbox" aria-label={title ?? "Files"} className={`mc-finder-content mc-${mode}`}>
+          {entries.map((entry) => (
+            <button
+              type="button"
+              role="option"
+              key={entry.id}
+              className={`mc-finder-entry${selection.selectedId === entry.id ? " mc-selected" : ""}`}
+              aria-selected={selection.selectedId === entry.id}
+            >
+              <span className="mc-finder-entry-icon" aria-hidden="true">{entry.icon}</span>
+              <span className="mc-finder-name">{entry.name}</span>
+              <span className="mc-finder-modified">{entry.modified ?? ""}</span>
+              <span className="mc-finder-size">{entry.size ?? ""}</span>
+            </button>
+          ))}
+        </div>
+      </main>
+    </WindowChrome>
+  );
+}
+
 export function SystemSymbol({ className, name, size }: {
   readonly className?: string;
   readonly name: string;

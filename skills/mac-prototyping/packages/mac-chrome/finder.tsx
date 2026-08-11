@@ -1,3 +1,5 @@
+"use client";
+
 import {
   useEffect,
   useRef,
@@ -30,7 +32,7 @@ export type SidebarItem = {
   readonly id: string;
   readonly icon?: ReactNode;
   readonly label: string;
-  readonly badge?: string | number;
+  readonly badge?: ReactNode;
   readonly indent?: boolean;
   readonly selected?: boolean;
   readonly onSelect: () => void;
@@ -199,6 +201,7 @@ function FinderSidebarSection({ section }: { readonly section: SidebarSection })
 
 export function FinderWindow({
   sidebar,
+  sidebarHeader,
   entries,
   mode,
   onModeChange,
@@ -214,6 +217,8 @@ export function FinderWindow({
   iconColumns,
 }: {
   readonly sidebar: readonly SidebarSection[];
+  // Rendered flat at the top of the sidebar column, above all sections.
+  readonly sidebarHeader?: ReactNode;
   readonly entries: readonly FinderEntry[];
   readonly mode: FinderViewMode;
   readonly onModeChange: (mode: FinderViewMode) => void;
@@ -409,6 +414,7 @@ export function FinderWindow({
         <div className="mc-finder-sidebar-top">
           <TrafficLights />
         </div>
+        {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
         <nav aria-label="Sidebar">
           {sidebar.map((section) => (
             <FinderSidebarSection key={section.id} section={section} />

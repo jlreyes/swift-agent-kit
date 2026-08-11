@@ -4,10 +4,20 @@
 // package's prop shapes, so vendoring is a drop-in replacement.
 export {
   DesktopShell,
+  FinderWindow,
   MacDock,
   MacToolbar,
   SystemSymbol,
   TrafficLights,
   WindowChrome,
 } from "./stub.tsx";
-export type { DesktopShellProps, DockItem } from "./stub.tsx";
+export type {
+  DesktopShellProps,
+  DockItem,
+  FinderEntry,
+  FinderSearch,
+  FinderSelection,
+  FinderViewMode,
+  SidebarItem,
+  SidebarSection,
+} from "./stub.tsx";

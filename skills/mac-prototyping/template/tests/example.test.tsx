@@ -36,6 +36,13 @@ test("the example surface renders its window title", () => {
   expect(screen.getByRole("img", { name: "Notion" })).toBeDefined();
 });
 
+test("the finder example window renders with its entries", () => {
+  render(<ExamplePage />);
+
+  expect(screen.getByRole("listbox", { name: "Documents" })).toBeDefined();
+  expect(screen.getByRole("option", { name: /Roadmap\.md/ })).toBeDefined();
+});
+
 test("the in-memory localStorage helper isolates state per test", () => {
   const storage = installMemoryLocalStorage();
   window.localStorage.setItem("example", "value");

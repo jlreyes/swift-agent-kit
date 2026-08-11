@@ -1,8 +1,14 @@
 # Prototype workflows
 
 Composable commands for creating, forking, and serving mac-style prototypes.
-`<this skill's directory>` is the mac-prototyping skill directory (the one
-holding this skill's `SKILL.md`, `template/`, and `packages/mac-chrome/`).
+Set this once and every command below is paste-able (`SKILL_DIR` = the
+directory holding this skill's `SKILL.md`, `template/`, and
+`packages/mac-chrome/` — you just loaded this file from it):
+
+```sh
+SKILL_DIR=/path/to/skills/mac-prototyping
+```
+
 All commands verified on macOS with pnpm 10+.
 
 ## New prototype
@@ -11,18 +17,27 @@ Copy the template, name it, install. Done when `pnpm test` is green.
 
 ```sh
 name=myproto
-cp -R "<this skill's directory>"/template ~/Prototypes/$name   # or: rsync -a "<this skill's directory>"/template/ ~/Prototypes/$name/
+cp -R "$SKILL_DIR"/template ~/Prototypes/$name   # or: rsync -a "$SKILL_DIR"/template/ ~/Prototypes/$name/
 cd ~/Prototypes/$name
 node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $name
 pnpm install
 pnpm test                                          # build + rendered-html + jsdom tests
 ```
 
+(`pnpm install` prints "Ignored build scripts: esbuild, sharp, …" — that is
+pnpm 10's default posture and benign here; the binaries resolve from
+optionalDependencies and the build passes.)
+
 Vendor the real mac-chrome over the shipped stub (skip if the package is
-absent — the stub keeps everything working):
+absent — the stub keeps everything working). The excludes matter: the
+package's own scaffolding must not land inside a consumer (a nested
+`package.json` confuses pnpm, and the package tests never run from there):
 
 ```sh
-rsync -a --delete --exclude node_modules "<this skill's directory>"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
+rsync -a --delete --exclude node_modules --exclude test \
+  --exclude package.json --exclude pnpm-lock.yaml \
+  --exclude tsconfig.json --exclude vitest.config.ts \
+  "$SKILL_DIR"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
 ```
 
 Optional: hydrate private assets (wallpaper, icons — never committed to a
@@ -80,7 +95,7 @@ pnpm_bin=$(command -v pnpm)
 plist=~/Library/LaunchAgents/com.macproto.$name.plist
 sed -e "s|PNPM_DIR|$(dirname "$pnpm_bin")|g" -e "s|PNPM|$pnpm_bin|g" \
     -e "s|NAME|$name|g" -e "s|DIR|$dir|g" -e "s|PORT|$port|g" \
-    "<this skill's directory>"/references/com.macproto.TEMPLATE.plist > "$plist"
+    "$SKILL_DIR"/references/com.macproto.TEMPLATE.plist > "$plist"
 plutil -lint "$plist"
 launchctl bootstrap gui/$(id -u) "$plist"
 ```

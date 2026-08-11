@@ -68,6 +68,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   symbolist only.
 - **Glass belongs to chrome** (toolbars, dock, menu bar, popovers), never to
   content backgrounds.
+- If a house TypeScript-standards skill is loaded in this environment, it
+  governs prototype code too; this skill adds prototyping-specific rules,
+  it does not waive house ones.
 
 ## Verify like a user, then audit
 

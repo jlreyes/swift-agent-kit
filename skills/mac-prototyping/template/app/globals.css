@@ -1,0 +1,89 @@
+/* App-level styles. The mac chrome itself is styled by lib/mac-chrome/styles. */
+
+:root {
+  --ink: #202124;
+  --muted: #76797e;
+  --line: rgba(0, 0, 0, 0.1);
+  --glass: rgba(247, 248, 250, 0.76);
+  --window-radius: 12px;
+  --font-mac: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: auto;
+  color: var(--ink);
+  background: #101720;
+  font-family: var(--font-mac);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  color: inherit;
+  font: inherit;
+}
+
+img {
+  display: block;
+}
+
+/* Launcher (app/page.tsx) */
+
+.launcher {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  color: #eef1f6;
+}
+
+.launcher ul {
+  padding: 0;
+  list-style: none;
+}
+
+.launcher li a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  text-decoration: none;
+}
+
+.launcher li a:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.launcher li a span {
+  color: rgba(238, 241, 246, 0.7);
+  font-size: 13px;
+}
+
+/* Example surface placeholder content */
+
+.window-placeholder {
+  padding: 48px 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.brand-icon {
+  display: inline-block;
+  vertical-align: -2px;
+}

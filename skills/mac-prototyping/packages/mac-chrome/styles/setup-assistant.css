@@ -1,0 +1,203 @@
+/* SetupAssistant shell: frame, step rail, footer, sheet. Step bodies are the
+   caller's. */
+
+.mc-setup-window {
+  position: relative;
+  overflow: hidden;
+  color: var(--text-strong);
+  border: 0.5px solid rgba(255, 255, 255, 0.76);
+  border-radius: var(--radius-sheet);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-window), inset 0 0.5px rgba(255, 255, 255, 0.86);
+}
+
+.mc-setup-titlebar {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  width: 96px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: transparent;
+  user-select: none;
+}
+
+.mc-setup-underlay {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr) 58px;
+}
+
+/* Step rail */
+
+.mc-setup-progress {
+  position: relative;
+  z-index: 12;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  /* Side padding clears the floating traffic lights. */
+  padding: 5px 100px 0;
+  border-bottom: 0.5px solid var(--line);
+  background: var(--toolbar-surface);
+}
+
+.mc-setup-progress button {
+  min-width: 95px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--text-soft);
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 540;
+}
+
+.mc-setup-progress button:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.045);
+}
+
+.mc-setup-progress button.mc-current {
+  color: var(--text-strong);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 0 0.5px var(--line), var(--shadow-raised);
+}
+
+.mc-setup-progress button:disabled {
+  color: var(--text-faint);
+}
+
+.mc-setup-progress button > span {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.mc-setup-progress button.mc-current > span {
+  color: var(--accent);
+}
+
+.mc-setup-progress button.mc-complete > span {
+  color: var(--accent);
+}
+
+.mc-setup-progress svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Content region */
+
+.mc-setup-content {
+  min-height: 0;
+  overflow: auto;
+}
+
+.mc-setup-heading {
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.mc-setup-hero-symbol {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 7px;
+  color: var(--accent);
+}
+
+.mc-setup-heading h1 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 23px;
+  font-weight: 680;
+  letter-spacing: -0.022em;
+  line-height: 1.14;
+}
+
+/* Footer: one emphasized Continue, one regular Back. */
+
+.mc-setup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-top: 0.5px solid var(--line);
+  background: var(--footer-surface);
+}
+
+.mc-button {
+  flex: 0 0 auto;
+  min-width: 74px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border: 0.5px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mc-button.mc-primary {
+  color: var(--on-accent);
+  border-color: var(--line);
+  background: var(--accent);
+  font-weight: 500;
+  box-shadow: inset 0 0.5px rgba(255, 255, 255, 0.35), var(--shadow-raised);
+}
+
+.mc-button.mc-primary:disabled {
+  opacity: 0.55;
+}
+
+.mc-button.mc-text {
+  min-width: 0;
+  padding-inline: 10px;
+  color: var(--text-soft);
+}
+
+.mc-button.mc-text:hover {
+  background: rgba(0, 0, 0, 0.055);
+}
+
+/* Sheet */
+
+.mc-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--scrim);
+  backdrop-filter: blur(1.5px);
+}
+
+.mc-sheet {
+  width: 390px;
+  overflow: hidden;
+  border: 0.5px solid rgba(0, 0, 0, 0.16);
+  /* Top-attached: square top edge, rounded bottom. */
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sheet) var(--radius-sheet);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-popover);
+}

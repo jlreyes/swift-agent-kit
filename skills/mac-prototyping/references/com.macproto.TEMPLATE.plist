@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Fill NAME (prototype name), DIR (absolute prototype dir), PORT (86xx),
+     PNPM (output of `command -v pnpm`) and PNPM_DIR (its dirname) — see references/workflows.md. -->
+<dict>
+  <key>Label</key>
+  <string>com.macproto.NAME</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>PNPM</string>
+    <string>dev</string>
+    <string>--port</string>
+    <string>PORT</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>DIR</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>PNPM_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/com.macproto.NAME.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.macproto.NAME.err.log</string>
+</dict>
+</plist>

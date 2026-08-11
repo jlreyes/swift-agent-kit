@@ -1,0 +1,123 @@
+# Prototype workflows
+
+Composable commands for creating, forking, and serving mac-style prototypes.
+`<this skill's directory>` is the mac-prototyping skill directory (the one
+holding this skill's `SKILL.md`, `template/`, and `packages/mac-chrome/`).
+All commands verified on macOS with pnpm 10+.
+
+## New prototype
+
+Copy the template, name it, install. Done when `pnpm test` is green.
+
+```sh
+name=myproto
+cp -R "<this skill's directory>"/template ~/Prototypes/$name   # or: rsync -a "<this skill's directory>"/template/ ~/Prototypes/$name/
+cd ~/Prototypes/$name
+node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $name
+pnpm install
+pnpm test                                          # build + rendered-html + jsdom tests
+```
+
+Vendor the real mac-chrome over the shipped stub (skip if the package is
+absent — the stub keeps everything working):
+
+```sh
+rsync -a --delete --exclude node_modules "<this skill's directory>"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
+```
+
+Optional: hydrate private assets (wallpaper, icons — never committed to a
+public repo) into `public/`:
+
+```sh
+cp -R ~/my-private-assets/. ~/Prototypes/$name/public/
+```
+
+## Fork an existing prototype
+
+Copy everything except installed/built state; keep `.git` out unless you want
+the history to continue. Done when `pnpm test` is green in the fork.
+
+```sh
+rsync -a --exclude node_modules --exclude .next --exclude dist \
+  --exclude .vinext --exclude .wrangler --exclude .git \
+  ~/Prototypes/myproto/ ~/Prototypes/myfork/
+cd ~/Prototypes/myfork
+node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" myfork
+pnpm install && pnpm test
+```
+
+Drop `--exclude .git` to carry the source's history along.
+
+## Port convention
+
+Prototypes live on ports 8600–8699, one port per prototype for its lifetime.
+Find a free one (no output = all free; any LISTEN line shows a taken port):
+
+```sh
+lsof -nP -iTCP:8600-8699 -sTCP:LISTEN
+```
+
+Bake the port into the prototype's dev script so every `pnpm dev` — manual or
+launchd — lands on it (`vinext dev` accepts `--port`; verified):
+
+```sh
+node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.scripts.dev='WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev --port 8601';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+```
+
+Gotcha: the vinext dev server binds IPv6 loopback only (`[::1]`) and ignores
+`--host`. Always health-check via `http://localhost:<port>`, never
+`http://127.0.0.1:<port>` (connection refused).
+
+## Serve durably (macOS)
+
+A launchd LaunchAgent keeps the dev server alive (KeepAlive + restart at
+login). Fill `references/com.macproto.TEMPLATE.plist` — note `PNPM_DIR` must
+be substituted before `PNPM`:
+
+```sh
+name=myproto dir=~/Prototypes/myproto port=8601
+pnpm_bin=$(command -v pnpm)
+plist=~/Library/LaunchAgents/com.macproto.$name.plist
+sed -e "s|PNPM_DIR|$(dirname "$pnpm_bin")|g" -e "s|PNPM|$pnpm_bin|g" \
+    -e "s|NAME|$name|g" -e "s|DIR|$dir|g" -e "s|PORT|$port|g" \
+    "<this skill's directory>"/references/com.macproto.TEMPLATE.plist > "$plist"
+plutil -lint "$plist"
+launchctl bootstrap gui/$(id -u) "$plist"
+```
+
+Done when this returns 200 (typically ~5s; logs at
+`/tmp/com.macproto.<name>.{out,err}.log` if it never comes up):
+
+```sh
+for i in $(seq 1 30); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:$port/)" = 200 ] && { echo up; break; }
+  sleep 1
+done
+```
+
+Optional — share over the tailnet. Use the full-URL target: the bare-port
+form proxies to 127.0.0.1, which vinext does not bind:
+
+```sh
+tailscale serve --bg --https=$port http://localhost:$port
+```
+
+## Status / stop / cleanup
+
+List running prototype agents, and liveness-check a port:
+
+```sh
+launchctl list | grep com.macproto
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 2 http://localhost:8601/
+```
+
+Stop one and remove its agent (done when `launchctl list` no longer shows it
+and the port scan comes back empty):
+
+```sh
+launchctl bootout gui/$(id -u)/com.macproto.myproto
+rm ~/Library/LaunchAgents/com.macproto.myproto.plist
+lsof -nP -iTCP:8600-8699 -sTCP:LISTEN
+```
+
+If it was shared, also `tailscale serve --https=<port> off`.

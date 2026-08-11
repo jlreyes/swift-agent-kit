@@ -1,0 +1,177 @@
+/* Minimal mac-chrome styles for the placeholder stub. Replaced together with
+   the components when the real packages/mac-chrome is vendored in. */
+
+.showcase-viewport {
+  width: 100vw;
+  height: 100dvh;
+  min-width: 1200px;
+  min-height: 750px;
+  overflow: auto;
+}
+
+/* Default wallpaper: a CSS gradient — no bitmap wallpaper ships with the
+   template. Point `background` at /your-wallpaper.png after hydrating
+   private assets into public/. */
+.desktop-canvas {
+  position: relative;
+  width: 1200px;
+  height: max(750px, 100dvh);
+  margin: 0 auto;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 650px at 18% -4%, rgba(96, 148, 255, 0.4), transparent 62%),
+    radial-gradient(900px 600px at 86% 104%, rgba(255, 132, 192, 0.3), transparent 58%),
+    linear-gradient(163deg, #16233c 0%, #2e4166 46%, #6d5486 100%);
+}
+
+.mac-menu-bar {
+  position: absolute;
+  z-index: 80;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(20, 28, 44, 0.55);
+  font-size: 12.5px;
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.mac-menu-bar .menu-left,
+.mac-menu-bar .menu-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mac-menu-bar .menu-mark {
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+.mac-window {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  width: min(760px, 82%);
+  overflow: hidden;
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  background: rgba(250, 251, 252, 0.96);
+  box-shadow:
+    0 34px 80px rgba(10, 15, 24, 0.28),
+    0 4px 18px rgba(10, 15, 24, 0.17);
+  transform: translateX(-50%);
+}
+
+.traffic-lights {
+  display: inline-flex;
+  gap: 7px;
+}
+
+.traffic-lights span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #c9cdd3;
+}
+
+.traffic-close {
+  background: #ff5f57;
+}
+
+.traffic-minimize {
+  background: #febc2e;
+}
+
+.traffic-zoom {
+  background: #28c840;
+}
+
+.mc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(238, 240, 244, 0.9);
+  color: #3c4046;
+  font-size: 13px;
+}
+
+.mc-toolbar-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mc-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.p0-mac-dock {
+  position: absolute;
+  z-index: 60;
+  bottom: 8px;
+  left: 50%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
+  border-radius: 18px;
+  background: rgba(224, 229, 238, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+
+.p0-dock-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  background: none;
+  transition: transform 120ms ease;
+}
+
+.p0-dock-item:hover {
+  transform: translateY(-7px) scale(1.1);
+}
+
+.p0-dock-item img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.24));
+}
+
+.p0-dock-running-dot {
+  display: none;
+}
+
+.p0-dock-item.is-running .p0-dock-running-dot {
+  display: block;
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(-50%);
+}
+
+.sf-symbol {
+  font-family: var(--font-mac, system-ui);
+  line-height: 1;
+}

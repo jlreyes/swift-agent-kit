@@ -1,10 +1,12 @@
 .DS_Store
+node_modules/
 # Extraction state — never committed
 .apple-content-extracted
 skills/.apple-content-extracted
 # Extracted Apple content (the extract script fills these).
 # Our own reference/script dirs are negated back in.
 skills/*/references/
+!skills/mac-prototyping/references/
 !skills/swift-standards/references/
 !skills/xcode-tools/references/
 skills/*/scripts/

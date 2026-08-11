@@ -34,7 +34,8 @@ package's own scaffolding must not land inside a consumer (a nested
 `package.json` confuses pnpm, and the package tests never run from there):
 
 ```sh
-rsync -a --delete --exclude node_modules --exclude test \
+# --delete-excluded: excluded stale files must not survive re-vendoring (found live).
+rsync -a --delete --delete-excluded --exclude node_modules --exclude test \
   --exclude package.json --exclude pnpm-lock.yaml \
   --exclude tsconfig.json --exclude vitest.config.ts \
   "$SKILL_DIR"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/

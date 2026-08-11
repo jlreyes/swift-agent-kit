@@ -25,8 +25,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - One horizontal toolbar: history/back-forward capsule → left-aligned
   single-line title → independent utility capsules → search as a compact
   right-side bubble that expands on focus.
-- No subtitle or item count under the title; a centered two-line title block
-  reads as web, not Mac.
+- No subtitle or item count under the title; a centered title — one line or
+  two — reads as web, not Mac. The title is always leading-aligned.
 - Toolbar glyphs are SVG/system symbols, never Unicode approximations.
 - Glass (blur + translucency) lives in the toolbar capsules and chrome, not
   in content areas.
@@ -43,6 +43,10 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   marketing page, not a Mac window.
 - Never mix window models in one surface (template chooser + Settings
   list-detail + marketing hero + wizard footer is the classic collision).
+- Default placement: horizontally centered, biased slightly above vertical
+  center, title bar below the menu bar and clear of the Dock; a window
+  flush to a canvas edge, under chrome, or off-center at rest is a
+  placement defect — verify with live geometry, never from the code.
 
 ## Control roles & emphasis
 

@@ -100,17 +100,21 @@ it("opens a MacMenu and moves roving focus with arrows", async () => {
   await act(async () => {
     trigger?.click();
   });
-  const menu = container.querySelector("[role='menu']");
+  // react-aria portals the popover to document.body.
+  const menu = document.querySelector("[role='menu']");
   expect(menu).toBeTruthy();
   expect(menu?.querySelectorAll("[role='menuitem'], [role='menuitemradio']")).toHaveLength(3);
   await act(async () => {
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    // The menu opens with the first item ("blank") current; the arrow roves to
+    // the next item, the radio "budget".
+    (document.activeElement as HTMLElement | null)?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
   });
+  expect((document.activeElement as HTMLElement | null)?.getAttribute("data-key")).toBe("budget");
   await act(async () => {
     (document.activeElement as HTMLElement | null)?.click();
   });
-  expect(picked).toBe("blank");
-  expect(container.querySelector("[role='menu']")).toBeNull();
+  expect(picked).toBe("budget");
+  expect(document.querySelector("[role='menu']")).toBeNull();
   await act(async () => root.unmount());
   container.remove();
 });

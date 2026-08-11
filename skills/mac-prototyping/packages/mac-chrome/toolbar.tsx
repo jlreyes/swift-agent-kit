@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode, Ref } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Toolbar } from "react-aria-components";
 
 import "./styles/tokens.css";
 import "./styles/toolbar.css";
@@ -76,15 +77,16 @@ export function MacToolbar({ center, children, className = "", leading, title, t
   readonly trailing?: ReactNode;
 }) {
   // The toolbar surface is a window-drag handle (macOS anatomy); interactive
-  // children are excluded by useWindowDrag's built-in selector.
+  // children are excluded by useWindowDrag's built-in selector. react-aria's
+  // Toolbar (role=toolbar) supplies arrow-key focus movement between controls.
   return (
-    <header className={`mc-toolbar ${className}`.trim()} data-window-drag-handle="">
+    <Toolbar aria-label="Toolbar" className={`mc-toolbar ${className}`.trim()} data-window-drag-handle="">
       {leading}
       {title !== undefined ? <h1 className="mc-toolbar-title">{title}</h1> : null}
       {center}
       {children}
       {trailing !== undefined ? <div className="mc-toolbar-actions">{trailing}</div> : null}
-    </header>
+    </Toolbar>
   );
 }
 
@@ -165,6 +167,7 @@ export function ToolbarSearchBubble({ label = "Search", open: openProp, placehol
   readonly onValueChange?: (value: string) => void;
 }) {
   const [openState, setOpenState] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const open = openProp ?? openState;
   const changeValue = onChange ?? onValueChange ?? (() => undefined);
   const controlled = openProp !== undefined || onOpenChange !== undefined;
@@ -174,6 +177,22 @@ export function ToolbarSearchBubble({ label = "Search", open: openProp, placehol
     onOpenChange?.(next);
     if (openProp === undefined) setOpenState(next);
   }
+  // The enclosing react-aria Toolbar claims arrow keys (capture phase, at the
+  // React root) to rove focus between controls — which would steal caret
+  // movement from the text field. A document-capture guard runs before the
+  // React root and stops arrow keys targeted at this input so the browser's
+  // native caret behavior survives; every other key still reaches the toolbar.
+  useEffect(() => {
+    if (!open) return;
+    function guardCaretKeys(event: KeyboardEvent) {
+      if (event.target !== inputRef.current) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.stopPropagation();
+      }
+    }
+    document.addEventListener("keydown", guardCaretKeys, true);
+    return () => document.removeEventListener("keydown", guardCaretKeys, true);
+  }, [open]);
   return (
     <div className={`mc-search-bubble${open ? " open" : ""}`}>
       <button
@@ -186,6 +205,7 @@ export function ToolbarSearchBubble({ label = "Search", open: openProp, placehol
       </button>
       {open ? (
         <input
+          ref={inputRef}
           value={value}
           autoFocus
           onChange={(event) => changeValue(event.target.value)}

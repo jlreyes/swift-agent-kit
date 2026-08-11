@@ -63,15 +63,17 @@ describe("DesktopShell menu bar menus", () => {
     const trigger = getByRole("button", { name: "File" });
     fireEvent.click(trigger);
     await flushFocus();
-    const items = Array.from(getByRole("menu", { name: "File menu" }).querySelectorAll<HTMLElement>("[role='menuitem']"));
-    expect(document.activeElement).toBe(items[0]);
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    });
+    const menu = getByRole("menu", { name: "File menu" });
+    const items = Array.from(menu.querySelectorAll<HTMLElement>("[role='menuitem']"));
+    // react-aria opens with focus on the menu and the first item current, so
+    // the first arrow reaches the second item, and navigation wraps.
+    expect(document.activeElement).toBe(menu);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
     expect(document.activeElement).toBe(items[1]);
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    });
+    fireEvent.keyDown(items[1] as HTMLElement, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(items[0] as HTMLElement, { key: "Escape" });
+    await flushFocus();
     expect(queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
@@ -89,9 +91,12 @@ describe("DesktopShell menu bar menus", () => {
     fireEvent.click(trigger);
     await flushFocus();
     expect(queryByRole("menu")).toBeTruthy();
-    act(() => {
-      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-    });
+    // react-aria's outside dismissal completes on the press *release*
+    // (pointerdown arms it, click/mouseup outside dismisses).
+    fireEvent.pointerDown(document.body);
+    fireEvent.mouseDown(document.body);
+    fireEvent.mouseUp(document.body);
+    fireEvent.click(document.body);
     expect(queryByRole("menu")).toBeNull();
   });
 });

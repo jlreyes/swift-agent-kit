@@ -25,6 +25,8 @@ build, `tests/rendered-html.test.mjs` (imports the built worker from
 `dist/server/index.js` and asserts on server-rendered HTML per route), and
 `tests/example.test.tsx` (jsdom + Testing Library interaction tests — an
 in-memory `localStorage` helper is included there for stateful surfaces).
+`tests/setup.ts` shims ResizeObserver and CSS.escape, which jsdom lacks and
+the vendored mac-chrome's libraries require.
 
 ## Add a surface
 

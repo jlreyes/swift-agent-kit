@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from "react-aria-components";
 
 import "./styles/tokens.css";
 import "./styles/popover.css";
@@ -28,116 +28,108 @@ export type MenuEntry =
 
 export type MenuSpec = readonly MenuEntry[];
 
-const menuItemSelector = '[role="menuitem"], [role="menuitemradio"]';
+/** Overlay knobs for MacMenu's popover (react-aria positions and portals it). */
+export type MenuPopoverConfig = {
+  /** Extra class on the menu surface (alongside `mc-menu-popover`). */
+  readonly className?: string;
+  /** @default "bottom end" (trailing-aligned under the trigger, the NSMenu default here) */
+  readonly placement?: "bottom start" | "bottom end";
+  /** Gap between trigger and menu, px. @default 7 */
+  readonly offset?: number;
+};
 
-/* ARIA menu-button: Esc/Tab close and restore focus, arrows cycle with wrap,
-   Home/End jump, outside pointerdown closes, first item focused on open. */
-export function MacMenu({ className = "", items, label, trigger, triggerClassName = "" }: {
+function MenuActionItem({ entry }: { readonly entry: MenuAction }) {
+  return (
+    <MenuItem
+      id={entry.id}
+      textValue={entry.label}
+      className="mc-menu-item"
+      href={entry.href}
+      target={entry.target}
+      rel={entry.target === "_blank" ? "noreferrer" : undefined}
+      onAction={() => entry.onSelect?.()}
+    >
+      {entry.icon}
+      <span>
+        <strong>{entry.label}</strong>
+        {entry.detail !== undefined ? <small>{entry.detail}</small> : null}
+      </span>
+      {entry.trailingIcon}
+    </MenuItem>
+  );
+}
+
+type MenuBlock =
+  | { readonly kind: "separator"; readonly id: string }
+  | { kind: "group"; readonly id: string; readonly label?: string; readonly entries: MenuAction[] };
+
+/* Group the flat MenuSpec for react-aria: a "section" label heads a group that
+   runs to the next separator/section; separators split groups. */
+function menuBlocks(items: MenuSpec): readonly MenuBlock[] {
+  const blocks: MenuBlock[] = [];
+  let group: MenuBlock & { kind: "group" } | null = null;
+  for (const entry of items) {
+    if (entry.kind === "separator") {
+      group = null;
+      blocks.push({ kind: "separator", id: entry.id });
+    } else if (entry.kind === "section") {
+      group = { kind: "group", id: entry.id, label: entry.label, entries: [] };
+      blocks.push(group);
+    } else {
+      if (group === null) {
+        group = { kind: "group", id: `group:${entry.id}`, entries: [] };
+        blocks.push(group);
+      }
+      group.entries.push(entry);
+    }
+  }
+  return blocks;
+}
+
+function renderBlock(block: MenuBlock): readonly ReactNode[] {
+  if (block.kind === "separator") return [<Separator key={block.id} id={block.id} className="menu-separator" />];
+  const items = block.entries.map((entry) => <MenuActionItem key={entry.id} entry={entry} />);
+  const hasChecked = block.entries.some((entry) => entry.checked !== undefined);
+  if (block.label === undefined && !hasChecked) return items;
+  // A group with checked entries becomes a single-selection section, which is
+  // what gives its items role=menuitemradio + aria-checked.
+  const selectionProps = hasChecked
+    ? {
+        selectionMode: "single" as const,
+        selectedKeys: block.entries.filter((entry) => entry.checked === true).map((entry) => entry.id),
+      }
+    : {};
+  return [
+    <MenuSection key={block.id} id={block.id} className="mc-menu-group" {...selectionProps}>
+      {block.label !== undefined ? <Header className="menu-section-label">{block.label}</Header> : null}
+      {items}
+    </MenuSection>,
+  ];
+}
+
+/* ARIA menu-button on react-aria MenuTrigger/Menu/MenuItem: open/close, Esc and
+   outside-press dismissal, focus restore, arrow/Home/End navigation, and
+   typeahead are library semantics; the popover.css look stays ours. */
+export function MacMenu({ className = "", items, label, popover, trigger, triggerClassName = "" }: {
   readonly className?: string;
   readonly items: MenuSpec;
   readonly label: string;
+  readonly popover?: MenuPopoverConfig;
   readonly trigger: ReactNode;
   readonly triggerClassName?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>(menuItemSelector)?.focus({ preventScroll: true }));
-    function closeFromOutside(event: PointerEvent) {
-      if (event.target instanceof Node && !wrapperRef.current?.contains(event.target)) setOpen(false);
-    }
-    function handleMenuKey(event: KeyboardEvent) {
-      const menuItems = Array.from(menuRef.current?.querySelectorAll<HTMLElement>(menuItemSelector) ?? []);
-      const activeElement = document.activeElement;
-      const index = activeElement instanceof HTMLElement ? menuItems.indexOf(activeElement) : -1;
-      if (event.key === "Escape" || event.key === "Tab") {
-        event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus({ preventScroll: true });
-      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        const next = index < 0 ? 0 : (index + direction + menuItems.length) % menuItems.length;
-        menuItems[next]?.focus({ preventScroll: true });
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        menuItems[event.key === "Home" ? 0 : menuItems.length - 1]?.focus({ preventScroll: true });
-      }
-    }
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", handleMenuKey);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", handleMenuKey);
-    };
-  }, [open]);
-
-  function choose(entry: MenuAction) {
-    entry.onSelect?.();
-    setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
-  }
-
   return (
-    <div ref={wrapperRef} className={`mc-menu ${className}`.trim()}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`mc-menu-trigger ${triggerClassName}`.trim()}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-controls={menuId}
-        onClick={() => setOpen((current) => !current)}
-      >
-        {trigger}
-      </button>
-      {open ? (
-        <div ref={menuRef} id={menuId} className="mc-menu-popover" role="menu" aria-label={label}>
-          {items.map((entry) => {
-            if (entry.kind === "separator") return <div key={entry.id} className="menu-separator" />;
-            if (entry.kind === "section") return <div key={entry.id} className="menu-section-label">{entry.label}</div>;
-            const content = (
-              <>
-                {entry.icon}
-                <span><strong>{entry.label}</strong>{entry.detail !== undefined ? <small>{entry.detail}</small> : null}</span>
-                {entry.trailingIcon}
-              </>
-            );
-            if (entry.href !== undefined) {
-              return (
-                <a
-                  key={entry.id}
-                  role="menuitem"
-                  tabIndex={-1}
-                  href={entry.href}
-                  target={entry.target}
-                  rel={entry.target === "_blank" ? "noreferrer" : undefined}
-                  onClick={() => choose(entry)}
-                >
-                  {content}
-                </a>
-              );
-            }
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                role={entry.checked !== undefined ? "menuitemradio" : "menuitem"}
-                aria-checked={entry.checked}
-                tabIndex={-1}
-                onClick={() => choose(entry)}
-              >
-                {content}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+    <div className={`mc-menu ${className}`.trim()}>
+      <MenuTrigger>
+        <Button className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+        <Popover placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+          {/* MenuTrigger injects aria-labelledby (the trigger), which would
+              outrank the label prop; blank it so `label` names the menu. */}
+          <Menu aria-label={label} aria-labelledby="" className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}>
+            {menuBlocks(items).flatMap(renderBlock)}
+          </Menu>
+        </Popover>
+      </MenuTrigger>
     </div>
   );
 }

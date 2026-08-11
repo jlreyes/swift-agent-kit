@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import "./styles/tokens.css";
 import "./styles/popover.css";
@@ -17,10 +17,35 @@ export function MenuBarExtra({ badge, children, icon, label }: {
   readonly label: string;
 }) {
   const [open, setOpen] = useState(false);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const showBadge = badge !== undefined && badge !== 0 && badge !== "";
+
+  // Dismissal contract (matching the app menus): Escape closes and restores
+  // the trigger's focus; a pointer-down outside the layer closes.
+  useEffect(() => {
+    if (!open) return;
+    function closeFromOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !layerRef.current?.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
+      }
+    }
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
   return (
-    <div className="mc-menubar-layer">
+    <div ref={layerRef} className="mc-menubar-layer">
       <button
+        ref={triggerRef}
         type="button"
         className={`mc-menubar-trigger${open ? " active" : ""}`}
         aria-label={label}

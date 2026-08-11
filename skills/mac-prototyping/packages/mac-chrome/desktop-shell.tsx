@@ -63,6 +63,9 @@ export function DesktopShell({
                   label={`${item.title} menu`}
                   trigger={item.title}
                   items={item.items}
+                  // Menu-bar menus lead-align under the title (macOS anatomy);
+                  // the class swaps the popover to the compact NSMenu skin.
+                  popover={{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 5 }}
                 />
               ),
             )}

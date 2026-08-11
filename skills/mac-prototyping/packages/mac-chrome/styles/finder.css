@@ -3,9 +3,6 @@
 
 .mc-finder-window {
   position: relative;
-  display: grid;
-  /* The preview column width is injected inline while the preview is open. */
-  grid-template-columns: 224px minmax(0, 1fr);
   overflow: hidden;
   border: 0.5px solid var(--glass-strong);
   border-radius: var(--radius-window);
@@ -14,13 +11,17 @@
   backdrop-filter: blur(var(--blur-glass)) saturate(135%);
 }
 
-.mc-finder-window.mc-preview-hidden {
-  grid-template-columns: 224px minmax(0, 1fr);
+/* The react-resizable-panels Group (sidebar | content | preview). Panels are
+   flex containers (inline style); each pane surface stretches to fill. */
+.mc-finder-split {
+  width: 100%;
+  height: 100%;
 }
 
 /* Sidebar */
 
 .mc-finder-sidebar {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -47,7 +48,8 @@
   padding: 0 17px 8px;
 }
 
-/* Source list (SwiftUI List(.sidebar) inside NavigationSplitView): quiet
+/* Source list (SwiftUI List(.sidebar) inside NavigationSplitView), rendered by
+   a react-aria Tree (role=treegrid; rows are flattened siblings): quiet
    section headers with hover-revealed trailing chevrons, 28px symbol+label
    rows with a 6px tinted selection, and spacing — never dividers — between
    sections. */
@@ -61,11 +63,18 @@
   flex-direction: column;
 }
 
-.mc-sidebar-section {
-  margin: 0;
+/* The tree is the flex column the rows live in (rows are its direct children,
+   so a product's bottom-anchored section can use margin-top: auto). */
+.mc-sidebar-tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  outline: none;
 }
 
-.mc-sidebar-section + .mc-sidebar-section {
+/* Section lead rows (a titled section's header, or an untitled section's
+   first item) separate sections by spacing. */
+.mc-sidebar-section:not(:first-child) {
   margin-top: 14px;
 }
 
@@ -84,17 +93,10 @@
   box-shadow: inset 0 0 0 0.5px var(--line-soft);
 }
 
-.mc-sidebar-section-header:has(> .mc-sidebar-section-label:focus-visible) {
+.mc-sidebar-section-header[data-focus-visible],
+.mc-sidebar-item[data-focus-visible] {
+  outline: none;
   box-shadow: inset 0 0 0 1px var(--focus-ring);
-}
-
-.mc-sidebar-section-header > button {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  font: inherit;
 }
 
 .mc-sidebar-section-label {
@@ -114,30 +116,31 @@
   text-align: left;
 }
 
-.mc-sidebar-section-label:focus-visible {
-  outline: none;
-}
-
 .mc-sidebar-section-label > small {
   color: var(--text-faint);
   font-size: 9px;
   font-weight: 550;
 }
 
-/* Trailing disclosure: hidden until the header is hovered or it has keyboard
-   focus (macOS Finder/Notes behavior) — never a permanent web-tree affordance. */
+/* Trailing disclosure: hidden until the header is hovered or keyboard-focused
+   (macOS Finder/Notes behavior) — never a permanent web-tree affordance. */
 .mc-sidebar-disclosure-button {
   width: 20px;
   height: 20px;
   margin-left: auto;
+  padding: 0;
   display: grid;
   place-items: center;
+  border: 0;
   border-radius: 5px;
+  background: transparent;
+  font: inherit;
   opacity: 0;
   transition: opacity 100ms ease;
 }
 
 .mc-sidebar-section-header:hover .mc-sidebar-disclosure-button,
+.mc-sidebar-section-header[data-focus-visible] .mc-sidebar-disclosure-button,
 .mc-sidebar-disclosure-button:focus-visible {
   opacity: 1;
 }
@@ -167,9 +170,14 @@
   .mc-sidebar-disclosure {
     transition: none;
   }
+
+  .mc-sidebar-item[data-level="2"] {
+    animation: none;
+  }
 }
 
-.mc-sidebar-items {
+/* Collapsible-section rows mount on expand; the reveal rides that mount. */
+.mc-sidebar-item[data-level="2"] {
   transform-origin: top;
   animation: mc-sidebar-section-reveal 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -183,11 +191,6 @@
     opacity: 1;
     transform: translateY(0) scaleY(1);
   }
-}
-
-/* Untitled leading section: plain block, no header, no divider. */
-.mc-sidebar-section.mc-plain .mc-sidebar-items {
-  animation: none;
 }
 
 /* Rows: 28px, SF-style symbol in the accent color + 13px label, 6px-radius
@@ -205,6 +208,7 @@
   color: var(--text);
   font-size: 13px;
   text-align: left;
+  cursor: default;
 }
 
 .mc-sidebar-item:hover {
@@ -252,6 +256,7 @@
 
 .mc-finder-main {
   position: relative;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -427,25 +432,23 @@
 
 .mc-finder-preview {
   position: relative;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 0.5px solid var(--line);
   background: var(--content-surface);
 }
 
+/* The react-resizable-panels Separator (ARIA window splitter: focusable,
+   arrow/Home/End resize, Enter collapses). Zero-width flex item — the library
+   hit-tests pointer proximity, so the visual is just the hairline. */
 .mc-preview-resize-handle {
-  position: absolute;
+  position: relative;
   z-index: 4;
-  top: 0;
-  bottom: 0;
-  left: -4px;
-  width: 8px;
-  padding: 0;
+  width: 0;
   border: 0;
   outline: 0;
   cursor: col-resize;
-  touch-action: none;
 }
 
 .mc-preview-resize-handle::after {
@@ -453,14 +456,15 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 3.5px;
+  left: -0.5px;
   width: 1px;
   background: var(--line);
   transition: background 100ms ease, width 100ms ease;
 }
 
 .mc-preview-resize-handle:hover::after,
-.mc-preview-resize-handle:focus-visible::after {
+.mc-preview-resize-handle:focus-visible::after,
+.mc-preview-resize-handle[data-separator="active"]::after {
   width: 2px;
   background: var(--focus-ring);
 }

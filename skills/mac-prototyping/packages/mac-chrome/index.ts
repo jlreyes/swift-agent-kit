@@ -11,7 +11,7 @@ export {
   ToolbarSearchBubble,
   ToolbarToggle,
 } from "./toolbar.tsx";
-export { MacDetailsMenu, MacMenu, type MenuAction, type MenuEntry, type MenuSpec } from "./menu.tsx";
+export { MacDetailsMenu, MacMenu, type MenuAction, type MenuEntry, type MenuPopoverConfig, type MenuSpec } from "./menu.tsx";
 export { MenuBarExtra } from "./menubar-app.tsx";
 export { useModalFocusTrap } from "./modal-focus.ts";
 export {

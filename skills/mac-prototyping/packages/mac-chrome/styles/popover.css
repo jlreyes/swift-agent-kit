@@ -4,11 +4,10 @@
   position: relative;
 }
 
+/* The menu surface (react-aria positions and portals the popover around it;
+   this class carries the look). Items are .mc-menu-item rows — react-aria
+   renders them as role=menuitem/-radio divs, or <a> when they carry href. */
 .mc-menu-popover {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 7px);
-  right: 0;
   display: grid;
   width: 350px;
   max-height: 392px;
@@ -19,10 +18,16 @@
   background: var(--popover-surface);
   box-shadow: var(--shadow-popover);
   backdrop-filter: blur(var(--blur-popover));
+  outline: none;
 }
 
-.mc-menu-popover button,
-.mc-menu-popover a {
+/* Selection wrappers (radio groups, labeled sections) are layout-transparent
+   so every row sits directly on the popover grid. */
+.mc-menu-popover .mc-menu-group {
+  display: contents;
+}
+
+.mc-menu-popover .mc-menu-item {
   display: grid;
   grid-template-columns: 25px minmax(0, 1fr) 15px;
   align-items: center;
@@ -35,17 +40,16 @@
   color: var(--ink);
   text-align: left;
   text-decoration: none;
+  cursor: default;
 }
 
-.mc-menu-popover button > span,
-.mc-menu-popover a > span {
+.mc-menu-popover .mc-menu-item > span {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.mc-menu-popover button > svg,
-.mc-menu-popover a > svg {
+.mc-menu-popover .mc-menu-item > svg {
   width: 19px;
   height: 19px;
   fill: none;
@@ -55,17 +59,16 @@
   stroke-linejoin: round;
 }
 
-.mc-menu-popover button > svg:last-child,
-.mc-menu-popover a > svg:last-child {
+.mc-menu-popover .mc-menu-item > svg:last-child {
   grid-column: 3;
   width: 13px;
   height: 13px;
 }
 
-.mc-menu-popover button:hover,
-.mc-menu-popover button:focus-visible,
-.mc-menu-popover a:hover,
-.mc-menu-popover a:focus-visible {
+/* react-aria menus move focus with the pointer; [data-focused] covers both
+   hover and keyboard highlight. */
+.mc-menu-popover .mc-menu-item[data-focused],
+.mc-menu-popover .mc-menu-item[data-hovered] {
   outline: none;
   background: var(--accent);
   color: white;
@@ -82,10 +85,8 @@
   line-height: 1.25;
 }
 
-.mc-menu-popover button:hover small,
-.mc-menu-popover button:focus-visible small,
-.mc-menu-popover a:hover small,
-.mc-menu-popover a:focus-visible small {
+.mc-menu-popover .mc-menu-item[data-focused] small,
+.mc-menu-popover .mc-menu-item[data-hovered] small {
   color: rgba(255, 255, 255, 0.82);
 }
 

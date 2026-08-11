@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { act, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FinderWindow, finderKeyTarget, type FinderEntry, type FinderViewMode } from "../finder";
@@ -96,19 +96,63 @@ describe("finderKeyTarget", () => {
 describe("FinderWindow sidebar source list", () => {
   it("renders the quiet header with a trailing disclosure that collapses the section", () => {
     render(<Harness />);
-    // Header label (quiet source-list header), not a leading web-tree affordance.
-    const header = screen.getByRole("button", { name: "Favorites" });
-    expect(header.className).toContain("mc-sidebar-section-label");
-    const disclosure = screen.getByRole("button", { name: "Collapse Favorites" });
-    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    // The header is a tree row; its label is quiet text (never a nested
+    // button/tab stop), and the trailing disclosure is the only control.
+    const header = screen.getByRole("row", { name: /Favorites/ });
+    expect(header.className).toContain("mc-sidebar-section-header");
+    const label = header.querySelector(".mc-sidebar-section-label");
+    expect(label?.tagName).toBe("SPAN");
+    expect(screen.queryByRole("button", { name: "Favorites" })).toBeNull();
+    // react-aria chains the row label into the chevron's name — match on prefix.
+    const disclosure = screen.getByRole("button", { name: /Collapse Favorites/ });
+    // Expansion state lives on the row (ARIA tree pattern).
+    expect(header.getAttribute("aria-expanded")).toBe("true");
     // Trailing position: the disclosure follows the label in the header row.
-    expect(header.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(label && label.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    expect(screen.getByRole("button", { name: "All Files" })).toBeDefined();
+    expect(screen.getByRole("row", { name: "All Files" })).toBeDefined();
     fireEvent.click(disclosure);
-    expect(screen.queryByRole("button", { name: "All Files" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Expand Favorites" }));
-    expect(screen.getByRole("button", { name: "All Files" })).toBeDefined();
+    expect(screen.queryByRole("row", { name: "All Files" })).toBeNull();
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: /Expand Favorites/ }));
+    expect(screen.getByRole("row", { name: "All Files" })).toBeDefined();
+  });
+
+  it("keeps arrow-key navigation and selection on the tree rows", () => {
+    const onSelect = vi.fn();
+    render(
+      <FinderWindow
+        title="Vault"
+        sidebar={[
+          {
+            id: "favorites",
+            title: "Favorites",
+            collapsible: true,
+            items: [
+              { id: "all", label: "All Files", selected: true, onSelect: () => undefined },
+              { id: "shared", label: "Shared", onSelect },
+            ],
+          },
+        ]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: null, onSelect: () => undefined }}
+        onOpen={() => undefined}
+        iconColumns={3}
+      />,
+    );
+    const selected = screen.getByRole("row", { name: "All Files" });
+    expect(selected.getAttribute("aria-selected")).toBe("true");
+    // Arrow down from the selected row reaches the next item row...
+    act(() => selected.focus());
+    fireEvent.keyDown(selected, { key: "ArrowDown" });
+    const shared = screen.getByRole("row", { name: "Shared" });
+    expect(document.activeElement).toBe(shared);
+    // ...and selection follows keyboard focus (source-list behavior), driving
+    // the item's onSelect callback.
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("passes SidebarSection.className through to the section root", () => {
@@ -191,5 +235,54 @@ describe("FinderWindow keyboard selection", () => {
     fireEvent.dblClick(option);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "e2" });
+  });
+});
+
+describe("FinderWindow content grid tab order", () => {
+  it("is a single tab stop: the selected entry roves, the rest are tabindex -1", () => {
+    render(<Harness initialSelection="e2" />);
+    const options = screen.getAllByRole("option");
+    const stops = options.filter((option) => option.getAttribute("tabindex") === "0");
+    expect(stops).toHaveLength(1);
+    expect(stops[0]?.textContent).toContain("Report 2");
+    expect(options.filter((option) => option.getAttribute("tabindex") === "-1")).toHaveLength(options.length - 1);
+  });
+
+  it("falls back to the first entry as the tab stop when nothing is selected", () => {
+    render(<Harness initialSelection={null} />);
+    const options = screen.getAllByRole("option");
+    expect(options[0]?.getAttribute("tabindex")).toBe("0");
+    expect(options.filter((option) => option.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+});
+
+async function flushAnimationFrame() {
+  await act(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  });
+}
+
+describe("QuickLook focus management", () => {
+  it("moves focus into the dialog, traps Tab, and restores the opener on close", async () => {
+    render(<Harness />);
+    const option = screen.getAllByRole("option")[0];
+    expect(option).toBeDefined();
+    if (!option) return;
+    act(() => option.focus());
+    fireEvent.keyDown(option, { key: " " });
+    const dialog = screen.getByRole("dialog");
+    await flushAnimationFrame();
+    const close = screen.getByRole("button", { name: "Close Quick Look" });
+    // Focus moved into the dialog (its first control).
+    expect(document.activeElement).toBe(close);
+    // Tab is trapped: with one control, focus wraps onto itself.
+    fireEvent.keyDown(close, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+    // Escape closes and focus returns to the invoking grid option.
+    fireEvent.keyDown(close, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(dialog.isConnected).toBe(false);
+    await flushAnimationFrame();
+    expect(document.activeElement).toBe(option);
   });
 });

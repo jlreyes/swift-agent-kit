@@ -8,6 +8,13 @@ as the one-shot import for consumers who prefer a single global stylesheet.
 Vendoring rules — the rsync and its excludes — live in the skill's
 `references/workflows.md`.
 
+Two runtime dependencies (exact-pinned here and in the template) supply
+behavior this package should not own: **react-aria-components** (menus,
+sidebar tree, toolbar — the ARIA keyboard/focus/dismissal semantics) and
+**react-resizable-panels** (the three-pane split with an ARIA window-splitter
+separator). The visual layer — classes, tokens, CSS anatomy — stays ours;
+the libraries are wired through their className/data-attribute APIs.
+
 Each component names its SwiftUI/AppKit counterpart (**maps to:**). Build
 against the counterpart's anatomy; a component with **no native counterpart**
 is flagged as such — treat reaching for one as a design-drift alarm.
@@ -23,7 +30,7 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 ## Exports (`index.ts`)
 
 Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `MacDock`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MenuBarExtra`, `useModalFocusTrap`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `WindowFrame`, `DockItem`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuSpec`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `WindowFrame`, `DockItem`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
@@ -63,9 +70,9 @@ maps to: SwiftUI `Image(systemName:)` (SF Symbols).
 `SystemSymbolName` is the string-literal union of the shipped glyph names — see `system-symbol.tsx` for the list.
 
 ### MacToolbar
-maps to: SwiftUI `.toolbar { ... }` / `NSToolbar`.
+maps to: SwiftUI `.toolbar { ... }` / `NSToolbar` — rendered as a react-aria `Toolbar` (`role="toolbar"`), so arrow keys move focus between the controls.
 `MacToolbar({ center, children, className = "", leading, title, trailing }: { readonly center?: ReactNode; readonly children?: ReactNode; readonly className?: string; readonly leading?: ReactNode; readonly title?: ReactNode; readonly trailing?: ReactNode })`
-Two usage modes: **slot props** (`leading` / `title` / `center` / `trailing` compose the standard toolbar row — how `FinderWindow` now builds its default toolbar: 13px title left-aligned in the leading area, capsule controls trailing), or **className + children** for surfaces that bring their own toolbar grid (how `ChatWindow` uses it). The rendered header carries `data-window-drag-handle`, so the toolbar surface drags its window.
+Two usage modes: **slot props** (`leading` / `title` / `center` / `trailing` compose the standard toolbar row — how `FinderWindow` now builds its default toolbar: 13px title left-aligned in the leading area, capsule controls trailing), or **className + children** for surfaces that bring their own toolbar grid (how `ChatWindow` uses it). The rendered toolbar carries `data-window-drag-handle`, so the toolbar surface drags its window.
 
 ### ToolbarGlyph
 maps to: `Image(systemName:)` — the toolbar-weight glyph set.
@@ -89,12 +96,13 @@ maps to: `.searchable(...)` / `NSSearchToolbarItem` (collapsed-to-icon form).
 `ToolbarSearchBubble({ label = "Search", open: openProp, placeholder = "Search", value, onChange, onOpenChange, onValueChange }: { readonly label?: string; readonly open?: boolean; readonly placeholder?: string; readonly value: string; readonly onChange?: (value: string) => void; readonly onOpenChange?: (open: boolean) => void; readonly onValueChange?: (value: string) => void })` — `onValueChange` is an alias of `onChange`; one of the two is required.
 
 ### MacMenu
-maps to: `NSMenu` / SwiftUI `Menu`.
-`MacMenu({ className = "", items, label, trigger, triggerClassName = "" }: { readonly className?: string; readonly items: MenuSpec; readonly label: string; readonly trigger: ReactNode; readonly triggerClassName?: string })`
+maps to: `NSMenu` / SwiftUI `Menu` — via react-aria `MenuTrigger`/`Menu`/`MenuItem`, which supply open/close, Esc and outside-press dismissal, focus restore, arrow/Home/End navigation, and typeahead.
+`MacMenu({ className = "", items, label, popover, trigger, triggerClassName = "" }: { readonly className?: string; readonly items: MenuSpec; readonly label: string; readonly popover?: MenuPopoverConfig; readonly trigger: ReactNode; readonly triggerClassName?: string })`
 `interface MenuAction { readonly kind: "action"; readonly id: string; readonly label: string; readonly detail?: string; readonly icon?: ReactNode; readonly trailingIcon?: ReactNode; readonly href?: string; readonly target?: string; readonly checked?: boolean; readonly onSelect?: () => void }`
 `type MenuEntry = MenuAction | { readonly kind: "separator"; readonly id: string } | { readonly kind: "section"; readonly id: string; readonly label: string }`
 `type MenuSpec = readonly MenuEntry[]`
-`className` lands on the wrapper (`.mc-menu`); the menu-bar dropdowns use it (`mc-menubar-menu`) to restyle the popover compactly.
+`type MenuPopoverConfig = { readonly className?: string; readonly placement?: "bottom start" | "bottom end"; readonly offset?: number }`
+`className` lands on the wrapper (`.mc-menu`). The popover itself is portalled and positioned by react-aria; `popover` carries the overlay knobs — the menu-bar dropdowns pass `{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 5 }` for the compact lead-aligned NSMenu skin. Entries with `checked` render as `menuitemradio` inside a single-selection group.
 
 ### MacDetailsMenu
 maps to: `NSPopover` anchored to a control; SwiftUI `.popover`.
@@ -111,7 +119,7 @@ maps to: no native counterpart — AppKit's key-window/first-responder system pr
 Returns a keydown handler to attach to the dialog element.
 
 ### FinderWindow
-maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspector` (sidebar / content / inspector three-pane split view).
+maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspector` — the three-pane split is react-resizable-panels (`Group`/`Panel`/`Separator`, the ARIA window-splitter pattern), and the sidebar genuinely maps to `List(.sidebar)` via a react-aria `Tree` (an ARIA tree: treegrid rows with arrow-key navigation, typeahead, expand/collapse, and selection).
 `FinderWindow({ sidebar, sidebarHeader, entries, mode, onModeChange, search, selection, onOpen, onDrop, preview, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom, iconColumns }: { readonly sidebar: readonly SidebarSection[]; readonly sidebarHeader?: ReactNode; readonly entries: readonly FinderEntry[]; readonly mode: FinderViewMode; readonly onModeChange: (mode: FinderViewMode) => void; readonly search: FinderSearch; readonly selection: FinderSelection; readonly onOpen: (entry: FinderEntry) => void; readonly onDrop?: (transfer: DataTransfer) => void; readonly preview?: (selection: FinderEntry | null) => ReactNode; readonly statusBar?: ReactNode; readonly toolbarExtras?: ReactNode; readonly title?: string; readonly label?: string; readonly frame?: WindowFrame; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly iconColumns?: number })`
 `type FinderEntry = { readonly id: string; readonly name: string; readonly kind: string; readonly icon: ReactNode; readonly modified?: string; readonly size?: string; readonly badge?: string; readonly draggable?: boolean }`
 `type SidebarItem = { readonly id: string; readonly icon?: ReactNode; readonly label: string; readonly badge?: ReactNode; readonly indent?: boolean; readonly selected?: boolean; readonly onSelect: () => void }`
@@ -120,12 +128,15 @@ maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspecto
 `type FinderSelection = { readonly selectedId: string | null; readonly onSelect: (id: string | null) => void }`
 `type FinderSearch = { readonly value: string; readonly onChange: (value: string) => void }`
 - Default geometry `940x580`, centered; override with `frame`.
-- The sidebar renders the macOS **source list** anatomy: full-height translucent material, quiet 11px section headers with a hover-revealed trailing disclosure chevron, 28px rows (accent-colored symbol + 13px label, 6px-radius tinted selection), sections separated by spacing — not dividers. `SidebarSection.className` is the hook for product-layer section placement (e.g. a bottom-anchored section) without reaching into chrome internals.
+- The sidebar renders the macOS **source list** anatomy: full-height translucent material, quiet 11px section headers with a hover-revealed trailing disclosure chevron, 28px rows (accent-colored symbol + 13px label, 6px-radius tinted selection), sections separated by spacing — not dividers. Keyboard semantics (arrows, typeahead, collapse, selection-follows-focus) come from the react-aria Tree; the tree flattens rows in the DOM, so `SidebarSection.className` lands on the section's **lead row** (its header, or an untitled section's first item) — still the hook for product-layer placement (e.g. a bottom-anchored section via `margin-top: auto`) without reaching into chrome internals.
+- The preview pane is a collapsible panel clamped to 220–350px (default 270): drag or use the separator's arrow keys to resize; dragging below 150px (or the separator's Enter) collapses it, returning focus to the toolbar's Show/Hide Preview toggle. Nothing persists.
 - The default toolbar is the parity composition: left-aligned title in the leading area, then trailing `toolbarExtras`, the segmented icons/list view capsule, the search bubble, and (when `preview` is provided) the inspector toggle — zero consumer CSS required.
+- The content grid is one tab stop (roving tabindex on the selected entry).
 
 ### QuickLook
 maps to: `QLPreviewPanel` / `.quickLookPreview`.
 `QuickLook({ entry, detail, onClose }: { readonly entry: FinderEntry; readonly detail?: ReactNode; readonly onClose: () => void })`
+Modal focus contract (`useModalFocusTrap`): focus moves to the close button on open, Tab is trapped inside, Escape cancels, and focus restores to the opener on close.
 
 ### finderKeyTarget
 maps to: no counterpart — pure grid-navigation math for the listbox (AppKit's `NSCollectionView` does this internally).

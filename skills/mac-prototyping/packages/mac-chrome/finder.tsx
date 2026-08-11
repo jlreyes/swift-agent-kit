@@ -4,12 +4,15 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { Button, Tree, TreeItem, TreeItemContent, type Key, type Selection } from "react-aria-components";
+import { Group, Panel, Separator, type PanelSize } from "react-resizable-panels";
 
+import { useModalFocusTrap } from "./modal-focus";
 import { SystemSymbol } from "./system-symbol";
 import { MacToolbar, ToolbarButton, ToolbarCapsule, ToolbarSearchBubble } from "./toolbar";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
@@ -50,7 +53,7 @@ export type SidebarSection = {
   readonly selected?: boolean;
   readonly onTitleSelect?: () => void;
   readonly action?: ReactNode;
-  /** Extra class on the section root (e.g. a product's bottom-anchored section). */
+  /** Extra class on the section's lead row (e.g. a product's bottom-anchored section). */
   readonly className?: string;
   readonly items: readonly SidebarItem[];
 };
@@ -67,12 +70,20 @@ export type FinderSearch = {
   readonly onChange: (value: string) => void;
 };
 
+const sidebarWidth = 224;
+const contentMinWidth = 210;
 const previewMinWidth = 220;
 const previewMaxWidth = 350;
-const previewCollapseWidth = 150;
 const previewDefaultWidth = 270;
-const previewKeyboardStep = 16;
-const sidebarWidth = 224;
+/* react-resizable-panels collapses a collapsible panel when a drag crosses
+   (collapsedSize + minSize) / 2 — (80 + 220) / 2 = 150, the house collapse
+   threshold. The collapsed panel never renders at 80px: the resize callback
+   hides the preview (and returns focus to the toolbar toggle) immediately. */
+const previewCollapseWidth = 150;
+const previewCollapsedSize = 2 * previewCollapseWidth - previewMinWidth;
+
+/* Panels are flex containers; the surface element inside stretches to fill. */
+const paneStyle: CSSProperties = { display: "flex", overflow: "hidden" };
 
 // Pure arrow-key selection math. Returns the next entry index, or null for no
 // movement. Contract: vertical movement is by `columns` and stays in-column at
@@ -108,13 +119,10 @@ export function QuickLook({
   readonly detail?: ReactNode;
   readonly onClose: () => void;
 }) {
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  const panelRef = useRef<HTMLElement>(null);
+  // Modal contract: focus moves into the panel (close button) on open, Tab is
+  // trapped inside, Escape cancels, and focus restores to the opener on close.
+  const handleModalKeyDown = useModalFocusTrap({ dialogRef: panelRef, onCancel: onClose });
 
   const meta = [entry.modified, entry.size].filter((part) => part !== undefined).join(" · ");
   return (
@@ -124,7 +132,14 @@ export function QuickLook({
         if (event.currentTarget === event.target) onClose();
       }}
     >
-      <section className="mc-quicklook-panel" role="dialog" aria-modal="true" aria-label={`Quick Look ${entry.name}`}>
+      <section
+        ref={panelRef}
+        className="mc-quicklook-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Quick Look ${entry.name}`}
+        onKeyDown={handleModalKeyDown}
+      >
         <header>
           <button type="button" onClick={onClose} aria-label="Close Quick Look">
             <SystemSymbol name="xmark" />
@@ -143,63 +158,138 @@ export function QuickLook({
   );
 }
 
-/* Source-list section (SwiftUI List(.sidebar) Section): a small quiet header
-   label with a hover-revealed trailing disclosure chevron, then plain rows.
-   Sections separate by spacing, never dividers. */
-function FinderSidebarSection({ section }: { readonly section: SidebarSection }) {
-  const [expanded, setExpanded] = useState(true);
-  const extraClass = section.className !== undefined ? ` ${section.className}` : "";
-  const items = (
-    <div className="mc-sidebar-items">
-      {section.items.map((item) => (
-        <button
-          type="button"
-          key={item.id}
-          className={`mc-sidebar-item${item.selected ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
-          aria-current={item.selected ? "true" : undefined}
-          onClick={item.onSelect}
-        >
-          {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
-          <span className="mc-sidebar-item-label">{item.label}</span>
-          {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
-        </button>
-      ))}
-    </div>
-  );
+/* Keys inside the sidebar tree: consumer section/item ids share one keyspace,
+   so each kind gets a prefix. */
+function sectionKey(id: string): string {
+  return `section:${id}`;
+}
 
-  if (section.title === undefined) {
-    return <section className={`mc-sidebar-section mc-plain${extraClass}`}>{items}</section>;
+function itemKey(id: string): string {
+  return `item:${id}`;
+}
+
+/* Source list (SwiftUI List(.sidebar) inside NavigationSplitView) on a
+   react-aria Tree: arrow-key navigation, typeahead, expand/collapse, and
+   selection semantics come from the library; the anatomy — quiet headers with
+   hover-revealed trailing chevrons, 28px rows, spacing between sections, never
+   dividers — stays on the mc-sidebar-* classes. Titled sections are styled
+   top-level rows; collapsible ones parent their item rows (react-aria flattens
+   rows in the DOM), non-collapsible ones are followed by flat item rows so no
+   collapse affordance exists at all. */
+function FinderSidebarTree({ sections }: { readonly sections: readonly SidebarSection[] }) {
+  // Everything starts expanded, matching the old per-section default.
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+
+  const collapsibleIds = sections
+    .filter((section) => section.title !== undefined && (section.collapsible ?? false))
+    .map((section) => section.id);
+  const expandedKeys = collapsibleIds.filter((id) => !collapsedIds.has(id)).map(sectionKey);
+
+  const selectedKeys: Key[] = [];
+  for (const section of sections) {
+    if (section.title !== undefined && section.selected) selectedKeys.push(sectionKey(section.id));
+    for (const item of section.items) {
+      if (item.selected) selectedKeys.push(itemKey(item.id));
+    }
   }
 
-  const collapsible = section.collapsible ?? false;
-  return (
-    <section className={`mc-sidebar-section${extraClass}`}>
-      <div className={`mc-sidebar-section-header${section.selected ? " mc-selected" : ""}`}>
-        <button
-          type="button"
-          className="mc-sidebar-section-label"
-          onClick={section.onTitleSelect}
+  function handleSelectionChange(selection: Selection) {
+    if (selection === "all") return;
+    const key = [...selection][0];
+    for (const section of sections) {
+      if (key === sectionKey(section.id)) {
+        section.onTitleSelect?.();
+        return;
+      }
+      for (const item of section.items) {
+        if (key === itemKey(item.id)) {
+          item.onSelect();
+          return;
+        }
+      }
+    }
+  }
+
+  function handleExpandedChange(keys: Set<Key>) {
+    // Controlled expansion: only collapsible sections may toggle, so keyboard
+    // collapse on a non-collapsible parent can never take.
+    setCollapsedIds(new Set(collapsibleIds.filter((id) => !keys.has(sectionKey(id)))));
+  }
+
+  function itemRows(section: SidebarSection): readonly ReactNode[] {
+    return section.items.map((item, index) => {
+      // An untitled section has no header row; its lead row carries the
+      // section identity (mc-sidebar-section spacing + the consumer class).
+      const leadClass =
+        section.title === undefined && index === 0
+          ? `mc-sidebar-section${section.className !== undefined ? ` ${section.className}` : ""} `
+          : "";
+      return (
+        <TreeItem
+          key={item.id}
+          id={itemKey(item.id)}
+          textValue={item.label}
+          className={`${leadClass}mc-sidebar-item${item.selected ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
         >
-          <strong>{section.title}</strong>
-          {section.count !== undefined ? <small>{section.count}</small> : null}
-        </button>
-        {section.action}
-        {collapsible ? (
-          <button
-            type="button"
-            className="mc-sidebar-disclosure-button"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${section.title}`}
-            onClick={() => setExpanded((current) => !current)}
+          <TreeItemContent>
+            {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
+            <span className="mc-sidebar-item-label">{item.label}</span>
+            {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
+          </TreeItemContent>
+        </TreeItem>
+      );
+    });
+  }
+
+  return (
+    <Tree
+      aria-label="Sidebar"
+      className="mc-sidebar-tree"
+      selectionMode="single"
+      selectionBehavior="replace"
+      disallowEmptySelection
+      selectedKeys={selectedKeys}
+      onSelectionChange={handleSelectionChange}
+      expandedKeys={expandedKeys}
+      onExpandedChange={handleExpandedChange}
+    >
+      {sections.flatMap((section) => {
+        if (section.title === undefined) return itemRows(section);
+        const title = section.title;
+        const collapsible = section.collapsible ?? false;
+        const expanded = !collapsedIds.has(section.id);
+        const extraClass = section.className !== undefined ? ` ${section.className}` : "";
+        const header = (
+          <TreeItem
+            key={`section-${section.id}`}
+            id={sectionKey(section.id)}
+            textValue={title}
+            className={`mc-sidebar-section mc-sidebar-section-header${section.selected ? " mc-selected" : ""}${extraClass}`}
           >
-            <span className={`mc-sidebar-disclosure${expanded ? " mc-open" : ""}`}>
-              <SystemSymbol name="chevron.right" />
-            </span>
-          </button>
-        ) : null}
-      </div>
-      {expanded ? items : null}
-    </section>
+            <TreeItemContent>
+              <span className="mc-sidebar-section-label">
+                <strong>{title}</strong>
+                {section.count !== undefined ? <small>{section.count}</small> : null}
+              </span>
+              {section.action}
+              {collapsible ? (
+                <Button
+                  slot="chevron"
+                  className="mc-sidebar-disclosure-button"
+                  aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+                >
+                  <span className={`mc-sidebar-disclosure${expanded ? " mc-open" : ""}`}>
+                    <SystemSymbol name="chevron.right" />
+                  </span>
+                </Button>
+              ) : null}
+            </TreeItemContent>
+            {collapsible ? itemRows(section) : null}
+          </TreeItem>
+        );
+        return collapsible ? [header] : [header, ...itemRows(section)];
+      })}
+    </Tree>
   );
 }
 
@@ -250,16 +340,13 @@ export function FinderWindow({
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(true);
-  const [previewWidth, setPreviewWidth] = useState(previewDefaultWidth);
+  // Bumped on every re-show so the remounted preview panel gets a fresh id —
+  // the panel group must not restore the collapsed layout it hid at.
+  const [previewGeneration, setPreviewGeneration] = useState(0);
   const [quickLookId, setQuickLookId] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const previewToggleRef = useRef<HTMLButtonElement>(null);
-  const previewResizeRef = useRef<{
-    readonly pointerId: number;
-    readonly startX: number;
-    readonly startWidth: number;
-  } | null>(null);
   // "entry id" focuses that entry's option; "content" re-anchors keyboard focus
   // on the grid after an open replaces the entries.
   const keyboardFocusPending = useRef<string | null>(null);
@@ -267,9 +354,9 @@ export function FinderWindow({
   const selectedEntry = entries.find((entry) => entry.id === selection.selectedId) ?? null;
   const quickLookEntry = quickLookId === null ? null : entries.find((entry) => entry.id === quickLookId) ?? null;
   const previewOpen = preview !== undefined && previewVisible;
-  const windowStyle = previewOpen
-    ? { gridTemplateColumns: `${sidebarWidth}px minmax(210px, 1fr) ${previewWidth}px` }
-    : undefined;
+  // Roving tabindex: the grid is one tab stop (the selected entry, else the
+  // first); arrow keys rove within it.
+  const tabStopId = selectedEntry !== null ? selectedEntry.id : entries[0]?.id;
 
   useEffect(() => {
     const pending = keyboardFocusPending.current;
@@ -345,54 +432,20 @@ export function FinderWindow({
     selection.onSelect(entry.id);
   }
 
-  function beginPreviewResize(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 || !event.isPrimary) return;
-    event.preventDefault();
-    previewResizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: previewWidth };
-    if (typeof event.currentTarget.setPointerCapture === "function") event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function releaseCapture(element: HTMLElement, pointerId: number) {
-    if (typeof element.hasPointerCapture === "function" && element.hasPointerCapture(pointerId)) {
-      element.releasePointerCapture(pointerId);
-    }
-  }
-
-  function resizePreview(event: ReactPointerEvent<HTMLDivElement>) {
-    const resize = previewResizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    const nextWidth = resize.startWidth + resize.startX - event.clientX;
-    if (nextWidth < previewCollapseWidth) {
-      previewResizeRef.current = null;
-      previewToggleRef.current?.focus();
+  function togglePreview() {
+    if (previewVisible) {
       setPreviewVisible(false);
-      releaseCapture(event.currentTarget, event.pointerId);
       return;
     }
-    setPreviewWidth(Math.min(Math.max(nextWidth, previewMinWidth), previewMaxWidth));
+    setPreviewGeneration((generation) => generation + 1);
+    setPreviewVisible(true);
   }
 
-  function finishPreviewResize(event: ReactPointerEvent<HTMLDivElement>) {
-    const resize = previewResizeRef.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
-    previewResizeRef.current = null;
-    releaseCapture(event.currentTarget, event.pointerId);
-  }
-
-  function resizePreviewWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      setPreviewWidth((current) => Math.min(current + previewKeyboardStep, previewMaxWidth));
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      if (previewWidth <= previewMinWidth) {
-        previewToggleRef.current?.focus();
-        setPreviewVisible(false);
-      } else {
-        setPreviewWidth((current) => Math.max(current - previewKeyboardStep, previewMinWidth));
-      }
-    } else if (event.key === "Escape") {
-      event.preventDefault();
+  function handlePreviewResize(size: PanelSize, _id: string | number | undefined, previous: PanelSize | undefined) {
+    if (previous === undefined) return;
+    // Crossing the collapse threshold (drag past it, or the separator's Enter
+    // collapse) hides the preview and returns focus to the toolbar toggle.
+    if (size.inPixels < previewCollapseWidth && previous.inPixels >= previewCollapseWidth) {
       previewToggleRef.current?.focus();
       setPreviewVisible(false);
     }
@@ -425,157 +478,164 @@ export function FinderWindow({
 
   return (
     <WindowChrome
-      className={`mc-finder-window${previewOpen ? "" : " mc-preview-hidden"}`}
+      className="mc-finder-window"
       label={label ?? title ?? "Finder"}
-      style={windowStyle}
       frame={frame}
       defaultSize={finderDefaultSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}
     >
-      <aside className="mc-finder-sidebar">
-        <div className="mc-finder-sidebar-top" data-window-drag-handle="">
-          <TrafficLights />
-        </div>
-        {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
-        <nav aria-label="Sidebar">
-          {sidebar.map((section) => (
-            <FinderSidebarSection key={section.id} section={section} />
-          ))}
-        </nav>
-      </aside>
-      <main className="mc-finder-main">
-        {/* macOS 27 Finder anatomy: title left-aligned in the leading area,
-            capsule controls trailing. Slot mode = the parity look for free. */}
-        <MacToolbar
-          className="mc-finder-toolbar"
-          title={title}
-          trailing={
-            <>
-              {toolbarExtras}
-              <ToolbarCapsule className="mc-finder-view-control" role="group" label="View">
-                <ToolbarButton
-                  label="Icon view"
-                  pressed={mode === "icons"}
-                  selected={mode === "icons"}
-                  onClick={() => onModeChange("icons")}
-                >
-                  <SystemSymbol name="square.grid.2x2" />
-                </ToolbarButton>
-                <ToolbarButton
-                  label="List view"
-                  pressed={mode === "list"}
-                  selected={mode === "list"}
-                  onClick={() => onModeChange("list")}
-                >
-                  <SystemSymbol name="list.bullet" />
-                </ToolbarButton>
-              </ToolbarCapsule>
-              <ToolbarSearchBubble
-                open={searchOpen}
-                value={search.value}
-                label="Search"
-                placeholder="Search"
-                onOpenChange={(open) => {
-                  setSearchOpen(open);
-                  if (!open) search.onChange("");
-                }}
-                onChange={search.onChange}
-              />
-              {preview !== undefined ? (
-                <ToolbarButton
-                  ref={previewToggleRef}
-                  className="mc-finder-preview-toggle"
-                  label={previewVisible ? "Hide Preview" : "Show Preview"}
-                  title={`${previewVisible ? "Hide" : "Show"} Preview`}
-                  pressed={previewVisible}
-                  selected={previewVisible}
-                  onClick={() => setPreviewVisible((current) => !current)}
-                >
-                  <SystemSymbol name="sidebar.trailing" />
-                </ToolbarButton>
-              ) : null}
-            </>
-          }
-        />
-        {mode === "list" ? (
-          <div className="mc-finder-list-head" aria-hidden="true">
-            <span />
-            <span>Name</span>
-            <span>Modified</span>
-            <span>Size</span>
-          </div>
+      {/* Three-pane split (NavigationSplitView) on react-resizable-panels:
+          fixed sidebar, flexible content, clamped collapsible preview with an
+          ARIA window-splitter separator. Nothing persists. */}
+      <Group className="mc-finder-split">
+        <Panel id="sidebar" disabled defaultSize={sidebarWidth} groupResizeBehavior="preserve-pixel-size" style={paneStyle}>
+          <aside className="mc-finder-sidebar">
+            <div className="mc-finder-sidebar-top" data-window-drag-handle="">
+              <TrafficLights />
+            </div>
+            {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
+            <nav aria-label="Sidebar">
+              <FinderSidebarTree sections={sidebar} />
+            </nav>
+          </aside>
+        </Panel>
+        <Panel id="content" minSize={contentMinWidth} style={paneStyle}>
+          <main className="mc-finder-main">
+            {/* macOS 27 Finder anatomy: title left-aligned in the leading area,
+                capsule controls trailing. Slot mode = the parity look for free. */}
+            <MacToolbar
+              className="mc-finder-toolbar"
+              title={title}
+              trailing={
+                <>
+                  {toolbarExtras}
+                  <ToolbarCapsule className="mc-finder-view-control" role="group" label="View">
+                    <ToolbarButton
+                      label="Icon view"
+                      pressed={mode === "icons"}
+                      selected={mode === "icons"}
+                      onClick={() => onModeChange("icons")}
+                    >
+                      <SystemSymbol name="square.grid.2x2" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                      label="List view"
+                      pressed={mode === "list"}
+                      selected={mode === "list"}
+                      onClick={() => onModeChange("list")}
+                    >
+                      <SystemSymbol name="list.bullet" />
+                    </ToolbarButton>
+                  </ToolbarCapsule>
+                  <ToolbarSearchBubble
+                    open={searchOpen}
+                    value={search.value}
+                    label="Search"
+                    placeholder="Search"
+                    onOpenChange={(open) => {
+                      setSearchOpen(open);
+                      if (!open) search.onChange("");
+                    }}
+                    onChange={search.onChange}
+                  />
+                  {preview !== undefined ? (
+                    <ToolbarButton
+                      ref={previewToggleRef}
+                      className="mc-finder-preview-toggle"
+                      label={previewVisible ? "Hide Preview" : "Show Preview"}
+                      title={`${previewVisible ? "Hide" : "Show"} Preview`}
+                      pressed={previewVisible}
+                      selected={previewVisible}
+                      onClick={togglePreview}
+                    >
+                      <SystemSymbol name="sidebar.trailing" />
+                    </ToolbarButton>
+                  ) : null}
+                </>
+              }
+            />
+            {mode === "list" ? (
+              <div className="mc-finder-list-head" aria-hidden="true">
+                <span />
+                <span>Name</span>
+                <span>Modified</span>
+                <span>Size</span>
+              </div>
+            ) : null}
+            <div
+              ref={contentRef}
+              role="listbox"
+              aria-label={title ?? "Files"}
+              tabIndex={-1}
+              className={`mc-finder-content mc-${mode}${dropActive ? " mc-drop-active" : ""}`}
+              onKeyDown={handleContentKeyDown}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {entries.map((entry) => {
+                const isSelected = selection.selectedId === entry.id;
+                return (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    tabIndex={entry.id === tabStopId ? 0 : -1}
+                    className={`mc-finder-entry${isSelected ? " mc-selected" : ""}`}
+                    data-mc-entry-id={entry.id}
+                    key={entry.id}
+                    draggable={entry.draggable === true ? true : undefined}
+                    onDragStart={
+                      entry.draggable === true
+                        ? (event) => {
+                            event.dataTransfer.setData("text/plain", entry.id);
+                            event.dataTransfer.effectAllowed = "copyMove";
+                          }
+                        : undefined
+                    }
+                    onClick={() => selection.onSelect(entry.id)}
+                    onDoubleClick={() => onOpen(entry)}
+                    title={entry.kind === "folder" ? "Double-click to open" : undefined}
+                    aria-keyshortcuts={entry.kind === "folder" ? "Meta+ArrowDown" : undefined}
+                  >
+                    <span className="mc-finder-entry-icon" aria-hidden="true">{entry.icon}</span>
+                    <span className="mc-finder-name">
+                      {entry.name}
+                      {entry.badge !== undefined ? <i className="mc-finder-badge">{entry.badge}</i> : null}
+                    </span>
+                    <span className="mc-finder-modified">{entry.modified ?? ""}</span>
+                    <span className="mc-finder-size">{entry.size ?? ""}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {statusBar !== undefined ? <footer className="mc-finder-status">{statusBar}</footer> : null}
+          </main>
+        </Panel>
+        {previewOpen ? (
+          <>
+            <Separator className="mc-preview-resize-handle" aria-label="Resize Preview pane" />
+            <Panel
+              id={`preview-${previewGeneration}`}
+              collapsible
+              collapsedSize={previewCollapsedSize}
+              minSize={previewMinWidth}
+              maxSize={previewMaxWidth}
+              defaultSize={previewDefaultWidth}
+              groupResizeBehavior="preserve-pixel-size"
+              onResize={handlePreviewResize}
+              style={paneStyle}
+            >
+              <aside className="mc-finder-preview" aria-label="Preview">
+                <div className="mc-finder-preview-body">{preview(selectedEntry)}</div>
+              </aside>
+            </Panel>
+          </>
         ) : null}
-        <div
-          ref={contentRef}
-          role="listbox"
-          aria-label={title ?? "Files"}
-          tabIndex={-1}
-          className={`mc-finder-content mc-${mode}${dropActive ? " mc-drop-active" : ""}`}
-          onKeyDown={handleContentKeyDown}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          {entries.map((entry) => {
-            const isSelected = selection.selectedId === entry.id;
-            return (
-              <button
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                className={`mc-finder-entry${isSelected ? " mc-selected" : ""}`}
-                data-mc-entry-id={entry.id}
-                key={entry.id}
-                draggable={entry.draggable === true ? true : undefined}
-                onDragStart={
-                  entry.draggable === true
-                    ? (event) => {
-                        event.dataTransfer.setData("text/plain", entry.id);
-                        event.dataTransfer.effectAllowed = "copyMove";
-                      }
-                    : undefined
-                }
-                onClick={() => selection.onSelect(entry.id)}
-                onDoubleClick={() => onOpen(entry)}
-                title={entry.kind === "folder" ? "Double-click to open" : undefined}
-                aria-keyshortcuts={entry.kind === "folder" ? "Meta+ArrowDown" : undefined}
-              >
-                <span className="mc-finder-entry-icon" aria-hidden="true">{entry.icon}</span>
-                <span className="mc-finder-name">
-                  {entry.name}
-                  {entry.badge !== undefined ? <i className="mc-finder-badge">{entry.badge}</i> : null}
-                </span>
-                <span className="mc-finder-modified">{entry.modified ?? ""}</span>
-                <span className="mc-finder-size">{entry.size ?? ""}</span>
-              </button>
-            );
-          })}
-        </div>
-        {statusBar !== undefined ? <footer className="mc-finder-status">{statusBar}</footer> : null}
-      </main>
-      {previewOpen ? (
-        <aside className="mc-finder-preview" aria-label="Preview">
-          <div
-            className="mc-preview-resize-handle"
-            role="separator"
-            aria-label="Resize Preview pane"
-            aria-orientation="vertical"
-            aria-valuemin={previewMinWidth}
-            aria-valuemax={previewMaxWidth}
-            aria-valuenow={previewWidth}
-            tabIndex={0}
-            onPointerDown={beginPreviewResize}
-            onPointerMove={resizePreview}
-            onPointerUp={finishPreviewResize}
-            onPointerCancel={finishPreviewResize}
-            onKeyDown={resizePreviewWithKeyboard}
-          />
-          <div className="mc-finder-preview-body">{preview(selectedEntry)}</div>
-        </aside>
-      ) : null}
+      </Group>
       {quickLookEntry ? <QuickLook entry={quickLookEntry} onClose={() => setQuickLookId(null)} /> : null}
     </WindowChrome>
   );

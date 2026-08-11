@@ -4,9 +4,12 @@ import { useRef, type ReactNode, type RefObject } from "react";
 
 import { useModalFocusTrap } from "./modal-focus";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
-import { TrafficLights, WindowChrome } from "./window";
+import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
 import "./styles/setup-assistant.css";
+
+/* Default geometry (Setup Assistant sheet-like proportions). */
+const setupDefaultSize = { width: 720, height: 560 } as const;
 
 export type SetupStep = {
   readonly id: string;
@@ -92,6 +95,10 @@ export function SetupAssistant({
   // While a Sheet is up the underlay goes inert so the trap is airtight.
   modalOpen = false,
   label,
+  frame,
+  onClose,
+  onMinimize,
+  onZoom,
   children,
 }: {
   readonly steps: readonly SetupStep[];
@@ -105,14 +112,27 @@ export function SetupAssistant({
   readonly continueDisabled?: boolean;
   readonly modalOpen?: boolean;
   readonly label?: string;
+  /** Placement/size override; defaults to ~720x560, centered. */
+  readonly frame?: WindowFrame;
+  readonly onClose?: () => void;
+  readonly onMinimize?: () => void;
+  readonly onZoom?: () => void;
   readonly children: ReactNode;
 }) {
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
   const currentName = currentIndex >= 0 ? steps[currentIndex]?.name : undefined;
 
   return (
-    <WindowChrome className="mc-setup-window" label={label ?? "Setup Assistant"}>
-      <div className="mc-setup-titlebar">
+    <WindowChrome
+      className="mc-setup-window"
+      label={label ?? "Setup Assistant"}
+      frame={frame}
+      defaultSize={setupDefaultSize}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      onZoom={onZoom}
+    >
+      <div className="mc-setup-titlebar" data-window-drag-handle="">
         <TrafficLights />
       </div>
       <div className="mc-setup-underlay" inert={modalOpen ? true : undefined} aria-hidden={modalOpen || undefined}>

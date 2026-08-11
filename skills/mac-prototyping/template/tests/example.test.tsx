@@ -32,8 +32,20 @@ test("the example surface renders its window title", () => {
 
   expect(screen.getByText("Example Window")).toBeDefined();
   expect(screen.getByRole("navigation", { name: "Mac Dock" })).toBeDefined();
-  expect(screen.getByRole("img", { name: "Google Drive" })).toBeDefined();
-  expect(screen.getByRole("img", { name: "Notion" })).toBeDefined();
+  // The menu-bar titles render in both stub (inert) and vendored (dropdown) modes.
+  expect(screen.getByText("File")).toBeDefined();
+});
+
+test("the example brand icons resolve to real simple-icons paths", () => {
+  render(<ExamplePage />);
+
+  // Not just "an element rendered": the installed simple-icons actually
+  // resolved the slug to a glyph path (unknown slugs render nothing).
+  for (const [name, slug] of [["Google Drive", "googledrive"], ["Notion", "notion"]] as const) {
+    const icon = screen.getByRole("img", { name });
+    expect(icon.getAttribute("data-brand")).toBe(slug);
+    expect(icon.querySelector("path")?.getAttribute("d")).toMatch(/^[Mm]/);
+  }
 });
 
 test("the finder example window renders with its entries", () => {

@@ -2,6 +2,11 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
+import { MacMenu, type MenuSpec } from "./menu";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/popover.css";
+
 const defaultMenuItems = ["File", "Edit", "View", "Window", "Help"] as const;
 
 /* Accepts a full CSS <image> value or a bare URL for the wallpaper prop. */
@@ -9,11 +14,20 @@ const cssImagePattern = /^(url\(|linear-gradient\(|radial-gradient\(|conic-gradi
 
 type DesktopCanvasStyle = CSSProperties & { readonly "--mc-wallpaper"?: string };
 
+/** A menu-bar title backed by a real dropdown (MacMenu machinery). */
+export type MenuBarMenu = {
+  readonly title: string;
+  readonly items: MenuSpec;
+};
+
 export interface DesktopShellProps {
   readonly appName: string;
-  readonly menuItems?: readonly string[];
+  /** Plain strings render as inert titles; `{ title, items }` entries open a real dropdown. */
+  readonly menuItems?: readonly (string | MenuBarMenu)[];
   readonly date?: string;
   readonly clock?: string;
+  /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
+  readonly menuBarExtras?: ReactNode;
   /** CSS image value (url(...), gradient, var(...)) or a bare image URL. */
   readonly wallpaper?: string;
   readonly children: ReactNode;
@@ -24,6 +38,7 @@ export function DesktopShell({
   menuItems = defaultMenuItems,
   date = "Wed Aug 6",
   clock = "9:47 AM",
+  menuBarExtras,
   wallpaper,
   children,
 }: DesktopShellProps) {
@@ -37,9 +52,23 @@ export function DesktopShell({
           <div className="menu-left">
             <span className="apple-mark" aria-hidden="true"></span>
             <strong>{appName}</strong>
-            {menuItems.map((item) => <span key={item}>{item}</span>)}
+            {menuItems.map((item) =>
+              typeof item === "string" ? (
+                <span key={item}>{item}</span>
+              ) : (
+                <MacMenu
+                  key={item.title}
+                  className="mc-menubar-menu"
+                  triggerClassName="mc-menubar-menu-title"
+                  label={`${item.title} menu`}
+                  trigger={item.title}
+                  items={item.items}
+                />
+              ),
+            )}
           </div>
           <div className="menu-right" aria-label="Mac status items">
+            {menuBarExtras !== undefined ? <span className="mc-menubar-extras">{menuBarExtras}</span> : null}
             <span className="status-battery" aria-label="Battery"><i /></span>
             <span className="status-wifi" aria-label="Wi-Fi"><i /><i /><i /></span>
             <span>{date}</span>

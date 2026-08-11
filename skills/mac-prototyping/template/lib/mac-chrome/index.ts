@@ -18,6 +18,11 @@ export type {
   FinderSearch,
   FinderSelection,
   FinderViewMode,
+  MenuAction,
+  MenuBarMenu,
+  MenuEntry,
+  MenuSpec,
   SidebarItem,
   SidebarSection,
+  WindowFrame,
 } from "./stub.tsx";

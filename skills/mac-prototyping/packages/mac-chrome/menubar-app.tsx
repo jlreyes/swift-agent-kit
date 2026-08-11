@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import "./styles/tokens.css";
+import "./styles/popover.css";
+
 /* Menu-bar extra: a glyph trigger sitting in the menu bar that toggles a
    popover shell. Content is slotted; the layer spans the desktop canvas so
    the popover can hang below the bar. */

@@ -3,6 +3,9 @@
 import type { ReactNode, Ref } from "react";
 import { useState } from "react";
 
+import "./styles/tokens.css";
+import "./styles/toolbar.css";
+
 export type ToolbarGlyphName = "back" | "forward" | "grid" | "inspector" | "list" | "more" | "search";
 
 export function ToolbarGlyph({ name }: { readonly name: ToolbarGlyphName }) {
@@ -72,8 +75,10 @@ export function MacToolbar({ center, children, className = "", leading, title, t
   readonly title?: ReactNode;
   readonly trailing?: ReactNode;
 }) {
+  // The toolbar surface is a window-drag handle (macOS anatomy); interactive
+  // children are excluded by useWindowDrag's built-in selector.
   return (
-    <header className={`mc-toolbar ${className}`.trim()}>
+    <header className={`mc-toolbar ${className}`.trim()} data-window-drag-handle="">
       {leading}
       {title !== undefined ? <h1 className="mc-toolbar-title">{title}</h1> : null}
       {center}

@@ -1,14 +1,112 @@
 "use client";
 
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-export function TrafficLights({ onClose }: { readonly onClose?: () => void } = {}) {
+import "./styles/tokens.css";
+import "./styles/base.css";
+
+/** Window placement/size override. Numbers are px; strings pass through as CSS. */
+export type WindowFrame = {
+  readonly top?: number | string;
+  readonly left?: number | string;
+  readonly width?: number | string;
+  readonly height?: number | string;
+};
+
+type WindowSize = { readonly width: number; readonly height: number };
+
+const genericDefaultSize: WindowSize = { width: 720, height: 480 };
+
+/* Zoom target: nearly the whole desktop canvas, clear of the menu bar (24px)
+   and the Dock reserve (~81px). */
+const zoomedPlacement: CSSProperties = {
+  top: "28px",
+  left: "24px",
+  width: "calc(100% - 48px)",
+  height: "calc(100% - 116px)",
+};
+
+const minimizeDurationMs = 220;
+
+function cssLength(value: number | string): string {
+  return typeof value === "number" ? `${value}px` : value;
+}
+
+/* Centered-ish default placement: horizontally centered, biased slightly above
+   vertical center (menu bar + Dock make the visual center sit high). */
+function framePlacement(frame: WindowFrame | undefined, defaultSize: WindowSize): CSSProperties {
+  const width = cssLength(frame?.width ?? defaultSize.width);
+  const height = cssLength(frame?.height ?? defaultSize.height);
+  return {
+    width,
+    height,
+    top: frame?.top !== undefined ? cssLength(frame.top) : `max(28px, calc(50% - (${height}) / 2 - 28px))`,
+    left: frame?.left !== undefined ? cssLength(frame.left) : `calc(50% - (${width}) / 2)`,
+  };
+}
+
+type WindowControls = {
+  readonly close: () => void;
+  readonly minimize: () => void;
+  readonly zoom: () => void;
+};
+
+/* Set by WindowChrome so TrafficLights rendered anywhere inside the window
+   picks up the working close/minimize/zoom defaults without prop plumbing. */
+const WindowControlsContext = createContext<WindowControls | null>(null);
+
+function TrafficGlyph({ kind }: { readonly kind: "close" | "minimize" | "zoom" }) {
+  if (kind === "close") {
+    return (
+      <svg viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+        <path d="M1.9 1.9 6.1 6.1M6.1 1.9 1.9 6.1" />
+      </svg>
+    );
+  }
+  if (kind === "minimize") {
+    return (
+      <svg viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+        <path d="M1.5 4h5" />
+      </svg>
+    );
+  }
   return (
-    <div className="traffic-lights" aria-label="Window controls">
-      {onClose ? <button type="button" className="traffic-close" onClick={onClose} aria-label="Close window" /> : <span className="traffic-close" />}
-      <span className="traffic-minimize" />
-      <span className="traffic-zoom" />
+    <svg viewBox="0 0 8 8" aria-hidden="true" focusable="false">
+      <path className="mc-traffic-fill" d="M4.4 1.5H1.5v2.9Z" />
+      <path className="mc-traffic-fill" d="M3.6 6.5h2.9V3.6Z" />
+    </svg>
+  );
+}
+
+/* macOS behavior: the glyphs stay hidden until the pointer is over the
+   cluster, then all three reveal together (styles/base.css). Handlers resolve
+   from props first, then the enclosing WindowChrome's internal defaults. */
+export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }: {
+  /** All three render as inert solid-gray dots (no glyphs, no actions). */
+  readonly disabled?: boolean;
+  readonly onClose?: () => void;
+  readonly onMinimize?: () => void;
+  readonly onZoom?: () => void;
+} = {}) {
+  const controls = useContext(WindowControlsContext);
+
+  function control(kind: "close" | "minimize" | "zoom", label: string, action: (() => void) | undefined) {
+    if (disabled || action === undefined) {
+      return <span className={`traffic-${kind}`}>{disabled ? null : <TrafficGlyph kind={kind} />}</span>;
+    }
+    return (
+      <button type="button" className={`traffic-${kind}`} aria-label={label} onClick={action}>
+        <TrafficGlyph kind={kind} />
+      </button>
+    );
+  }
+
+  return (
+    <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">
+      {control("close", "Close window", onClose ?? controls?.close)}
+      {control("minimize", "Minimize window", onMinimize ?? controls?.minimize)}
+      {control("zoom", "Zoom window", onZoom ?? controls?.zoom)}
     </div>
   );
 }
@@ -91,7 +189,9 @@ export function useWindowDrag<T extends HTMLElement>(
       origin: offsetRef.current,
       rect: element.getBoundingClientRect(),
     };
-    element.setPointerCapture(event.pointerId);
+    // Pointer capture is absent in non-visual test DOMs (jsdom); dragging
+    // still works there, it just loses outside-the-element move tracking.
+    if (typeof element.setPointerCapture === "function") element.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event: ReactPointerEvent<T>) {
@@ -110,7 +210,13 @@ export function useWindowDrag<T extends HTMLElement>(
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
-    if (element?.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+    if (
+      element &&
+      typeof element.hasPointerCapture === "function" &&
+      element.hasPointerCapture(event.pointerId)
+    ) {
+      element.releasePointerCapture(event.pointerId);
+    }
   }
 
   const style: CSSProperties = { transform: `translate3d(${offset.x}px, ${offset.y}px, 0)` };
@@ -120,10 +226,15 @@ export function useWindowDrag<T extends HTMLElement>(
 export function WindowChrome({
   children,
   className = "",
-  draggable = false,
+  defaultSize = genericDefaultSize,
+  draggable = true,
   dragHandleSelector,
+  frame,
   label,
   style,
+  onClose,
+  onMinimize,
+  onZoom,
   onDragEnter,
   onDragLeave,
   onDragOver,
@@ -131,40 +242,89 @@ export function WindowChrome({
 }: {
   readonly children: ReactNode;
   readonly className?: string;
+  /** Fallback geometry when `frame` omits width/height (surfaces set their own). */
+  readonly defaultSize?: WindowSize;
   readonly draggable?: boolean;
   readonly dragHandleSelector?: string;
+  /** Placement/size override; unset sides default to the centered placement. */
+  readonly frame?: WindowFrame;
   readonly label: string;
-  /** Merged under the drag transform (e.g. injected grid column widths). */
+  /** Merged over the frame placement, under the drag transform. */
   readonly style?: CSSProperties;
+  /** Called on close; the window hides itself either way. */
+  readonly onClose?: () => void;
+  /** Called on minimize; the window animates out and hides either way. */
+  readonly onMinimize?: () => void;
+  /** Called on zoom; the window toggles frame size <-> canvas size either way. */
+  readonly onZoom?: () => void;
   readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void;
   readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void;
   readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void;
   readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void;
 }) {
+  const [hidden, setHidden] = useState(false);
+  const [minimizing, setMinimizing] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   const {
     windowRef,
-    style: windowStyle,
+    style: dragStyle,
     onPointerDown: onWindowPointerDown,
     onPointerMove: onWindowPointerMove,
     onPointerUp: onWindowPointerUp,
     onPointerCancel: onWindowPointerCancel,
-  } = useWindowDrag<HTMLElement>(draggable, dragHandleSelector);
+  } = useWindowDrag<HTMLElement>(draggable && !minimizing, dragHandleSelector);
+
+  const controls = useMemo<WindowControls>(() => ({
+    close: () => {
+      onClose?.();
+      setHidden(true);
+    },
+    minimize: () => {
+      onMinimize?.();
+      setMinimizing(true);
+    },
+    zoom: () => {
+      onZoom?.();
+      setZoomed((current) => !current);
+    },
+  }), [onClose, onMinimize, onZoom]);
+
+  useEffect(() => {
+    if (!minimizing) return;
+    const timer = window.setTimeout(() => setHidden(true), minimizeDurationMs);
+    return () => window.clearTimeout(timer);
+  }, [minimizing]);
+
+  if (hidden) return null;
+
+  const composedStyle: CSSProperties = {
+    ...(zoomed ? zoomedPlacement : framePlacement(frame, defaultSize)),
+    ...style,
+    ...(draggable ? dragStyle : undefined),
+  };
+  if (minimizing) {
+    composedStyle.transform = `${draggable ? `${dragStyle.transform ?? ""} ` : ""}translateY(42px) scale(0.5)`;
+    composedStyle.opacity = 0;
+  }
+
   return (
-    <section
-      ref={windowRef}
-      style={draggable ? { ...style, ...windowStyle } : style}
-      className={`mac-window ${className}`}
-      aria-label={label}
-      onPointerDown={onWindowPointerDown}
-      onPointerMove={onWindowPointerMove}
-      onPointerUp={onWindowPointerUp}
-      onPointerCancel={onWindowPointerCancel}
-      onDragEnter={onDragEnter}
-      onDragLeave={onDragLeave}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      {children}
-    </section>
+    <WindowControlsContext.Provider value={controls}>
+      <section
+        ref={windowRef}
+        style={composedStyle}
+        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}`}
+        aria-label={label}
+        onPointerDown={onWindowPointerDown}
+        onPointerMove={onWindowPointerMove}
+        onPointerUp={onWindowPointerUp}
+        onPointerCancel={onWindowPointerCancel}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {children}
+      </section>
+    </WindowControlsContext.Provider>
   );
 }

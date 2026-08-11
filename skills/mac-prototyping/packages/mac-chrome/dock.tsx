@@ -2,6 +2,9 @@
 
 import type { DragEvent as ReactDragEvent, ReactNode } from "react";
 
+import "./styles/tokens.css";
+import "./styles/dock.css";
+
 export interface DockItem {
   readonly id: string;
   readonly label: string;

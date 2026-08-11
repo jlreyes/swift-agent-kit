@@ -12,9 +12,12 @@ import {
 
 import { SystemSymbol } from "./system-symbol";
 import { MacToolbar, ToolbarButton, ToolbarCapsule, ToolbarSearchBubble } from "./toolbar";
-import { TrafficLights, WindowChrome } from "./window";
+import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
 import "./styles/finder.css";
+
+/* Default geometry (macOS Finder-ish proportions on the 1200px canvas). */
+const finderDefaultSize = { width: 940, height: 580 } as const;
 
 export type FinderEntry = {
   readonly id: string;
@@ -47,6 +50,8 @@ export type SidebarSection = {
   readonly selected?: boolean;
   readonly onTitleSelect?: () => void;
   readonly action?: ReactNode;
+  /** Extra class on the section root (e.g. a product's bottom-anchored section). */
+  readonly className?: string;
   readonly items: readonly SidebarItem[];
 };
 
@@ -138,8 +143,12 @@ export function QuickLook({
   );
 }
 
+/* Source-list section (SwiftUI List(.sidebar) Section): a small quiet header
+   label with a hover-revealed trailing disclosure chevron, then plain rows.
+   Sections separate by spacing, never dividers. */
 function FinderSidebarSection({ section }: { readonly section: SidebarSection }) {
   const [expanded, setExpanded] = useState(true);
+  const extraClass = section.className !== undefined ? ` ${section.className}` : "";
   const items = (
     <div className="mc-sidebar-items">
       {section.items.map((item) => (
@@ -159,15 +168,22 @@ function FinderSidebarSection({ section }: { readonly section: SidebarSection })
   );
 
   if (section.title === undefined) {
-    return <section className="mc-sidebar-section mc-plain">{items}</section>;
+    return <section className={`mc-sidebar-section mc-plain${extraClass}`}>{items}</section>;
   }
 
   const collapsible = section.collapsible ?? false;
   return (
-    <section className="mc-sidebar-section">
-      <div
-        className={`mc-sidebar-section-header${section.selected ? " mc-selected" : ""}${section.action !== undefined ? " mc-has-action" : ""}`}
-      >
+    <section className={`mc-sidebar-section${extraClass}`}>
+      <div className={`mc-sidebar-section-header${section.selected ? " mc-selected" : ""}`}>
+        <button
+          type="button"
+          className="mc-sidebar-section-label"
+          onClick={section.onTitleSelect}
+        >
+          <strong>{section.title}</strong>
+          {section.count !== undefined ? <small>{section.count}</small> : null}
+        </button>
+        {section.action}
         {collapsible ? (
           <button
             type="button"
@@ -180,19 +196,7 @@ function FinderSidebarSection({ section }: { readonly section: SidebarSection })
               <SystemSymbol name="chevron.right" />
             </span>
           </button>
-        ) : (
-          <span className="mc-sidebar-disclosure-spacer" />
-        )}
-        <button
-          type="button"
-          className="mc-sidebar-section-label"
-          aria-expanded={collapsible ? expanded : undefined}
-          onClick={section.onTitleSelect}
-        >
-          <strong>{section.title}</strong>
-          {section.count !== undefined ? <small>{section.count}</small> : null}
-        </button>
-        {section.action}
+        ) : null}
       </div>
       {expanded ? items : null}
     </section>
@@ -214,6 +218,10 @@ export function FinderWindow({
   toolbarExtras,
   title,
   label,
+  frame,
+  onClose,
+  onMinimize,
+  onZoom,
   iconColumns,
 }: {
   readonly sidebar: readonly SidebarSection[];
@@ -231,6 +239,11 @@ export function FinderWindow({
   readonly toolbarExtras?: ReactNode;
   readonly title?: string;
   readonly label?: string;
+  /** Placement/size override; defaults to ~940x580, centered. */
+  readonly frame?: WindowFrame;
+  readonly onClose?: () => void;
+  readonly onMinimize?: () => void;
+  readonly onZoom?: () => void;
   // Layout override for the icon-grid column count; by default the rendered
   // grid is measured. Also the deterministic seam for non-layout test DOMs.
   readonly iconColumns?: number;
@@ -336,7 +349,13 @@ export function FinderWindow({
     if (event.button !== 0 || !event.isPrimary) return;
     event.preventDefault();
     previewResizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: previewWidth };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (typeof event.currentTarget.setPointerCapture === "function") event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function releaseCapture(element: HTMLElement, pointerId: number) {
+    if (typeof element.hasPointerCapture === "function" && element.hasPointerCapture(pointerId)) {
+      element.releasePointerCapture(pointerId);
+    }
   }
 
   function resizePreview(event: ReactPointerEvent<HTMLDivElement>) {
@@ -347,7 +366,7 @@ export function FinderWindow({
       previewResizeRef.current = null;
       previewToggleRef.current?.focus();
       setPreviewVisible(false);
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      releaseCapture(event.currentTarget, event.pointerId);
       return;
     }
     setPreviewWidth(Math.min(Math.max(nextWidth, previewMinWidth), previewMaxWidth));
@@ -357,7 +376,7 @@ export function FinderWindow({
     const resize = previewResizeRef.current;
     if (!resize || resize.pointerId !== event.pointerId) return;
     previewResizeRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    releaseCapture(event.currentTarget, event.pointerId);
   }
 
   function resizePreviewWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -409,9 +428,14 @@ export function FinderWindow({
       className={`mc-finder-window${previewOpen ? "" : " mc-preview-hidden"}`}
       label={label ?? title ?? "Finder"}
       style={windowStyle}
+      frame={frame}
+      defaultSize={finderDefaultSize}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      onZoom={onZoom}
     >
       <aside className="mc-finder-sidebar">
-        <div className="mc-finder-sidebar-top">
+        <div className="mc-finder-sidebar-top" data-window-drag-handle="">
           <TrafficLights />
         </div>
         {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
@@ -422,55 +446,59 @@ export function FinderWindow({
         </nav>
       </aside>
       <main className="mc-finder-main">
-        <MacToolbar className="mc-finder-toolbar">
-          <span className="mc-finder-toolbar-lead" />
-          <h1 className="mc-finder-title">{title}</h1>
-          <div className="mc-finder-actions">
-            {toolbarExtras}
-            <ToolbarCapsule className="mc-finder-view-control" label="View">
-              <ToolbarButton
-                label="Icon view"
-                pressed={mode === "icons"}
-                selected={mode === "icons"}
-                onClick={() => onModeChange("icons")}
-              >
-                <SystemSymbol name="square.grid.2x2" />
-              </ToolbarButton>
-              <ToolbarButton
-                label="List view"
-                pressed={mode === "list"}
-                selected={mode === "list"}
-                onClick={() => onModeChange("list")}
-              >
-                <SystemSymbol name="list.bullet" />
-              </ToolbarButton>
-            </ToolbarCapsule>
-            <ToolbarSearchBubble
-              open={searchOpen}
-              value={search.value}
-              label="Search"
-              placeholder="Search"
-              onOpenChange={(open) => {
-                setSearchOpen(open);
-                if (!open) search.onChange("");
-              }}
-              onChange={search.onChange}
-            />
-            {preview !== undefined ? (
-              <ToolbarButton
-                ref={previewToggleRef}
-                className="mc-finder-preview-toggle"
-                label={previewVisible ? "Hide Preview" : "Show Preview"}
-                title={`${previewVisible ? "Hide" : "Show"} Preview`}
-                pressed={previewVisible}
-                selected={previewVisible}
-                onClick={() => setPreviewVisible((current) => !current)}
-              >
-                <SystemSymbol name="sidebar.trailing" />
-              </ToolbarButton>
-            ) : null}
-          </div>
-        </MacToolbar>
+        {/* macOS 27 Finder anatomy: title left-aligned in the leading area,
+            capsule controls trailing. Slot mode = the parity look for free. */}
+        <MacToolbar
+          className="mc-finder-toolbar"
+          title={title}
+          trailing={
+            <>
+              {toolbarExtras}
+              <ToolbarCapsule className="mc-finder-view-control" role="group" label="View">
+                <ToolbarButton
+                  label="Icon view"
+                  pressed={mode === "icons"}
+                  selected={mode === "icons"}
+                  onClick={() => onModeChange("icons")}
+                >
+                  <SystemSymbol name="square.grid.2x2" />
+                </ToolbarButton>
+                <ToolbarButton
+                  label="List view"
+                  pressed={mode === "list"}
+                  selected={mode === "list"}
+                  onClick={() => onModeChange("list")}
+                >
+                  <SystemSymbol name="list.bullet" />
+                </ToolbarButton>
+              </ToolbarCapsule>
+              <ToolbarSearchBubble
+                open={searchOpen}
+                value={search.value}
+                label="Search"
+                placeholder="Search"
+                onOpenChange={(open) => {
+                  setSearchOpen(open);
+                  if (!open) search.onChange("");
+                }}
+                onChange={search.onChange}
+              />
+              {preview !== undefined ? (
+                <ToolbarButton
+                  ref={previewToggleRef}
+                  className="mc-finder-preview-toggle"
+                  label={previewVisible ? "Hide Preview" : "Show Preview"}
+                  title={`${previewVisible ? "Hide" : "Show"} Preview`}
+                  pressed={previewVisible}
+                  selected={previewVisible}
+                  onClick={() => setPreviewVisible((current) => !current)}
+                >
+                  <SystemSymbol name="sidebar.trailing" />
+                </ToolbarButton>
+              ) : null}
+            </>
+          }
+        />
         {mode === "list" ? (
           <div className="mc-finder-list-head" aria-hidden="true">
             <span />

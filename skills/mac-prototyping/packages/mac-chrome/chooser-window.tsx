@@ -10,9 +10,12 @@ import {
 } from "react";
 
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
-import { TrafficLights, WindowChrome } from "./window";
+import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
 import "./styles/chooser.css";
+
+/* Default geometry (welcome/chooser rubric: ~820x520, centered). */
+const chooserDefaultSize = { width: 820, height: 520 } as const;
 
 export type ChooserChoice = {
   readonly id: string;
@@ -258,6 +261,10 @@ export function ChooserWindow({
   secondaryGroup,
   footer,
   label,
+  frame,
+  onClose,
+  onMinimize,
+  onZoom,
 }: {
   readonly title: string;
   readonly subtitle: string;
@@ -272,6 +279,11 @@ export function ChooserWindow({
   readonly secondaryGroup?: ChooserSecondaryGroup;
   readonly footer: ReactNode;
   readonly label?: string;
+  /** Placement/size override; defaults to ~820x520, centered. */
+  readonly frame?: WindowFrame;
+  readonly onClose?: () => void;
+  readonly onMinimize?: () => void;
+  readonly onZoom?: () => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   // Roving tabindex: exactly one filmstrip card is tabbable.
@@ -314,8 +326,16 @@ export function ChooserWindow({
   }
 
   return (
-    <WindowChrome className="mc-chooser-window" label={label ?? title}>
-      <header className="mc-chooser-toolbar">
+    <WindowChrome
+      className="mc-chooser-window"
+      label={label ?? title}
+      frame={frame}
+      defaultSize={chooserDefaultSize}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      onZoom={onZoom}
+    >
+      <header className="mc-chooser-toolbar" data-window-drag-handle="">
         <TrafficLights />
         <strong>{windowTitle ?? ""}</strong>
         <div className="mc-chooser-toolbar-actions">{toolbarExtras}</div>

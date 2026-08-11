@@ -169,7 +169,10 @@
   color: white;
 }
 
-/* Menu bar extra: overlay layer, glyph trigger in the menu bar, popover shell. */
+/* Menu bar extra: overlay layer, glyph trigger in the menu bar, popover shell.
+   The absolute layer/right-offset below is the STANDALONE fallback; extras
+   passed through DesktopShell's menuBarExtras slot render in flow instead
+   (see .mc-menubar-extras overrides further down). */
 
 .mc-menubar-layer {
   position: absolute;
@@ -314,4 +317,33 @@
 
 .menu-popover > footer button:hover {
   background: rgba(255, 255, 255, 0.64);
+}
+
+/* In-flow menu-bar extras (DesktopShell menuBarExtras slot): the extra sits in
+   the status-item row instead of absolutely overlaying it, so it can never
+   collide with the clock/date whatever their text. The popover still hangs
+   below the bar, anchored near the trigger. */
+
+.mc-menubar-extras {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mc-menubar-extras .mc-menubar-layer {
+  position: relative;
+  z-index: 100;
+  inset: auto;
+  pointer-events: auto;
+}
+
+.mc-menubar-extras .mc-menubar-trigger {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+
+.mc-menubar-extras .mc-menubar-popover {
+  top: 30px;
+  right: -8px;
 }

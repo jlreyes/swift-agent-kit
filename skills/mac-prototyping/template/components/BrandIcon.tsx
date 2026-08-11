@@ -1,5 +1,7 @@
 import * as simpleIconsNs from "simple-icons";
 
+import { type BrandSlug } from "./brands.ts";
+
 type SimpleIcon = {
   readonly hex: string;
   readonly path: string;
@@ -20,7 +22,8 @@ function isSimpleIcon(value: unknown): value is SimpleIcon {
   );
 }
 
-function lookupIcon(slug: string): SimpleIcon | undefined {
+/** Resolve a simple-icons slug against the installed package (undefined = unknown). */
+export function getBrandIcon(slug: string): SimpleIcon | undefined {
   const key = `si${slug.charAt(0).toUpperCase()}${slug.slice(1)}`;
   const candidate: unknown = Reflect.get(simpleIconsNs, key);
   return isSimpleIcon(candidate) ? candidate : undefined;
@@ -30,17 +33,25 @@ export type BrandIconProps = {
   /** Render in currentColor instead of the brand color. */
   readonly monochrome?: boolean;
   readonly size?: number;
-  /** A Simple Icons slug, e.g. "googledrive", "notion". */
-  readonly slug: string;
+  /** A brand from components/brands.ts (autocompletes), or any raw Simple Icons slug. */
+  readonly slug: BrandSlug | (string & {});
   /** Accessible name; omitted = decorative (aria-hidden). */
   readonly title?: string;
 };
 
 /** Third-party service marks from the `simple-icons` package, rendered as an
- * inline SVG path — committable, no bitmap assets. Unknown slugs render nothing. */
+ * inline SVG path — committable, no bitmap assets. Unknown slugs render
+ * nothing (with a dev-only console.warn — simple-icons drops brands at
+ * majors, e.g. slack/salesforce are gone from v16; see components/brands.ts
+ * for the verified catalog). */
 export function BrandIcon({ monochrome = false, size = 16, slug, title }: BrandIconProps) {
-  const icon = lookupIcon(slug);
-  if (!icon) return null;
+  const icon = getBrandIcon(slug);
+  if (!icon) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`BrandIcon: unknown simple-icons slug "${slug}" — rendering nothing. See components/brands.ts for verified slugs.`);
+    }
+    return null;
+  }
   return (
     <svg
       className="brand-icon"

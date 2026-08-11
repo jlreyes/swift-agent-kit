@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored chrome (or its shipped stub) — lint reports the author's
+    // code only; the toolkit package lints in its own repo.
+    "lib/mac-chrome/**",
   ]),
 ]);
 

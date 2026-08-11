@@ -1,3 +1,6 @@
+import "./styles/tokens.css";
+import "./styles/base.css";
+
 export type SystemSymbolName =
   | "arrow.triangle.2.circlepath"
   | "arrow.up"

@@ -5,6 +5,13 @@ native precedent it comes from; a violation is a finding only when the
 precedent applies. Distilled 2026-08 from a corpus of design audits whose
 findings the owner accepted; revise when macOS conventions move.
 
+**The first question.** Every surface and control names the SwiftUI/AppKit
+component it imitates (NavigationSplitView, List(.sidebar), NSToolbar,
+NSMenu, Inspector, .sheet…). A surface that cannot name its native
+counterpart is presumed non-native until it can; an auditor's first question
+about any surface is "which native component is this, and does its anatomy
+match?"
+
 Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 [Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
 [Preview/inspector](#preview--inspector) · [Grid & empty states](#grid--empty-states) ·
@@ -51,6 +58,12 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 
 ## Sidebar / source list
 
+- The sidebar is full-height translucent source-list material, visually
+  distinct from the content area.
+- Rows are ~28px with a 6px-radius tinted selection; sections separate by
+  spacing, not dividers.
+- Section labels are quiet and small, their disclosure revealed on hover —
+  never persistent web-style disclosure boxes.
 - Special items are distinguished by icon, not by dividers.
 - Add flows anchor a menu on the section's add control (NSMenu pattern) —
   never in-place content replacement that acts like hidden navigation.
@@ -70,7 +83,10 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - Metadata is quiet secondary content — an always-expanded metadata block
   consuming a quarter of the window styled as primary content is a defect.
 - Label semantics are load-bearing: "Size" shows bytes only; use Items /
-  Source / etc. otherwise — in Preview and in list-view columns.
+  Source / etc. otherwise — in Preview and in list-view columns. (FinderWindow's
+  list columns are currently fixed at Name/Modified/Size — an API limitation,
+  with a columns override as a follow-up — so don't flag that unreachable half
+  as a prototype defect.)
 - Disclosure chevrons appear only where a real expand/collapse exists.
 
 ## Grid & empty states

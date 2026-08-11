@@ -21,7 +21,7 @@ cp -R "$SKILL_DIR"/template ~/Prototypes/$name   # or: rsync -a "$SKILL_DIR"/tem
 cd ~/Prototypes/$name
 node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $name
 pnpm install
-pnpm test                                          # build + rendered-html + jsdom tests
+pnpm test                                          # typecheck + build + rendered-html + jsdom tests
 ```
 
 (`pnpm install` prints "Ignored build scripts: esbuild, sharp, …" — that is
@@ -72,11 +72,14 @@ Find a free one (no output = all free; any LISTEN line shows a taken port):
 lsof -nP -iTCP:8600-8699 -sTCP:LISTEN
 ```
 
-Bake the port into the prototype's dev script so every `pnpm dev` — manual or
-launchd — lands on it (`vinext dev` accepts `--port`; verified):
+The launchd plist is the port's single owner — its `ProgramArguments` pass
+`--port` (see "Serve durably" below). Leave `scripts.dev` portless so the
+plist and a manual run can never disagree; for a manual run, pass the port
+on the command line (`vinext dev` accepts `--port`; verified). `86xx` here
+and below is a placeholder — substitute the port you picked from the scan:
 
 ```sh
-node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.scripts.dev='WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev --port 8601';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+pnpm dev --port 86xx
 ```
 
 Gotcha: the vinext dev server binds IPv6 loopback only (`[::1]`) and ignores
@@ -90,7 +93,7 @@ login). Fill `references/com.macproto.TEMPLATE.plist` — note `PNPM_DIR` must
 be substituted before `PNPM`:
 
 ```sh
-name=myproto dir=~/Prototypes/myproto port=8601
+name=myproto dir=~/Prototypes/myproto port=86xx   # 86xx = the port picked from the lsof scan
 pnpm_bin=$(command -v pnpm)
 plist=~/Library/LaunchAgents/com.macproto.$name.plist
 sed -e "s|PNPM_DIR|$(dirname "$pnpm_bin")|g" -e "s|PNPM|$pnpm_bin|g" \
@@ -100,8 +103,9 @@ plutil -lint "$plist"
 launchctl bootstrap gui/$(id -u) "$plist"
 ```
 
-Done when this returns 200 (typically ~5s; logs at
-`/tmp/com.macproto.<name>.{out,err}.log` if it never comes up):
+Done when this returns 200 — typically 5–20s (first boot optimizes
+dependencies); logs at `/tmp/com.macproto.<name>.{out,err}.log` if it never
+comes up:
 
 ```sh
 for i in $(seq 1 30); do
@@ -123,15 +127,16 @@ List running prototype agents, and liveness-check a port:
 
 ```sh
 launchctl list | grep com.macproto
-curl -s -o /dev/null -w '%{http_code}\n' --max-time 2 http://localhost:8601/
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 2 http://localhost:86xx/
 ```
 
-Stop one and remove its agent (done when `launchctl list` no longer shows it
-and the port scan comes back empty):
+Stop one, remove its agent, and delete its logs (done when `launchctl list`
+no longer shows it and the port scan comes back empty):
 
 ```sh
 launchctl bootout gui/$(id -u)/com.macproto.myproto
 rm ~/Library/LaunchAgents/com.macproto.myproto.plist
+rm -f /tmp/com.macproto.myproto.{out,err}.log
 lsof -nP -iTCP:8600-8699 -sTCP:LISTEN
 ```
 

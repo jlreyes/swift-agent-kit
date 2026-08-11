@@ -4,9 +4,12 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 
 import { SystemSymbol } from "./system-symbol";
 import { MacToolbar, ToolbarButton, ToolbarSearchBubble } from "./toolbar";
-import { TrafficLights, WindowChrome } from "./window";
+import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
 import "./styles/chat.css";
+
+/* Default geometry (Messages-ish proportions on the 1200px canvas). */
+const chatDefaultSize = { width: 760, height: 540 } as const;
 
 export type ChatRole = "owner" | "agent" | "system";
 
@@ -96,6 +99,10 @@ export function ChatWindow({
   toolbarExtras,
   emptyTranscript,
   label,
+  frame,
+  onClose,
+  onMinimize,
+  onZoom,
 }: {
   readonly conversations: readonly Conversation[];
   readonly activeConversationId: string;
@@ -106,6 +113,11 @@ export function ChatWindow({
   readonly toolbarExtras?: ReactNode;
   readonly emptyTranscript?: ReactNode;
   readonly label?: string;
+  /** Placement/size override; defaults to ~760x540, centered. */
+  readonly frame?: WindowFrame;
+  readonly onClose?: () => void;
+  readonly onMinimize?: () => void;
+  readonly onZoom?: () => void;
 }) {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -127,9 +139,14 @@ export function ChatWindow({
     <WindowChrome
       className={`mc-chat-window${sidebarHidden ? " mc-sidebar-hidden" : ""}`}
       label={label ?? active?.title ?? "Chat"}
+      frame={frame}
+      defaultSize={chatDefaultSize}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      onZoom={onZoom}
     >
       <aside className="mc-chat-sidebar" aria-label={sidebarLabel} aria-hidden={sidebarHidden || undefined}>
-        <div className="mc-chat-sidebar-top">
+        <div className="mc-chat-sidebar-top" data-window-drag-handle="">
           <TrafficLights />
         </div>
         <nav>

@@ -9,19 +9,20 @@
   overflow: auto;
 }
 
-/* Default wallpaper: a CSS gradient — no bitmap wallpaper ships with the
-   template. Point `background` at /your-wallpaper.png after hydrating
-   private assets into public/. */
+/* Default wallpaper: the committable original abstract SVG beside this sheet
+   (mirrors the real package). The DesktopShell `wallpaper` prop overrides it
+   via --mc-wallpaper. */
 .desktop-canvas {
   position: relative;
   width: 1200px;
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  background:
-    radial-gradient(1100px 650px at 18% -4%, rgba(96, 148, 255, 0.4), transparent 62%),
-    radial-gradient(900px 600px at 86% 104%, rgba(255, 132, 192, 0.3), transparent 58%),
-    linear-gradient(163deg, #16233c 0%, #2e4166 46%, #6d5486 100%);
+  --mc-wallpaper-default: url("./wallpaper.svg");
+  background: var(--mc-wallpaper, var(--mc-wallpaper-default));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .mac-menu-bar {
@@ -53,11 +54,10 @@
   opacity: 0.9;
 }
 
+/* Placement/size come from WindowChrome's inline frame styles (default
+   geometry per surface, centered), mirroring the real package. */
 .mac-window {
   position: absolute;
-  top: 72px;
-  left: 50%;
-  width: min(760px, 82%);
   overflow: hidden;
   border: 0.5px solid rgba(255, 255, 255, 0.5);
   border-radius: 12px;
@@ -65,7 +65,6 @@
   box-shadow:
     0 34px 80px rgba(10, 15, 24, 0.28),
     0 4px 18px rgba(10, 15, 24, 0.17);
-  transform: translateX(-50%);
 }
 
 .traffic-lights {

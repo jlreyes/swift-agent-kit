@@ -3,6 +3,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import "./styles/tokens.css";
+import "./styles/popover.css";
+
 export interface MenuAction {
   readonly kind: "action";
   readonly id: string;
@@ -29,7 +32,8 @@ const menuItemSelector = '[role="menuitem"], [role="menuitemradio"]';
 
 /* ARIA menu-button: Esc/Tab close and restore focus, arrows cycle with wrap,
    Home/End jump, outside pointerdown closes, first item focused on open. */
-export function MacMenu({ items, label, trigger, triggerClassName = "" }: {
+export function MacMenu({ className = "", items, label, trigger, triggerClassName = "" }: {
+  readonly className?: string;
   readonly items: MenuSpec;
   readonly label: string;
   readonly trigger: ReactNode;
@@ -80,7 +84,7 @@ export function MacMenu({ items, label, trigger, triggerClassName = "" }: {
   }
 
   return (
-    <div ref={wrapperRef} className="mc-menu">
+    <div ref={wrapperRef} className={`mc-menu ${className}`.trim()}>
       <button
         ref={triggerRef}
         type="button"

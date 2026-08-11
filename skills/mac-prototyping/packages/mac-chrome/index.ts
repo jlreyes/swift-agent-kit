@@ -1,5 +1,5 @@
-export { DesktopShell, type DesktopShellProps } from "./desktop-shell.tsx";
-export { TrafficLights, useWindowDrag, WindowChrome } from "./window.tsx";
+export { DesktopShell, type DesktopShellProps, type MenuBarMenu } from "./desktop-shell.tsx";
+export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame } from "./window.tsx";
 export { MacDock, type DockItem } from "./dock.tsx";
 export { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 export {

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" preserveAspectRatio="xMidYMid slice">
+  <!-- Original abstract wallpaper for the mac-chrome default desktop: a layered
+       soft color field (deep indigo base, azure and teal blooms, a warm coral
+       glow). Hand-authored gradients only; no derivative imagery. -->
+  <defs>
+    <linearGradient id="mc-wp-base" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#16244a"/>
+      <stop offset="0.45" stop-color="#25406e"/>
+      <stop offset="0.78" stop-color="#3c4a80"/>
+      <stop offset="1" stop-color="#54407c"/>
+    </linearGradient>
+    <radialGradient id="mc-wp-azure" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6cb8ff" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#5f9ce8" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#5f9ce8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mc-wp-teal" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#59d8c8" stop-opacity="0.65"/>
+      <stop offset="0.6" stop-color="#3fae9f" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#3fae9f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mc-wp-coral" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff9f7e" stop-opacity="0.6"/>
+      <stop offset="0.55" stop-color="#f2788c" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#f2788c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mc-wp-violet" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#a98ce8" stop-opacity="0.55"/>
+      <stop offset="0.6" stop-color="#8a6fd0" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#8a6fd0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mc-wp-beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#cfe4ff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#cfe4ff" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#cfe4ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mc-wp-floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c1428" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0c1428" stop-opacity="0.42"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="750" fill="url(#mc-wp-base)"/>
+  <ellipse cx="330" cy="120" rx="640" ry="420" fill="url(#mc-wp-azure)"/>
+  <ellipse cx="1050" cy="230" rx="560" ry="400" fill="url(#mc-wp-violet)"/>
+  <ellipse cx="880" cy="640" rx="620" ry="380" fill="url(#mc-wp-teal)"/>
+  <ellipse cx="180" cy="700" rx="520" ry="320" fill="url(#mc-wp-coral)"/>
+  <path d="M0 470 C 320 350 640 560 1200 380 L 1200 750 L 0 750 Z" fill="url(#mc-wp-beam)"/>
+  <path d="M0 560 C 380 460 760 640 1200 500 L 1200 750 L 0 750 Z" fill="url(#mc-wp-floor)"/>
+</svg>

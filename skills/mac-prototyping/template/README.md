@@ -8,6 +8,7 @@ by a Cloudflare-style worker (`worker/index.ts`), built with Vite.
 ```sh
 pnpm install
 pnpm dev            # dev server (add --port 86xx; see the toolkit's port convention)
+pnpm typecheck      # tsc --noEmit — also runs as the first step of `pnpm test`
 ```
 
 `pnpm build` + `pnpm start` serve the production build the same way the
@@ -19,19 +20,39 @@ worker serves it when deployed.
 pnpm test
 ```
 
-That runs, in order: the production build, `tests/rendered-html.test.mjs`
-(imports the built worker from `dist/server/index.js` and asserts on
-server-rendered HTML per route), and `tests/example.test.tsx` (jsdom +
-Testing Library interaction tests — an in-memory `localStorage` helper is
-included there for stateful surfaces).
+That runs, in order: `pnpm typecheck` (`tsc --noEmit`), the production
+build, `tests/rendered-html.test.mjs` (imports the built worker from
+`dist/server/index.js` and asserts on server-rendered HTML per route), and
+`tests/example.test.tsx` (jsdom + Testing Library interaction tests — an
+in-memory `localStorage` helper is included there for stateful surfaces).
 
 ## Add a surface
 
-1. Create `app/<name>/page.tsx`. Follow `app/example/page.tsx`: wrap the
-   surface in `DesktopShell`, compose `WindowChrome` + `MacToolbar` +
-   `MacDock` from `lib/mac-chrome`, and export `metadata` with a title.
+1. A surface is two files. `app/<name>/page.tsx` is a small server file —
+   `metadata` plus a delegation:
+
+   ```tsx
+   import type { Metadata } from "next";
+   import { FilesSurface } from "./files-surface.tsx";
+
+   export const metadata: Metadata = { title: "Files · Mac Prototype" };
+
+   export default function FilesPage() {
+     return <FilesSurface />;
+   }
+   ```
+
+   The sibling component (`files-surface.tsx` here) starts with
+   `"use client"`, owns the state, and composes `DesktopShell` +
+   `WindowChrome` + `MacToolbar` + `MacDock` from `lib/mac-chrome` — follow
+   `app/example/`.
 2. List it in `app/page.tsx` (the launcher).
 3. Add the route to `tests/rendered-html.test.mjs` (title + content marker).
+
+**Time-dependent chrome props** (menu-bar clock, "today" dates): the server
+render and the first client render must match, so seed a fixed value for the
+initial render and go live inside `useEffect`. Calling `new Date()` during
+render is a hydration mismatch.
 
 ## Icons — three tiers
 

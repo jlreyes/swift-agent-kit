@@ -35,15 +35,16 @@ registry), and the launchd serve/stop recipes are in
 
 Fork instead of complicating: when an idea would fight the current
 prototype's complexity, fork it (it's an rsync), give it its own port and
-service, and strip what the experiment doesn't need. Forking is the
-intended way to try directions, not a failure mode. Never park a prototype
-in a per-session scratch directory — a stable path is what lets services
-and later sessions find it.
+service, and strip what the experiment doesn't need — forking is the
+intended way to try directions. Never park a prototype in a per-session
+scratch directory; a stable path is what lets services and later sessions
+find it.
 
-A prototype is one composition per page: a ≤25-line `app/<surface>/page.tsx`
-that renders `DesktopShell` + windows (`FinderWindow`, `ChooserWindow`,
-`WindowChrome`+`MacToolbar`, …) over plain data props. Product state and
-fixtures live outside `lib/mac-chrome/`.
+A surface is two files: a small server `app/<surface>/page.tsx` that exports
+`metadata` and only delegates, plus a `"use client"` component beside it that
+owns the state and composes `DesktopShell` + windows (`FinderWindow`,
+`ChooserWindow`, `WindowChrome`+`MacToolbar`, …) over plain data props.
+Product state and fixtures live outside `lib/mac-chrome/`.
 
 ## Invariants
 
@@ -58,12 +59,16 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **The chrome package never imports product code.** Product → chrome only.
 - **Icons come in three tiers.** SF-style glyphs: `SystemSymbol` (original
   SVGs) or `symbolist` + the `SFSymbol` wrapper (system-font-rendered at
-  view time). Third-party brand marks (Drive, Notion, Slack…):
-  `simple-icons` via the `BrandIcon` wrapper — committable. Apple-system
-  lookalikes (Finder/Safari dock icons, wallpapers): private local assets
-  hydrated at creation time, never committed. **No Apple-owned assets in
-  any repo** — no SF Pro font files, no exported SF Symbol SVGs, no macOS
-  app-icon bitmaps.
+  view time). Third-party brand marks (Drive, Notion, GitHub…):
+  `simple-icons` via the `BrandIcon` wrapper — committable. Verify the slug
+  exists — `BrandIcon` warns in dev on unknown slugs; brands missing from
+  simple-icons (Slack and Salesforce are absent from v16) fall back to the
+  private-assets tier. Chrome icon slots render aria-hidden, so `BrandIcon`
+  titles carry no accessible name there — test icons by data attribute, not
+  role. Apple-system lookalikes (Finder/Safari dock icons, wallpapers):
+  private local assets hydrated at creation time, never committed. **No
+  Apple-owned assets in any repo** — no SF Pro font files, no exported SF
+  Symbol SVGs, no macOS app-icon bitmaps.
 - **No Unicode stand-ins for system glyphs** (`▦ ☷ ⌕` etc.) — SVG or
   symbolist only.
 - **Glass belongs to chrome** (toolbars, dock, menu bar, popovers), never to
@@ -80,10 +85,22 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 2. Deploy/serve first and share the URL; reviews run after, not before.
 3. For direction decisions, new surfaces, or a final pass, convene the
    `mac-design-audit` agent with exactly: the pattern rubric, the diff or
-   surface, the live URL, and current screenshots. One audit + one
+   surface, the live URL, and current screenshots. The agent ships with this
+   plugin; if it isn't installed, give a general-purpose agent
+   `references/mac-pattern-rubric.md` plus those same inputs. One audit + one
    re-verify round; findings it can't prove live are hypotheses, not blocks.
-4. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md` (a
-   finding + resolution log), not in long-lived reviewer conversations.
+   With no owner to send a URL to and no audit agent (CI, cold-start
+   sessions), the loop degrades to: serve → DOM/content checks against the
+   served pages → a rubric self-pass; screenshots optional.
+4. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md`, not in
+   long-lived reviewer conversations — one line per finding
+   (date · finder · [Pn] finding — file:line → resolution):
+
+   ```text
+   2026-08-11 · mac-design-audit · [P1] centered two-line toolbar title — app/files/page.tsx:24 → left-aligned single line
+   2026-08-11 · owner · [P2] glass on content background — app/files/files-surface.tsx:58 → blur moved to toolbar capsule
+   2026-08-12 · self · [P3] Unicode ⌕ in search bubble — app/files/files-surface.tsx:71 → SFSymbol magnifyingglass
+   ```
 
 ## When a rule fights you
 

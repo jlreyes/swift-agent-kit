@@ -44,6 +44,7 @@
   --traffic-close: #ff5f57;
   --traffic-minimize: #febc2e;
   --traffic-zoom: #28c840;
+  --traffic-disabled: #c9ccd1;
 
   /* Backdrop behind the desktop canvas */
   --desktop-backdrop: #101720;

@@ -93,6 +93,42 @@ describe("finderKeyTarget", () => {
   });
 });
 
+describe("FinderWindow sidebar source list", () => {
+  it("renders the quiet header with a trailing disclosure that collapses the section", () => {
+    render(<Harness />);
+    // Header label (quiet source-list header), not a leading web-tree affordance.
+    const header = screen.getByRole("button", { name: "Favorites" });
+    expect(header.className).toContain("mc-sidebar-section-label");
+    const disclosure = screen.getByRole("button", { name: "Collapse Favorites" });
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    // Trailing position: the disclosure follows the label in the header row.
+    expect(header.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(screen.getByRole("button", { name: "All Files" })).toBeDefined();
+    fireEvent.click(disclosure);
+    expect(screen.queryByRole("button", { name: "All Files" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Favorites" }));
+    expect(screen.getByRole("button", { name: "All Files" })).toBeDefined();
+  });
+
+  it("passes SidebarSection.className through to the section root", () => {
+    const { container } = render(
+      <FinderWindow
+        title="Vault"
+        sidebar={[{ id: "s", title: "Tags", className: "demo-anchored", items: [] }]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: null, onSelect: () => undefined }}
+        onOpen={() => undefined}
+        iconColumns={3}
+      />,
+    );
+    expect(container.querySelector(".mc-sidebar-section.demo-anchored")).toBeTruthy();
+  });
+});
+
 describe("FinderWindow keyboard selection", () => {
   it("walks the icon grid with 3 columns and 6 entries without wrapping", () => {
     render(<Harness />);

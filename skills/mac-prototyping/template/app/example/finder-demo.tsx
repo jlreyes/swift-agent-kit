@@ -26,6 +26,8 @@ export function FinderDemo() {
     {
       id: "favorites",
       title: "Favorites",
+      // Source-list section: hover the header for the disclosure chevron.
+      collapsible: true,
       items: [
         { id: "recents", icon: <SFSymbol name="clock" />, label: "Recents", onSelect: () => undefined },
         { id: "documents", icon: <SFSymbol name="doc.text" />, label: "Documents", selected: true, badge: 6, onSelect: () => undefined },

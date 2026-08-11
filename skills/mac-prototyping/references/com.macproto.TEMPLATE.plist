@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- Fill NAME (prototype name), DIR (absolute prototype dir), PORT (86xx),
-     PNPM (output of `command -v pnpm`) and PNPM_DIR (its dirname) — see references/workflows.md. -->
+<!-- launchd template for serving a prototype durably. Every ALL-CAPS
+     placeholder below (label suffix, working directory, dev-server port,
+     pnpm binary and its parent) is substituted by the serve recipe in
+     references/workflows.md; do not load this file unfilled. -->
 <dict>
   <key>Label</key>
   <string>com.macproto.NAME</string>

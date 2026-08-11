@@ -1,6 +1,6 @@
 ---
 name: mac-prototyping
-description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, Liquid Glass toolbar, Finder/chooser/setup-assistant/chat surfaces, tokens, and a create/fork/serve CLI. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
+description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, Liquid Glass toolbar, Finder/chooser/setup-assistant/chat surfaces, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
 compatibility: macOS host for the serve/launchd workflow; Node 24+ and pnpm for the template. Components are plain React 19 + CSS.
 metadata:
   author: jlreyes

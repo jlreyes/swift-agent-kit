@@ -239,11 +239,14 @@ export function DesktopShell({
 /* ----- Managed apps and windows (mirrors app.tsx) ----- */
 
 export type MacWindowState = "open" | "minimized" | "closed";
+export type MacAppPresentation = "windowed" | "menuBar";
 
 export interface MacManagedApp {
   readonly id: string;
   readonly name: string;
   readonly icon: DockIconSource;
+  readonly dockGroup: "apps" | "places";
+  readonly presentation: MacAppPresentation;
   readonly running: boolean;
   readonly windowIds: readonly string[];
 }
@@ -314,7 +317,7 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
   const registerApp = useCallback((app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => {
     setState((current) => current.apps.some((candidate) => candidate.id === app.id) ? current : {
       ...current,
-      apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, running: app.defaultRunning, order: current.nextOrder }],
+      apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder }],
       nextOrder: current.nextOrder + 1,
     });
   }, []);
@@ -393,15 +396,17 @@ export function useMacWindowManager() {
   return manager;
 }
 
-export function MacApp({ children, defaultRunning = true, icon, id, name }: {
+export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: {
   readonly children: ReactNode;
   readonly defaultRunning?: boolean;
+  readonly dockGroup?: "apps" | "places";
   readonly icon: DockIconSource;
   readonly id: string;
   readonly name: string;
+  readonly presentation?: MacAppPresentation;
 }) {
   const manager = useMacWindowManager();
-  const initial = useRef({ id, name, icon, defaultRunning });
+  const initial = useRef({ id, name, icon, dockGroup, defaultRunning, presentation });
   useEffect(() => {
     manager.registerApp(initial.current);
     return () => manager.unregisterApp(initial.current.id);
@@ -482,10 +487,10 @@ export function WindowChrome({
         data-key-window={managedWindow === undefined ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
         data-window-id={resolvedWindowId ?? undefined}
         data-window-state={managedWindow?.state}
+        onPointerDownCapture={() => { if (resolvedWindowId !== null) manager?.activateWindow(resolvedWindowId); }}
         onFocusCapture={() => {
           if (resolvedWindowId !== null && manager?.consumeKeyboardWindowFocusIntent()) manager.activateWindow(resolvedWindowId);
         }}
-        onPointerDown={() => { if (resolvedWindowId !== null) manager?.activateWindow(resolvedWindowId); }}
         style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex }}
       >
         {children}
@@ -671,12 +676,12 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
   const manager = useMacWindowManager();
   const appIds = new Set(manager.apps.map((app) => app.id));
   const items: readonly DockItem[] = [
-    ...manager.apps.map((app): DockItem => ({
+    ...manager.apps.filter((app) => app.presentation === "windowed").map((app): DockItem => ({
       id: app.id,
       label: app.name,
       icon: app.icon,
       running: app.running,
-      group: "apps",
+      group: app.dockGroup,
       onActivate: () => { manager.activateApp(app.id); onAppActivate?.(app.id); },
     })),
     ...extraItems.filter((item) => !appIds.has(item.id)),
@@ -1161,7 +1166,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
             </button>
           ))}
         </div>
-        {statusBar !== undefined ? <footer className="mc-finder-status">{statusBar}</footer> : null}
+        {statusBar !== undefined ? <MacWindowStatusBar className="mc-finder-status">{statusBar}</MacWindowStatusBar> : null}
       </main>
       {preview !== undefined && previewVisible !== false ? <aside className="mc-finder-preview">{preview(entries.find((entry) => entry.id === selection.selectedId) ?? null)}</aside> : null}
     </WindowChrome>
@@ -1338,6 +1343,45 @@ export function Sheet({ open, onClose, label, children }: {
 }) {
   if (!open) return null;
   return <div className="mc-sheet-scrim" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="mc-sheet" role="dialog" aria-modal="true" aria-label={label}>{children}</section></div>;
+}
+
+export type MacAlertActionRole = "default" | "cancel" | "destructive";
+export type MacAlertAction = {
+  readonly id: string;
+  readonly label: string;
+  readonly role?: MacAlertActionRole;
+  readonly disabled?: boolean;
+  readonly onPress?: () => void;
+};
+
+export function MacWindowStatusBar({ children, className = "", live, trailing }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly live?: "polite" | "assertive";
+  readonly trailing?: ReactNode;
+}) {
+  return <footer className={`mc-window-status-bar ${className}`} role={live === undefined ? undefined : "status"} aria-live={live}><span className="mc-window-status-primary">{children}</span>{trailing === undefined ? null : <span className="mc-window-status-trailing">{trailing}</span>}</footer>;
+}
+
+export function MacAlert({ actions, icon, message, onClose, open, title }: {
+  readonly actions: readonly MacAlertAction[];
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly icon?: ReactNode;
+  readonly message: ReactNode;
+  readonly onClose: () => void;
+  readonly open: boolean;
+  readonly title: string;
+}) {
+  if (!open) return null;
+  return (
+    <div className="mc-alert-scrim" role="presentation">
+      <section className="mc-alert" role="alertdialog" aria-modal="true" aria-label={title}>
+        {icon === undefined ? null : <div className="mc-alert-icon" aria-hidden="true">{icon}</div>}
+        <div className="mc-alert-copy"><h2>{title}</h2><div>{message}</div></div>
+        <div className="mc-alert-actions">{actions.map((action) => { const role = action.role ?? "default"; return <MacButton key={action.id} className={`mc-alert-action-${role}`} variant={role === "default" ? "primary" : role === "destructive" ? "destructive" : "regular"} disabled={action.disabled} onPress={() => { action.onPress?.(); onClose(); }}>{action.label}</MacButton>; })}</div>
+      </section>
+    </div>
+  );
 }
 
 export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep, onBack, backLabel = "Back", onContinue, continueLabel = "Continue", continueDisabled = false, modalOpen = false, label, frame, children }: {

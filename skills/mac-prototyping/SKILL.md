@@ -62,7 +62,7 @@ copy a showcase layout or private component into product code.
 | Need | Use | Native precedent |
 | --- | --- | --- |
 | Desktop stage, app menus, status items | `DesktopShell` | menu bar + desktop |
-| App identity, key-window focus, z-order, launch/restore/quit | `MacWindowManager` + `MacApp` | `NSApplication` + `NSWindow` scene ownership |
+| Windowed or menu-bar app identity, key-window focus, z-order, launch/restore/quit | `MacWindowManager` + `MacApp` (`presentation="windowed" | "menuBar"`) | `NSApplication` + `NSWindow` scene ownership |
 | Managed app launcher and running state | `MacAppDock` + typed `DockIcon` / `MacDockAppIcon` | Dock tile |
 | Standalone decorative Dock | `MacDock` | Dock-like launcher without app lifecycle |
 | Two- or three-column navigation | `MacNavigationSplitView` | `NavigationSplitView` |
@@ -72,6 +72,7 @@ copy a showcase layout or private component into product code.
 | Collapsible grouped detail | `MacDisclosureGroup` | `DisclosureGroup` |
 | Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
 | No-content state | `MacContentUnavailable` | `ContentUnavailableView` |
+| Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `Sheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
 
@@ -90,6 +91,13 @@ must have distinct stable `windowId` values; the single-window default is
 `${appId}:main`. Do not manage product windows by conditional rendering plus
 local z-index counters.
 
+Use the default `presentation="windowed"` for an app with managed windows and
+a Dock tile. Use `presentation="menuBar"` for an app whose visible surface is
+a `MenuBarExtra`; it remains registered but is intentionally omitted from the
+Dock. Status feedback belongs in `MacWindowStatusBar` inside the owning
+window. A Dock launch should activate a registered app/window, not write a
+description of the Dock item into an unrelated app's status bar.
+
 The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
 asset artwork retains its own safe area, while generated symbol artwork is
 drawn in the shared tile and glyph boxes. Do not create a local 50px tile,
@@ -97,7 +105,7 @@ wrap it in a Dock item, or tune one app icon with ad-hoc scale CSS — that
 breaks the shared optical-size contract.
 
 The library deliberately does not promise full SwiftUI parity. Tables,
-outline views, grid collections, alerts, and other specialized patterns stay
+outline views, grid collections, and other specialized patterns stay
 out until there is a demonstrated product need. Liquid Glass is explicitly
 not a default capability. Use the restrained material tokens rather than
 attempting to simulate a system compositor.
@@ -151,7 +159,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small
-  viewports.
+  viewports. Size explicit frames against the desktop canvas with `%`, not
+  `vw`/`vh`; the shell contracts below its 1200px reference width and an
+  initial window must be wholly visible without horizontal scrolling.
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,

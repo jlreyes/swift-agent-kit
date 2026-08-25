@@ -62,6 +62,8 @@ Build a product surface from public primitives before adding local components:
   `MacAppDock` for launch, activation, running state, and restore. Give every
   additional window in one app an explicit stable `windowId`; do not maintain
   local z-index or “active window” mount state.
+- Use `MacApp presentation="windowed"` for ordinary Dock apps and
+  `presentation="menuBar"` with `MenuBarExtra` for status-item-only apps.
 - Use `MacNavigationSplitView` for sidebar/detail (two columns) or
   sidebar/content/detail (three navigation columns). Use `MacInspector` as a
   separate supplementary pane, not as the third navigation column.
@@ -70,6 +72,8 @@ Build a product surface from public primitives before adding local components:
 - Use `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`,
   `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, and
   `MacContentUnavailable` instead of restyling raw controls and empty states.
+- Use `MacWindowStatusBar` for window-owned status, `MacAlert` for short
+  decisions, and `Sheet` for a scoped modal workflow.
 - Use a typed `DockIcon` with `MacDock` for app tiles. Asset icons preserve
   their own safe area; generated symbol icons use the shared tile and glyph
   boxes. Do not create a local full-size Dock icon tile or per-app scaling.
@@ -77,7 +81,7 @@ Build a product surface from public primitives before adding local components:
 `FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
 complete recipes layered above the primitives. Use them when their flow fits;
 otherwise compose the primitives for the product's own structure. Tables,
-outline views, grid collections, alerts, full SwiftUI parity, and Liquid Glass
+outline views, grid collections, full SwiftUI parity, and Liquid Glass
 are intentionally not starter-library promises.
 
 ## Add a surface

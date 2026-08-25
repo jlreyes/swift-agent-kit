@@ -63,18 +63,21 @@ img {
   display: block;
 }
 
-/* The fixed 1200px prototype desktop; scrolls when the real viewport is smaller. */
+/* The desktop keeps the reference 1200px composition at large sizes, but it
+   contracts with the actual browser pane. A prototype must never require a
+   horizontal page scroll just to reach its initial window chrome. */
 .showcase-viewport {
-  width: 100vw;
+  width: 100%;
   height: 100dvh;
-  min-width: 1200px;
+  min-width: 0;
   min-height: 750px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .desktop-canvas {
   position: relative;
-  width: 1200px;
+  width: min(1200px, 100%);
+  min-width: 0;
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
@@ -239,6 +242,8 @@ img {
 
 .mac-window {
   position: absolute;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 88px);
   overflow: hidden;
   border: 0.5px solid var(--window-edge);
   border-radius: var(--radius-window);

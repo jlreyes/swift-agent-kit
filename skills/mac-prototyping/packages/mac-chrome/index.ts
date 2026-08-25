@@ -6,6 +6,7 @@ export {
   useMacWindowManager,
   type MacManagedApp,
   type MacManagedWindow,
+  type MacAppPresentation,
   type MacWindowManagerValue,
   type MacWindowState,
 } from "./app.tsx";
@@ -71,6 +72,12 @@ export {
   type MacToggleStyle,
 } from "./controls.tsx";
 export { MacContentUnavailable } from "./content-state.tsx";
+export {
+  MacAlert,
+  MacWindowStatusBar,
+  type MacAlertAction,
+  type MacAlertActionRole,
+} from "./presentation.tsx";
 export {
   FinderWindow,
   finderKeyTarget,

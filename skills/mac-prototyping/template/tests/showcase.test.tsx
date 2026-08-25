@@ -41,7 +41,10 @@ async function openRecipe(user: TestUser, story: "Chat" | "Chooser" | "Setup Ass
 test("the showcase opens as a persistent split-view component catalog", () => {
   render(<ShowcaseDesktop />);
 
-  expect(screen.getByRole("region", { name: "Mac Chrome component showcase" })).toBeDefined();
+  const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
+  expect(catalog).toBeDefined();
+  expect(catalog.getAttribute("style")).toContain("100% - 32px");
+  expect(catalog.getAttribute("style")).not.toMatch(/\b100v[wh]\b/);
   expect(sourceList()).toBeDefined();
   expect(sourceItem("App Anatomy").getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("main", { name: "App Anatomy story" })).toBeDefined();
@@ -62,31 +65,27 @@ test("the Dock retains Mac defaults, exposes composition apps, and normalizes ge
   expect(showcaseApp.classList.contains("is-running")).toBe(true);
   expect(showcaseApp.querySelector(".p0-app-icon--tile")).not.toBeNull();
   expect(showcaseApp.querySelector(".showcase-app-icon")).toBeNull();
+  expect(within(screen.getByRole("navigation", { name: "Showcase Dock" })).queryByRole("button", { name: "Showcase Activity" })).toBeNull();
 
   await user.click(showcaseApp);
-  expect(within(screen.getByRole("region", { name: "Mac Chrome component showcase" })).getByText("Mac Chrome activated.")).toBeDefined();
+  expect(screen.getByRole("region", { name: "Mac Chrome component showcase" }).getAttribute("data-key-window")).toBe("true");
 });
 
-test("every default Dock item has an observable activation result", async () => {
+test("every default Dock item launches a managed app window instead of writing Dock help into the catalog", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
   const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
 
   await user.click(dockButton("Finder"));
   expect(screen.getByRole("region", { name: "Finder showcase" })).toBeDefined();
-  expect(within(catalog).getByText("Finder launched.")).toBeDefined();
   await user.click(dockButton("Finder"));
-  expect(within(catalog).getByText("Finder activated.")).toBeDefined();
+  expect(screen.getByRole("region", { name: "Finder showcase" }).getAttribute("data-key-window")).toBe("true");
 
-  for (const [label, result] of [
-    ["App Store", "App Store is represented by its standard Dock icon; no store window is included."],
-    ["Google Chrome", "Google Chrome is already showing this showcase."],
-    ["Downloads", "Downloads is empty in this showcase."],
-    ["Trash", "Trash is empty."],
-  ] as const) {
+  for (const label of ["App Store", "Google Chrome", "Downloads", "Trash"] as const) {
     await user.click(dockButton(label));
-    expect(within(catalog).getByText(result)).toBeDefined();
+    expect(screen.getByRole("region", { name: `${label} showcase` }).getAttribute("data-key-window")).toBe("true");
   }
+  expect(within(catalog).queryByText(/Google Chrome is already showing/i)).toBeNull();
 });
 
 test("Mark as Read becomes disabled once showcase activity is caught up", async () => {
@@ -340,6 +339,18 @@ test("the Create Project sheet retains its controlled project name", async () =>
   expect((name as HTMLInputElement).value).toBe("Client Portal");
 });
 
+test("the presentation story exposes the shared system alert and window status bar", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await user.click(sourceItem("Presentation & Feedback"));
+  await user.click(screen.getByRole("button", { name: "Show System Alert" }));
+  const alert = screen.getByRole("alertdialog", { name: "Apply the prototype settings?" });
+  await user.click(within(alert).getByRole("button", { name: "Apply" }));
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(within(screen.getByRole("main", { name: "Presentation & Feedback story" })).getByRole("status").textContent).toContain("Settings applied.");
+});
+
 test("full compositions open in their own window instead of nesting in the catalog", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
@@ -389,6 +400,8 @@ test("the coverage map is unique and includes the complete runtime surface", () 
     "MacMenu",
     "MacPopover",
     "MacContentUnavailable",
+    "MacAlert",
+    "MacWindowStatusBar",
     "FinderWindow",
     "ChooserWindow",
     "SetupAssistant",

@@ -1,0 +1,97 @@
+@import "./tokens.css";
+
+.mc-alert-anchor {
+  display: none;
+}
+
+.mc-window-status-bar {
+  min-width: 0;
+  min-height: 23px;
+  padding: 3px 10px;
+  display: flex;
+  flex: 0 0 23px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  overflow: hidden;
+  border-top: 0.5px solid var(--line);
+  color: var(--text-soft);
+  background: #f6f6f7;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.mc-window-status-primary,
+.mc-window-status-trailing {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-window-status-trailing {
+  flex: 0 0 auto;
+}
+
+.mc-alert-scrim {
+  position: absolute;
+  z-index: 45;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.mc-alert {
+  width: min(420px, calc(100% - 24px));
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px 16px;
+  padding: 20px;
+  border: 0.5px solid var(--window-edge);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.mc-alert-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  grid-row: 1 / span 2;
+  color: var(--accent);
+}
+
+.mc-alert-icon svg {
+  width: 42px;
+  height: 42px;
+}
+
+.mc-alert-copy h2 {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mc-alert-copy > div {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mc-alert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mc-alert-actions .mc-button {
+  min-width: 82px;
+}
+
+.mc-alert-actions .mc-button-destructive {
+  color: #b42318;
+}

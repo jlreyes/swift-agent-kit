@@ -32,7 +32,7 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
+Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
 Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacManagedApp`, `MacManagedWindow`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog: it
@@ -58,7 +58,7 @@ not the only way to build an app.
 
 | Product need | Public primitive | Notes |
 | --- | --- | --- |
-| App identity and window lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | One registry for key window, z-order, launch, close, minimize, zoom, and Dock restore. |
+| Windowed or menu-bar app identity and lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | `presentation="windowed"` gets Dock/window lifecycle; `presentation="menuBar"` composes a status item without a Dock tile. |
 | Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
 | Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
 | Sidebar source list | `MacSourceList` | Controlled selection and optional controlled collapsible sections. |
@@ -66,10 +66,11 @@ not the only way to build an app.
 | Expand/collapse detail | `MacDisclosureGroup` | Controlled expansion. |
 | Standard controls and structured settings | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
 | No-content state | `MacContentUnavailable` | Optional system-style icon, description, and actions. |
+| Window feedback and modal decisions | `MacWindowStatusBar`, `MacAlert`, `Sheet` | Status bar, short alert, or attached modal task. |
 | Dock artwork | `DockIcon` + `MacDockAppIcon` | One shared optical-size contract. |
 
 This is intentionally an 80/20 library, not a web reimplementation of all
-SwiftUI. Tables, outline views, grid collections, alerts, and full SwiftUI
+SwiftUI. Tables, outline views, grid collections, and full SwiftUI
 parity are deferred until a reusable need proves them out. Liquid Glass is not
 an offered material mode; use the existing opaque or near-opaque tokenized
 materials.
@@ -106,7 +107,7 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 ### MacWindowManager, MacApp, and MacAppDock
 maps to: `NSApplication` plus SwiftUI `App`/`WindowGroup` scene ownership and the system Dock.
 `MacWindowManager({ children }: { readonly children: ReactNode })`
-`MacApp({ id, name, icon, defaultRunning = true, children }: { readonly id: string; readonly name: string; readonly icon: DockIconSource; readonly defaultRunning?: boolean; readonly children: ReactNode })`
+`MacApp({ id, name, icon, defaultRunning = true, dockGroup = "apps", presentation = "windowed", children }: { readonly id: string; readonly name: string; readonly icon: DockIconSource; readonly defaultRunning?: boolean; readonly dockGroup?: "apps" | "places"; readonly presentation?: "windowed" | "menuBar"; readonly children: ReactNode })`
 `MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: { readonly extraItems?: readonly DockItem[]; readonly label?: string; readonly onAppActivate?: (appId: string) => void })`
 `useMacWindowManager(): MacWindowManagerValue`
 
@@ -122,6 +123,8 @@ the same app registry.
 Keep app `id`, `name`, icon, and `defaultRunning` stable for a mounted
 `MacApp`. A one-window app may omit `WindowChrome.windowId` and receives
 `${appId}:main`; every additional window needs an explicit unique stable ID.
+Windowed apps appear in `MacAppDock`; menu-bar apps stay registered but do not
+get a Dock tile and should compose `MenuBarExtra` as their visible surface.
 Use `MacDock` only for a standalone decorative launcher. Do not combine
 managed windows with product-local z-index, running, or conditional-mount
 state.
@@ -140,7 +143,7 @@ Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointe
 maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGroup` scene.
 `WindowChrome({ children, className = "", defaultOpen = true, defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, style, windowId, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultOpen?: boolean; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly style?: CSSProperties; readonly windowId?: string; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
 `type WindowFrame = { readonly top?: number | string; readonly left?: number | string; readonly width?: number | string; readonly height?: number | string }` — numbers are px; strings pass through as CSS.
-- **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`).
+- **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`). The desktop contracts below its 1200px reference width and window CSS has a final canvas-containment guard. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
 - **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, minimize animates out (~220ms, reduced-motion aware) then hides, zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows own local visibility. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock or Window menu can restore them.
 
@@ -307,6 +310,18 @@ adjacent controls one labelled group. `MacForm`, `MacFormSection`, and
 renders a labelled no-content state with optional icon, description, and
 actions. Use these instead of product-local imitations so the control has one
 focus, keyboard, and visual contract.
+
+### MacWindowStatusBar and MacAlert
+maps to: a window-attached status area and SwiftUI `.alert` / `NSAlert`.
+
+`MacWindowStatusBar({ children, className = "", live, trailing })` renders a
+compact bottom status area. Use it for feedback owned by that window; do not
+send Dock-launch descriptions into an unrelated window's status bar.
+
+`MacAlert({ open, onClose, title, message, icon, actions, fallbackFocusRef })`
+renders a window-modal `alertdialog`. Actions declare `default`, `cancel`, or
+`destructive` roles; Escape invokes the enabled cancel action, dismissal
+restores focus, and the default action receives initial focus.
 
 ### FinderWindow
 maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspector` — the three-pane split is react-resizable-panels (`Group`/`Panel`/`Separator`, the ARIA window-splitter pattern), and the sidebar genuinely maps to `List(.sidebar)` via a react-aria `Tree` (an ARIA tree: treegrid rows with arrow-key navigation, typeahead, expand/collapse, and selection).

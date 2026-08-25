@@ -345,13 +345,19 @@ export function WindowChrome({
         data-key-window={managedWindow === null ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
         data-window-id={resolvedWindowId ?? undefined}
         data-window-state={managedWindow?.state}
+        onPointerDownCapture={() => {
+          // Interactive descendants such as React Aria collections may stop
+          // pointer events during their own press handling. Window activation
+          // is a frame-level behavior, so observe it before descendants can
+          // consume the event.
+          if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
+        }}
         onFocusCapture={() => {
           if (resolvedWindowId !== null && consumeKeyboardWindowFocusIntent?.()) {
             activateManagedWindow?.(resolvedWindowId);
           }
         }}
         onPointerDown={(event) => {
-          if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
           onWindowPointerDown(event);
         }}
         onPointerMove={onWindowPointerMove}

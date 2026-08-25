@@ -225,15 +225,7 @@
 }
 
 .mc-finder-status {
-  height: 23px;
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px;
-  border-top: 0.5px solid var(--line-soft);
-  color: var(--text-faint);
-  background: var(--toolbar-surface);
   font-size: 8.5px;
 }
 

@@ -12,6 +12,7 @@ import {
 import { Group, Panel, Separator, type PanelSize } from "react-resizable-panels";
 
 import { useModalFocusTrap } from "./modal-focus";
+import { MacWindowStatusBar } from "./presentation.tsx";
 import {
   MacSourceList,
   type MacSourceListSection,
@@ -584,7 +585,7 @@ export function FinderWindow({
                 );
               })}
             </div>
-            {statusBar !== undefined ? <footer className="mc-finder-status">{statusBar}</footer> : null}
+            {statusBar !== undefined ? <MacWindowStatusBar className="mc-finder-status">{statusBar}</MacWindowStatusBar> : null}
           </main>
         </Panel>
         {previewOpen ? (

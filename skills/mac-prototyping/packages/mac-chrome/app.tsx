@@ -6,11 +6,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { MacDock, type DockIconSource, type DockItem } from "./dock.tsx";
 
 export type MacWindowState = "open" | "minimized" | "closed";
+export type MacAppPresentation = "windowed" | "menuBar";
 
 export interface MacManagedApp {
   readonly id: string;
   readonly name: string;
   readonly icon: DockIconSource;
+  readonly dockGroup: "apps" | "places";
+  readonly presentation: MacAppPresentation;
   readonly running: boolean;
   readonly windowIds: readonly string[];
 }
@@ -45,6 +48,8 @@ type AppRecord = {
   readonly id: string;
   readonly name: string;
   readonly icon: DockIconSource;
+  readonly dockGroup: "apps" | "places";
+  readonly presentation: MacAppPresentation;
   readonly registrationOrder: number;
   readonly running: boolean;
 };
@@ -70,7 +75,9 @@ type AppRegistration = {
   readonly id: string;
   readonly name: string;
   readonly icon: DockIconSource;
+  readonly dockGroup: "apps" | "places";
   readonly defaultRunning: boolean;
+  readonly presentation: MacAppPresentation;
 };
 
 type WindowRegistration = {
@@ -144,10 +151,10 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
     setState((current) => {
       const existing = current.apps.find((app) => app.id === registration.id);
       if (existing !== undefined) {
-        if (existing.name === registration.name) return current;
+        if (existing.name === registration.name && existing.dockGroup === registration.dockGroup && existing.presentation === registration.presentation) return current;
         return {
           ...current,
-          apps: current.apps.map((app) => app.id === registration.id ? { ...app, name: registration.name } : app),
+          apps: current.apps.map((app) => app.id === registration.id ? { ...app, name: registration.name, dockGroup: registration.dockGroup, presentation: registration.presentation } : app),
         };
       }
       return {
@@ -156,6 +163,8 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
           id: registration.id,
           name: registration.name,
           icon: registration.icon,
+          dockGroup: registration.dockGroup,
+          presentation: registration.presentation,
           registrationOrder: current.nextRegistrationOrder,
           running: registration.defaultRunning,
         }],
@@ -313,6 +322,8 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
       id: app.id,
       name: app.name,
       icon: app.icon,
+      dockGroup: app.dockGroup,
+      presentation: app.presentation,
       running: app.running,
       windowIds: state.windows
         .filter((window) => window.appId === app.id)
@@ -377,15 +388,18 @@ export function useOptionalMacWindowManager() {
   return useContext(MacWindowManagerContext);
 }
 
-export function MacApp({ children, defaultRunning = true, icon, id, name }: {
+export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: {
   readonly children: ReactNode;
   readonly defaultRunning?: boolean;
+  readonly dockGroup?: "apps" | "places";
   readonly icon: DockIconSource;
   readonly id: string;
   readonly name: string;
+  /** Windowed apps appear in the Dock; menu-bar apps compose MenuBarExtra only. */
+  readonly presentation?: MacAppPresentation;
 }) {
   const manager = useMacWindowManager();
-  const initialRegistration = useRef<AppRegistration>({ id, name, icon, defaultRunning });
+  const initialRegistration = useRef<AppRegistration>({ id, name, icon, dockGroup, defaultRunning, presentation });
   useEffect(() => {
     manager.registerApp(initialRegistration.current);
     return () => manager.unregisterApp(initialRegistration.current.id);
@@ -406,11 +420,11 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
   const manager = useMacWindowManager();
   const appIds = new Set(manager.apps.map((app) => app.id));
   const items: readonly DockItem[] = [
-    ...manager.apps.map((app): DockItem => ({
+    ...manager.apps.filter((app) => app.presentation === "windowed").map((app): DockItem => ({
       id: app.id,
       label: app.name,
       icon: app.icon,
-      group: "apps",
+      group: app.dockGroup,
       running: app.running,
       onActivate: () => {
         manager.activateApp(app.id);

@@ -88,7 +88,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   center, title bar below the menu bar and clear of the Dock; a window
   flush to a canvas edge, under chrome, or off-center at rest is a
   placement defect — verify with live geometry at normal and small viewports,
-  never from the code.
+  never from the code. The initial frame must fit the actual desktop canvas
+  without horizontal page scrolling; custom frame formulas use canvas-relative
+  `%`, not `vw`/`vh`.
 
 ## Composition & split-view semantics
 

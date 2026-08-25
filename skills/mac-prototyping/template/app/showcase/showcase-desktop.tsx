@@ -11,6 +11,7 @@ import {
   FinderWindow,
   MacApp,
   MacAppDock,
+  MacAlert,
   MacButton,
   MacContentUnavailable,
   MacControlGroup,
@@ -31,6 +32,7 @@ import {
   MacToggle,
   MacToolbar,
   MacWindowManager,
+  MacWindowStatusBar,
   MenuBarExtra,
   SetupAssistant,
   SetupHeading,
@@ -46,7 +48,6 @@ import {
   WindowChrome,
   type ChatMessage,
   type ChooserChoice,
-  type DockItem,
   type FinderEntry,
   type FinderViewMode,
   type MacListSection,
@@ -141,8 +142,8 @@ const storyGroups: ReadonlyArray<{
         id: "presentation",
         label: "Presentation & Feedback",
         symbol: "briefcase.fill",
-        nativeCounterpart: "Sheet + ContentUnavailableView",
-        summary: "Attached modal tasks, empty states, inline status, and action feedback without floating desktop notifications.",
+        nativeCounterpart: "Alert + Sheet + ContentUnavailableView",
+        summary: "Native-shaped alerts, attached modal tasks, empty states, and window-attached status feedback.",
       },
     ],
   },
@@ -171,6 +172,7 @@ export const coveredExports = [
   "FinderWindow",
   "MacApp",
   "MacAppDock",
+  "MacAlert",
   "MacButton",
   "MacContentUnavailable",
   "MacControlGroup",
@@ -192,6 +194,7 @@ export const coveredExports = [
   "MacToggle",
   "MacToolbar",
   "MacWindowManager",
+  "MacWindowStatusBar",
   "MenuBarExtra",
   "QuickLook",
   "SetupAssistant",
@@ -259,12 +262,15 @@ function StoryHeader({ description, title }: { readonly description: string; rea
 function AppAnatomyStory() {
   const anatomy = [
     ["MacWindowManager + MacApp", "app identity, key window, focus stack, lifecycle"],
+    ["MacApp presentation", "windowed Dock app or menu-bar-only app"],
     ["DesktopShell + MacAppDock", "wallpaper, active-app menus, launch and restore"],
     ["WindowChrome", "frame, active traffic lights, dragging, close/minimize/zoom"],
     ["MacNavigationSplitView", "sidebar and flexible detail column"],
     ["MacSourceList", "persistent catalog navigation"],
     ["MacToolbar", "context title and duplicate menu commands"],
     ["MacInspector", "optional supplementary controls, outside navigation"],
+    ["MacAlert + Sheet", "system decisions and attached modal workflows"],
+    ["MacWindowStatusBar", "feedback owned by the active window"],
   ] as const;
   return (
     <div className="showcase-story-scroll">
@@ -490,17 +496,21 @@ function MenusStory() {
 
 function PresentationStory() {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertResult, setAlertResult] = useState("No alert action selected.");
   const [projectName, setProjectName] = useState("Untitled Project");
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  const alertTriggerRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="showcase-story-pane">
-      <StoryHeader title="Presentation and feedback" description="Use an attached sheet for a scoped modal task and a content-unavailable state inside the region that has no content." />
+      <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, Sheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
       <MacContentUnavailable
         icon={<SystemSymbol name="folder" />}
         title="No projects"
         description="Create a project to see it in this collection. The status belongs in the active window, not on the desktop."
-        actions={<MacButton ref={sheetTriggerRef} className="showcase-sheet-trigger" variant="primary" onPress={() => setSheetOpen(true)}>Create Project…</MacButton>}
+        actions={<div className="showcase-presentation-actions"><MacButton ref={sheetTriggerRef} className="showcase-sheet-trigger" variant="primary" onPress={() => setSheetOpen(true)}>Create Project…</MacButton><MacButton ref={alertTriggerRef} onPress={() => setAlertOpen(true)}>Show System Alert</MacButton></div>}
       />
+      <MacWindowStatusBar live="polite" trailing="Alert feedback">{alertResult}</MacWindowStatusBar>
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} label="Create Project" fallbackFocusRef={sheetTriggerRef} initialFocusSelector=".mc-field-input">
         <SetupHeading symbol="folder.badge.plus" title="Create Project" />
         <div className="showcase-sheet-form">
@@ -508,6 +518,18 @@ function PresentationStory() {
           <div className="showcase-form-actions"><MacButton onPress={() => setSheetOpen(false)}>Cancel</MacButton><MacButton variant="primary" onPress={() => setSheetOpen(false)}>Create</MacButton></div>
         </div>
       </Sheet>
+      <MacAlert
+        open={alertOpen}
+        onClose={() => setAlertOpen(false)}
+        fallbackFocusRef={alertTriggerRef}
+        icon={<SystemSymbol name="shield.fill" />}
+        title="Apply the prototype settings?"
+        message="This is the shared system-alert primitive. It stays attached to the active window and restores focus when dismissed."
+        actions={[
+          { id: "cancel", label: "Cancel", role: "cancel", onPress: () => setAlertResult("Alert cancelled.") },
+          { id: "apply", label: "Apply", role: "default", onPress: () => setAlertResult("Settings applied.") },
+        ]}
+      />
     </div>
   );
 }
@@ -579,7 +601,7 @@ function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible,
     <WindowChrome
       className="showcase-catalog-window"
       label="Mac Chrome component showcase"
-      frame={{ top: 38, left: "max(16px, calc(50vw - 550px))", width: "min(1100px, calc(100vw - 32px))", height: "min(632px, calc(100vh - 126px))" }}
+      frame={{ top: 38, left: "max(16px, calc(50% - 550px))", width: "min(1100px, calc(100% - 32px))", height: "min(632px, calc(100% - 126px))" }}
     >
       <div className="showcase-catalog-shell">
         <div className="showcase-catalog-navigation">
@@ -636,7 +658,7 @@ function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible,
                 <main className="showcase-story-content" data-showcase-story={activeStory.id} aria-label={`${activeStory.label} story`}>
                   <StoryContent story={activeStory} onOpenRecipe={onOpenRecipe} />
                 </main>
-                <footer className="showcase-catalog-status"><span>{status}</span><span>{stories.length} examples</span></footer>
+                <MacWindowStatusBar live="polite" trailing={`${stories.length} examples`}>{status}</MacWindowStatusBar>
               </div>
             }
           />
@@ -680,7 +702,7 @@ function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeCha
     <FinderWindow
       title={location}
       label="Finder showcase"
-      frame={{ top: 54, left: "max(12px, calc(50% - 480px))", width: "min(960px, calc(100vw - 24px))", height: "min(590px, calc(100vh - 144px))" }}
+      frame={{ top: 54, left: "max(12px, calc(50% - 480px))", width: "min(960px, calc(100% - 24px))", height: "min(590px, calc(100% - 144px))" }}
       sidebar={sidebar}
       sidebarVisible={sidebarVisible}
       onSidebarVisibleChange={onSidebarVisibleChange}
@@ -713,7 +735,7 @@ function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
       finePrint={recentIds.length > 0 ? `Recently viewed: ${recentIds.length}` : "You can change this later."}
       windowTitle="New Workspace"
       label="Chooser showcase"
-      frame={{ top: 72, left: "max(12px, calc(50% - 420px))", width: "min(840px, calc(100vw - 24px))", height: "min(530px, calc(100vh - 162px))" }}
+      frame={{ top: 72, left: "max(12px, calc(50% - 420px))", width: "min(840px, calc(100% - 24px))", height: "min(530px, calc(100% - 162px))" }}
       choices={chooserChoices}
       selected={selectedId}
       onSelect={select}
@@ -737,7 +759,7 @@ function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
   return (
     <SetupAssistant
       label="Setup Assistant showcase"
-      frame={{ top: 58, left: "max(12px, calc(50% - 370px))", width: "min(740px, calc(100vw - 24px))", height: "min(580px, calc(100vh - 148px))" }}
+      frame={{ top: 58, left: "max(12px, calc(50% - 370px))", width: "min(740px, calc(100% - 24px))", height: "min(580px, calc(100% - 148px))" }}
       steps={setupSteps}
       currentStep={step.id}
       furthestIndex={furthestIndex}
@@ -788,7 +810,7 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
   return (
     <ChatWindow
       label="Chat showcase"
-      frame={{ top: 65, left: "max(12px, calc(50% - 390px))", width: "min(780px, calc(100vw - 24px))", height: "min(550px, calc(100vh - 155px))" }}
+      frame={{ top: 65, left: "max(12px, calc(50% - 390px))", width: "min(780px, calc(100% - 24px))", height: "min(550px, calc(100% - 155px))" }}
       conversations={visibleConversations}
       activeConversationId={visibleActiveConversationId}
       onSelectConversation={setActiveConversationId}
@@ -801,6 +823,27 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
       onClose={onClose}
     />
   );
+}
+
+function SystemAppRecipe({ label, symbol }: { readonly label: string; readonly symbol: SystemSymbolName }) {
+  return (
+    <WindowChrome
+      className="showcase-system-window"
+      label={`${label} showcase`}
+      frame={{ top: 82, left: "max(12px, calc(50% - 330px))", width: "min(660px, calc(100% - 24px))", height: "min(430px, calc(100% - 172px))" }}
+    >
+      <div className="showcase-system-window-shell">
+        <MacToolbar leading={<TrafficLights />} title={label} />
+        <MacContentUnavailable icon={<SystemSymbol name={symbol} />} title={label} description="This placeholder is a managed application window: Dock launch, focus, dragging, traffic lights, minimize, close, and zoom all use the shared app framework." />
+      </div>
+    </WindowChrome>
+  );
+}
+
+function defaultDockItem(id: string) {
+  const item = defaultDockItems.find((candidate) => candidate.id === id);
+  if (item === undefined) throw new Error(`Missing default Dock item: ${id}`);
+  return item;
 }
 
 export function ShowcaseDesktop() {
@@ -826,12 +869,12 @@ function ManagedShowcaseDesktop() {
   const [status, setStatus] = useState("Mac Chrome standard library is ready.");
   const activeStoryId = storyHistory[historyIndex] ?? "anatomy";
   const activeStory = stories.find((story) => story.id === activeStoryId) ?? stories[0];
-  const viewTarget: RecipeId | "catalog" = windowManager.keyAppId === "finder"
+  const viewTarget: RecipeId | "catalog" | "system" = windowManager.keyAppId === "finder"
     || windowManager.keyAppId === "chooser"
     || windowManager.keyAppId === "setup"
     || windowManager.keyAppId === "chat"
     ? windowManager.keyAppId
-    : "catalog";
+    : windowManager.keyAppId === null || windowManager.keyAppId === "catalog" ? "catalog" : "system";
   const keyAppName = windowManager.apps.find((app) => app.id === windowManager.keyAppId)?.name ?? "Mac Chrome";
 
   function selectStory(id: StoryId) {
@@ -907,16 +950,6 @@ function ManagedShowcaseDesktop() {
     viewItems = [{ kind: "action", id: `${viewTarget}-no-view-options`, label: "No View Options", disabled: true }];
   }
   const viewMenu: MenuBarMenu = { title: "View", items: viewItems };
-  const supplementalDockItems = defaultDockItems.flatMap((item): readonly DockItem[] => {
-    if (item.id === "finder") return [];
-    const statuses: Readonly<Record<string, string>> = {
-      "app-store": "App Store is represented by its standard Dock icon; no store window is included.",
-      chrome: "Google Chrome is already showing this showcase.",
-      downloads: "Downloads is empty in this showcase.",
-      trash: "Trash is empty.",
-    };
-    return [{ ...item, onActivate: () => setStatus(statuses[item.id] ?? `${item.label} activated.`) }];
-  });
   const menuItems = viewTarget === "catalog"
     ? ["File", "Edit", viewMenu, showcaseMenu, "Window", "Help"] as const
     : ["File", "Edit", viewMenu, "Window", "Help"] as const;
@@ -926,7 +959,7 @@ function ManagedShowcaseDesktop() {
       appName={keyAppName}
       menuItems={menuItems}
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
-      menuBarExtras={<MenuBarExtra badge={extraCount} icon={<SystemSymbol name="sparkles" />} label="Showcase activity"><div className="showcase-extra-popover"><strong>Showcase activity</strong><p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p><button type="button" disabled={extraCount === 0} onClick={() => { if (extraCount === 0) return; setExtraCount(0); setStatus("Showcase activity marked as read."); }}>Mark as Read</button></div></MenuBarExtra>}
+      menuBarExtras={<MacApp id="showcase-activity" name="Showcase Activity" presentation="menuBar" icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}><MenuBarExtra badge={extraCount} icon={<SystemSymbol name="sparkles" />} label="Showcase activity"><div className="showcase-extra-popover"><strong>Showcase activity</strong><p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p><button type="button" disabled={extraCount === 0} onClick={() => { if (extraCount === 0) return; setExtraCount(0); setStatus("Showcase activity marked as read."); }}>Mark as Read</button></div></MenuBarExtra></MacApp>}
     >
       <MacApp
         id="catalog"
@@ -950,7 +983,7 @@ function ManagedShowcaseDesktop() {
           onSidebarVisibleChange={updateCatalogSidebarVisibility}
         />
       </MacApp>
-      <MacApp id="finder" name="Finder" defaultRunning={false} icon={{ kind: "asset", src: "/mac-assets/dock/finder.png" }}>
+      <MacApp id="finder" name="Finder" defaultRunning={false} icon={defaultDockItem("finder").icon}>
         <FinderRecipe
           mode={finderMode}
           previewVisible={finderPreviewVisible}
@@ -970,14 +1003,11 @@ function ManagedShowcaseDesktop() {
       <MacApp id="chat" name="Chat" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="person.2.fill" />, background: "var(--chrome-ink)", foreground: "var(--on-accent)" }}>
         <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />
       </MacApp>
-      <MacAppDock
-        label="Showcase Dock"
-        extraItems={supplementalDockItems}
-        onAppActivate={(appId) => {
-          const app = windowManager.apps.find((candidate) => candidate.id === appId);
-          setStatus(`${app?.name ?? appId} ${app?.running ? "activated" : "launched"}.`);
-        }}
-      />
+      <MacApp id="app-store" name="App Store" defaultRunning={false} icon={defaultDockItem("app-store").icon}><SystemAppRecipe label="App Store" symbol="appstore" /></MacApp>
+      <MacApp id="chrome" name="Google Chrome" defaultRunning={false} icon={defaultDockItem("chrome").icon}><SystemAppRecipe label="Google Chrome" symbol="network" /></MacApp>
+      <MacApp id="downloads" name="Downloads" dockGroup="places" defaultRunning={false} icon={defaultDockItem("downloads").icon}><SystemAppRecipe label="Downloads" symbol="doc.badge.arrow.down" /></MacApp>
+      <MacApp id="trash" name="Trash" dockGroup="places" defaultRunning={false} icon={defaultDockItem("trash").icon}><SystemAppRecipe label="Trash" symbol="xmark" /></MacApp>
+      <MacAppDock label="Showcase Dock" />
     </DesktopShell>
   );
 }

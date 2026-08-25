@@ -28,13 +28,19 @@ function ManagedDesktopContents() {
       <button type="button" onClick={() => manager.minimizeWindow("notes:main")}>Menu Minimize</button>
       <MacApp id="showcase" name="Showcase" icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> }}>
         <WindowChrome label="Showcase window">
-          <div data-window-drag-handle=""><TrafficLights /><button type="button">Showcase action</button></div>
+          <div data-window-drag-handle="">
+            <TrafficLights />
+            <button type="button" onPointerDown={(event) => event.stopPropagation()}>Showcase action</button>
+          </div>
         </WindowChrome>
       </MacApp>
       <MacApp id="notes" name="Notes" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}>
         <WindowChrome label="Notes window">
           <div data-window-drag-handle=""><TrafficLights /><button type="button">Notes action</button></div>
         </WindowChrome>
+      </MacApp>
+      <MacApp id="activity" name="Activity" presentation="menuBar" icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}>
+        <span data-testid="menu-bar-app-content" />
       </MacApp>
       <MacAppDock
         label="Managed Dock"
@@ -61,6 +67,8 @@ describe("Mac app and window management", () => {
     expect(managedWindow("notes")).toBeNull();
     expect(managedDockButton("Showcase").classList.contains("is-running")).toBe(true);
     expect(managedDockButton("Notes").classList.contains("is-running")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Activity" })).toBeNull();
+    expect(screen.getByTestId("menu-bar-app-content")).toBeTruthy();
 
     fireEvent.click(managedDockButton("Notes"));
     await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("notes:main"));
@@ -71,7 +79,7 @@ describe("Mac app and window management", () => {
     expect(showcaseWindow?.dataset.keyWindow).toBe("false");
     expect(Number(notesWindow?.style.zIndex)).toBeGreaterThan(Number(showcaseWindow?.style.zIndex));
 
-    if (showcaseWindow) fireEvent.pointerDown(showcaseWindow);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Showcase action" }));
     await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main"));
     expect(managedWindow("showcase")?.dataset.keyWindow).toBe("true");
 

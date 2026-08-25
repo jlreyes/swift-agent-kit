@@ -61,6 +61,24 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   (movable-by-background remains Apple guidance).
 - One shared desktop/window shell per app — a flow (onboarding, chooser)
   enters the same environment, never a second simulated desktop.
+- A desktop that shows more than one simulated app uses the shared managed
+  app/window lifecycle. Each app has stable identity and a normalized Dock
+  icon; each window has stable identity, open/minimized/closed state, a
+  bounded stack position, and exactly one key-window result across the
+  desktop. Product-local z-index counters or conditionally mounting one
+  “active recipe” at a time are P1.
+- Pointer-down on any exposed part of a background window brings it to front;
+  keyboard navigation into a background window can make it key. Incidental
+  programmatic focus restoration must not reorder the desktop. Inactive
+  traffic lights are visually quiet; the key window has active chrome.
+- Close, minimize, zoom, File › Close Window, the Window menu, and the Dock
+  all operate on the same registered window state. Minimize keeps the app's
+  running indicator and Dock activation restores it; close does not destroy
+  product state; clicking a running app's Dock tile activates its frontmost
+  restorable window.
+- Every full-window recipe carries `WindowChrome` and functional traffic
+  lights, even inside a catalog. A composition preview without draggable
+  window chrome is not an app window.
 - Window size signals role: creation/utility windows sit near 820×520; a
   1100×570 window with a centered 760px column and hero art reads as a
   marketing page, not a Mac window.

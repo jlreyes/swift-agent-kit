@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 
@@ -20,6 +20,10 @@ function sourceItem(name: string): HTMLElement {
   const item = label.closest<HTMLElement>(".mc-sidebar-item");
   if (item === null) throw new Error(`Source-list item ${name} was not rendered`);
   return item;
+}
+
+function dockButton(name: string): HTMLButtonElement {
+  return within(screen.getByRole("navigation", { name: "Showcase Dock" })).getByRole("button", { name });
 }
 
 type TestUser = ReturnType<typeof userEvent.setup>;
@@ -47,20 +51,20 @@ test("the showcase opens as a persistent split-view component catalog", () => {
   expect(screen.queryByText(/^Toolbar$/)).toBeNull();
 });
 
-test("the Dock retains Mac defaults and normalizes the generated Showcase icon", async () => {
+test("the Dock retains Mac defaults, exposes composition apps, and normalizes generated icons", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
 
-  for (const label of ["Finder", "App Store", "Google Chrome", "Mac Chrome Showcase", "Downloads", "Trash"]) {
-    expect(screen.getByRole("button", { name: label })).toBeDefined();
+  for (const label of ["Mac Chrome", "Finder", "Workspace Chooser", "Setup Assistant", "Chat", "App Store", "Google Chrome", "Downloads", "Trash"]) {
+    expect(dockButton(label)).toBeDefined();
   }
-  const showcaseApp = screen.getByRole("button", { name: "Mac Chrome Showcase" });
+  const showcaseApp = dockButton("Mac Chrome");
   expect(showcaseApp.classList.contains("is-running")).toBe(true);
   expect(showcaseApp.querySelector(".p0-app-icon--tile")).not.toBeNull();
   expect(showcaseApp.querySelector(".showcase-app-icon")).toBeNull();
 
   await user.click(showcaseApp);
-  expect(within(screen.getByRole("region", { name: "Mac Chrome component showcase" })).getByText("Mac Chrome Showcase is already open.")).toBeDefined();
+  expect(within(screen.getByRole("region", { name: "Mac Chrome component showcase" })).getByText("Mac Chrome activated.")).toBeDefined();
 });
 
 test("every default Dock item has an observable activation result", async () => {
@@ -68,11 +72,11 @@ test("every default Dock item has an observable activation result", async () => 
   render(<ShowcaseDesktop />);
   const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
 
-  await user.click(screen.getByRole("button", { name: "Finder" }));
+  await user.click(dockButton("Finder"));
   expect(screen.getByRole("region", { name: "Finder showcase" })).toBeDefined();
-  expect(within(catalog).getByText("Finder example opened.")).toBeDefined();
-  await user.click(screen.getByRole("button", { name: "Finder" }));
-  expect(within(catalog).getByText("Finder example activated.")).toBeDefined();
+  expect(within(catalog).getByText("Finder launched.")).toBeDefined();
+  await user.click(dockButton("Finder"));
+  expect(within(catalog).getByText("Finder activated.")).toBeDefined();
 
   for (const [label, result] of [
     ["App Store", "App Store is represented by its standard Dock icon; no store window is included."],
@@ -80,7 +84,7 @@ test("every default Dock item has an observable activation result", async () => 
     ["Downloads", "Downloads is empty in this showcase."],
     ["Trash", "Trash is empty."],
   ] as const) {
-    await user.click(screen.getByRole("button", { name: label }));
+    await user.click(dockButton(label));
     expect(within(catalog).getByText(result)).toBeDefined();
   }
 });
@@ -129,14 +133,17 @@ test("Finder View commands target only Finder and stay in sync with its toolbar"
   render(<ShowcaseDesktop />);
   const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
 
-  await user.click(screen.getByRole("button", { name: "Finder" }));
+  await user.click(dockButton("Finder"));
   const finder = screen.getByRole("region", { name: "Finder showcase" });
+  expect(finder.getAttribute("data-key-window")).toBe("true");
   let menu = await openViewMenu(user);
   expect(within(menu).queryByText("Hide Inspector")).toBeNull();
   await user.click(within(menu).getByText("List View"));
   expect(within(finder).getByRole("button", { name: "List view" }).getAttribute("aria-pressed")).toBe("true");
+  expect(finder.getAttribute("data-key-window")).toBe("true");
 
   await user.click(within(finder).getByRole("button", { name: "Icon view" }));
+  expect(finder.getAttribute("data-key-window")).toBe("true");
   menu = await openViewMenu(user);
   expect(within(menu).getByRole("menuitemradio", { name: "Icon View" }).getAttribute("aria-checked")).toBe("true");
   await user.click(within(menu).getByText("Hide Sidebar"));
@@ -158,14 +165,17 @@ test("Finder View commands target only Finder and stay in sync with its toolbar"
   expect(within(menu).getByText("Hide Preview")).toBeDefined();
 });
 
-test("replacing the frontmost recipe retargets View and closing it returns commands to the catalog", async () => {
+test("frontmost-window focus retargets View without removing background apps", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
 
-  await user.click(screen.getByRole("button", { name: "Finder" }));
+  await user.click(dockButton("Finder"));
   await openRecipe(user, "Chat");
-  expect(screen.queryByRole("region", { name: "Finder showcase" })).toBeNull();
+  const finder = screen.getByRole("region", { name: "Finder showcase" });
   const chat = screen.getByRole("region", { name: "Chat showcase" });
+  expect(finder.getAttribute("data-key-window")).toBe("false");
+  expect(chat.getAttribute("data-key-window")).toBe("true");
+  expect(Number(chat.style.zIndex)).toBeGreaterThan(Number(finder.style.zIndex));
   let menu = await openViewMenu(user);
   expect(within(menu).queryByText("Icon View")).toBeNull();
   expect(within(menu).queryByText("Hide Inspector")).toBeNull();
@@ -174,15 +184,44 @@ test("replacing the frontmost recipe retargets View and closing it returns comma
   expect(sourceList()).toBeDefined();
 
   await user.click(within(chat).getByRole("button", { name: "Show sidebar" }));
+
+  fireEvent.pointerDown(finder);
+  expect(finder.getAttribute("data-key-window")).toBe("true");
+  expect(chat.getAttribute("data-key-window")).toBe("false");
+  menu = await openViewMenu(user);
+  expect(within(menu).getByText("Icon View")).toBeDefined();
+
+  await user.click(dockButton("Chat"));
+  expect(chat.getAttribute("data-key-window")).toBe("true");
   menu = await openViewMenu(user);
   expect(within(menu).getByText("Hide Sidebar")).toBeDefined();
   await user.click(within(chat).getByRole("button", { name: "Close window" }));
   expect(screen.queryByRole("region", { name: "Chat showcase" })).toBeNull();
 
   menu = await openViewMenu(user);
+  expect(within(menu).getByText("Icon View")).toBeDefined();
+  await user.click(within(finder).getByRole("button", { name: "Close window" }));
+  expect(screen.queryByRole("region", { name: "Finder showcase" })).toBeNull();
+
+  menu = await openViewMenu(user);
   expect(within(menu).getByText("Hide Inspector")).toBeDefined();
-  await user.click(within(menu).getByText("Hide Sidebar"));
-  expect(document.querySelector(".mc-sidebar-tree[aria-label='Component catalog']")).toBeNull();
+});
+
+test("traffic lights minimize managed apps and their Dock items restore them", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await user.click(dockButton("Finder"));
+  const finder = screen.getByRole("region", { name: "Finder showcase" });
+  const controls = within(finder).getByLabelText("Window controls");
+  expect(within(controls).getAllByRole("button")).toHaveLength(3);
+  await user.click(within(controls).getByRole("button", { name: "Minimize window" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Finder showcase" })).toBeNull());
+  expect(dockButton("Finder").classList.contains("is-running")).toBe(true);
+
+  await user.click(dockButton("Finder"));
+  expect(screen.getByRole("region", { name: "Finder showcase" })).toBeDefined();
+  expect(screen.getByRole("region", { name: "Finder showcase" }).getAttribute("data-key-window")).toBe("true");
 });
 
 test.each([

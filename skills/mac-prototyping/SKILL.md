@@ -1,6 +1,6 @@
 ---
 name: mac-prototyping
-description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, Dock, navigation split views, source lists, lists, forms, controls, menus, window recipes, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
+description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — managed apps and windows, desktop shell, Dock, navigation split views, source lists, forms, controls, menus, window recipes, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
 metadata:
   author: jlreyes
 ---
@@ -41,9 +41,10 @@ find it.
 
 A surface is two files: a small server `app/<surface>/page.tsx` that exports
 `metadata` and only delegates, plus a `"use client"` component beside it that
-owns the state and composes `DesktopShell` + windows (`FinderWindow`,
-`ChooserWindow`, `WindowChrome`+`MacToolbar`, …) over plain data props.
-Product state and fixtures live outside `lib/mac-chrome/`.
+owns the state and composes `MacWindowManager` + `DesktopShell`, one `MacApp`
+per simulated application, their windows (`FinderWindow`, `ChooserWindow`,
+`WindowChrome`+`MacToolbar`, …), and one `MacAppDock`. Product state and
+fixtures live outside `lib/mac-chrome/`.
 
 Every new prototype includes two starter routes. Open `/showcase` first when
 discovering components or auditing mac-chrome: it is the interactive coverage
@@ -61,7 +62,9 @@ copy a showcase layout or private component into product code.
 | Need | Use | Native precedent |
 | --- | --- | --- |
 | Desktop stage, app menus, status items | `DesktopShell` | menu bar + desktop |
-| App launchers | `MacDock` + typed `DockIcon` / `MacDockAppIcon` | Dock tile |
+| App identity, key-window focus, z-order, launch/restore/quit | `MacWindowManager` + `MacApp` | `NSApplication` + `NSWindow` scene ownership |
+| Managed app launcher and running state | `MacAppDock` + typed `DockIcon` / `MacDockAppIcon` | Dock tile |
+| Standalone decorative Dock | `MacDock` | Dock-like launcher without app lifecycle |
 | Two- or three-column navigation | `MacNavigationSplitView` | `NavigationSplitView` |
 | Supplementary metadata or controls | `MacInspector` beside the split view | inspector / preview pane |
 | Sectioned sidebar navigation | `MacSourceList` | `List(.sidebar)` / source list |
@@ -76,6 +79,16 @@ copy a showcase layout or private component into product code.
 navigation columns (sidebar + content + detail). Its optional middle column
 represents a selection hierarchy. `MacInspector` is deliberately a separate,
 supplementary trailing pane; do not treat it as the third navigation column.
+
+Use the managed app layer for every multi-window desktop. `MacApp` stays
+mounted so closing or minimizing a window does not destroy its product state;
+`MacAppDock` launches, restores, and activates from the same registry.
+`WindowChrome` registers itself with the enclosing app, pointer activation
+brings a background window forward, keyboard navigation can make a window
+key, and inactive traffic lights become quiet. Multiple windows in one app
+must have distinct stable `windowId` values; the single-window default is
+`${appId}:main`. Do not manage product windows by conditional rendering plus
+local z-index counters.
 
 The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
 asset artwork retains its own safe area, while generated symbol artwork is
@@ -139,6 +152,10 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small
   viewports.
+- **One app/window lifecycle.** A desktop with multiple simulated apps uses
+  `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
+  Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,
+  and Dock restoration must all resolve through that registry.
 - **Compose before styling.** Use the shared navigation, source-list, list,
   disclosure, form, control, menu, and content-state primitives before
   writing a local layout or control. Product CSS may arrange a surface around

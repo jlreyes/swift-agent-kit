@@ -1,9 +1,9 @@
 # mac-chrome — API reference
 
 macOS-window chrome and a small composition-first standard library for React
-prototypes. It provides desktop/window chrome, navigation, collections,
-forms/controls, commands, and four product-window recipes (Finder, Chooser,
-Setup Assistant, Chat). Signatures below are copied from source. Every
+prototypes. It provides managed app/window lifecycle, desktop chrome,
+navigation, collections, forms/controls, commands, and four product-window
+recipes (Finder, Chooser, Setup Assistant, Chat). Signatures below are copied from source. Every
 component imports its own stylesheet, so importing a component is enough;
 `styles/index.css` remains as the one-shot import for consumers who prefer a
 single global stylesheet.
@@ -32,8 +32,8 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `WindowFrame`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacManagedApp`, `MacManagedWindow`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog: it
 covers every runtime export against a working desktop shell. Use it to
@@ -58,6 +58,7 @@ not the only way to build an app.
 
 | Product need | Public primitive | Notes |
 | --- | --- | --- |
+| App identity and window lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | One registry for key window, z-order, launch, close, minimize, zoom, and Dock restore. |
 | Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
 | Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
 | Sidebar source list | `MacSourceList` | Controlled selection and optional controlled collapsible sections. |
@@ -95,6 +96,35 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
+- Inside `MacWindowManager`, File › Close Window and the standard Window
+  menu target the key managed window. Window lists the current app's open or
+  minimized windows and can restore them. The standard application menu's
+  Hide, Hide Others, and Quit commands target the registered app lifecycle.
+  Derive `appName` and app-specific menus from
+  `useMacWindowManager().keyAppId` when the desktop hosts more than one app.
+
+### MacWindowManager, MacApp, and MacAppDock
+maps to: `NSApplication` plus SwiftUI `App`/`WindowGroup` scene ownership and the system Dock.
+`MacWindowManager({ children }: { readonly children: ReactNode })`
+`MacApp({ id, name, icon, defaultRunning = true, children }: { readonly id: string; readonly name: string; readonly icon: DockIconSource; readonly defaultRunning?: boolean; readonly children: ReactNode })`
+`MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: { readonly extraItems?: readonly DockItem[]; readonly label?: string; readonly onAppActivate?: (appId: string) => void })`
+`useMacWindowManager(): MacWindowManagerValue`
+
+`MacWindowManager` is the canonical desktop lifecycle owner. A managed
+`WindowChrome` registers with its nearest `MacApp`; pointer presses raise it,
+keyboard navigation into it can make it key, and programmatic focus
+restoration does not reorder windows. Z-indices are derived from the bounded
+visible stack instead of growing on every click. Closing/minimizing hides the
+window without unmounting its application subtree, so state survives and
+`MacAppDock` can launch, restore, or activate it. Running dots are derived from
+the same app registry.
+
+Keep app `id`, `name`, icon, and `defaultRunning` stable for a mounted
+`MacApp`. A one-window app may omit `WindowChrome.windowId` and receives
+`${appId}:main`; every additional window needs an explicit unique stable ID.
+Use `MacDock` only for a standalone decorative launcher. Do not combine
+managed windows with product-local z-index, running, or conditional-mount
+state.
 
 ### TrafficLights
 maps to: `NSWindow.standardWindowButton(.closeButton/.miniaturizeButton/.zoomButton)`.
@@ -108,11 +138,11 @@ Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointe
 
 ### WindowChrome
 maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGroup` scene.
-`WindowChrome({ children, className = "", defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, style, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly style?: CSSProperties; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
+`WindowChrome({ children, className = "", defaultOpen = true, defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, style, windowId, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultOpen?: boolean; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly style?: CSSProperties; readonly windowId?: string; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
 `type WindowFrame = { readonly top?: number | string; readonly left?: number | string; readonly width?: number | string; readonly height?: number | string }` — numbers are px; strings pass through as CSS.
 - **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`).
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
-- **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, minimize animates out (~220ms, reduced-motion aware) then hides, zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Hiding unmounts the window subtree — re-mount (e.g. a `key` change) to bring it back.
+- **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, minimize animates out (~220ms, reduced-motion aware) then hides, zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows own local visibility. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock or Window menu can restore them.
 
 ### MacDock
 maps to: the system Dock (`NSDockTile` per app); no SwiftUI counterpart — system UI.

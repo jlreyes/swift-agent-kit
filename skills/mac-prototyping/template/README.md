@@ -35,9 +35,11 @@ The launcher at `/` links both starter routes:
 - `/showcase` is the interactive catalog and coverage surface for every
   mac-chrome runtime export. Use it to discover components and smoke-check a
   freshly vendored toolkit. It is also a running Dock app, so its desktop
-  identity is visible while exercising the shell. Its persistent catalog
-  layout dogfoods the public source list and navigation split view; it is not
-  a one-off demo layout.
+  identity is visible while exercising the shell. Full compositions launch
+  as simultaneous managed apps: click an exposed background window to bring
+  it forward, drag its toolbar, use its traffic lights, or restore it from
+  the Dock. Its persistent catalog layout dogfoods the public source list and
+  navigation split view; it is not a one-off demo layout.
 - `/example` is the deliberately small, coherent product-window starter.
   Build the product's first surface from it rather than treating the catalog
   as application UI.
@@ -55,6 +57,11 @@ not a web approximation of Liquid Glass.
 
 Build a product surface from public primitives before adding local components:
 
+- Wrap the desktop in `MacWindowManager`, place each simulated application in
+  a stable `MacApp`, let `WindowChrome` register the app's windows, and use
+  `MacAppDock` for launch, activation, running state, and restore. Give every
+  additional window in one app an explicit stable `windowId`; do not maintain
+  local z-index or “active window” mount state.
 - Use `MacNavigationSplitView` for sidebar/detail (two columns) or
   sidebar/content/detail (three navigation columns). Use `MacInspector` as a
   separate supplementary pane, not as the third navigation column.
@@ -90,9 +97,9 @@ are intentionally not starter-library promises.
    ```
 
    The sibling component (`files-surface.tsx` here) starts with
-   `"use client"`, owns the state, and composes `DesktopShell` +
-   `WindowChrome` + `MacToolbar` + `MacDock` and the relevant shared layout,
-   collection, and control primitives from `lib/mac-chrome` — follow
+   `"use client"`, owns the state, and composes `MacWindowManager` +
+   `DesktopShell` + `MacApp` + `WindowChrome` + `MacToolbar` + `MacAppDock`
+   and the relevant shared layout, collection, and control primitives from `lib/mac-chrome` — follow
    `app/example/`. Its `example-desktop.tsx` supplies `DesktopShell` a
    client-side `onMenuAction` target and shows temporary visible feedback for
    each command; replace that feedback with the product behavior.

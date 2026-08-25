@@ -1,4 +1,14 @@
 export { DesktopShell, type DesktopShellProps, type MenuBarMenu, type MenuCommand } from "./desktop-shell.tsx";
+export {
+  MacApp,
+  MacAppDock,
+  MacWindowManager,
+  useMacWindowManager,
+  type MacManagedApp,
+  type MacManagedWindow,
+  type MacWindowManagerValue,
+  type MacWindowState,
+} from "./app.tsx";
 export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame } from "./window.tsx";
 export {
   defaultDockItems,

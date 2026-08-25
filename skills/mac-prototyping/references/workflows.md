@@ -58,9 +58,9 @@ pnpm test                                          # typecheck + build + rendere
 After vendoring, smoke-check `http://localhost:<port>/showcase` once the
 prototype is served. It is the template's interactive mac-chrome coverage
 surface and canonical component catalog: it must dogfood the public
-navigation, collections, controls, menu/popover, Dock, and window primitives
-rather than a second private set. `/example` remains the focused starter
-window.
+navigation, collections, controls, menu/popover, managed app/window, and Dock
+primitives rather than a second private set. `/example` remains the focused
+starter window.
 
 When adding a product surface, compose from the vendored primitives before
 writing an ad-hoc equivalent. In particular, use `MacNavigationSplitView` for
@@ -70,6 +70,14 @@ Use `MacSourceList`, `MacList`, `MacDisclosureGroup`, the `Mac*` controls and
 forms, and `MacContentUnavailable` for their matching patterns. A product
 surface owns its data and product composition; mac-chrome owns repeatable
 native anatomy, focus/keyboard behavior, and optical geometry.
+
+Wrap every multi-app desktop in `MacWindowManager`. Put each persistent app
+surface under a stable `MacApp`, let its `WindowChrome` instances register
+there, and render one `MacAppDock`. Multiple windows in the same app need
+explicit stable `windowId` values. The provider owns key-window focus,
+z-order, running state, traffic-light actions, Window-menu targeting, and
+Dock launch/restore; do not duplicate those with route-local active-window
+state or z-index counters.
 
 Dock entries must use `DockIcon`/`MacDockAppIcon`'s shared normalizer. Supply
 an `asset` for hydrated app artwork or a `symbol` for generated app artwork;

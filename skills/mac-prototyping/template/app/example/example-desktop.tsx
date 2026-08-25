@@ -3,7 +3,15 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { DesktopShell, type MenuBarMenu, type MenuCommand } from "../../lib/mac-chrome/index.ts";
+import {
+  defaultDockItems,
+  DesktopShell,
+  MacApp,
+  MacAppDock,
+  MacWindowManager,
+  type MenuBarMenu,
+  type MenuCommand,
+} from "../../lib/mac-chrome/index.ts";
 
 const fileMenu: MenuBarMenu = {
   title: "File",
@@ -16,6 +24,14 @@ const fileMenu: MenuBarMenu = {
 };
 
 export function ExampleDesktop({ children }: { readonly children: ReactNode }) {
+  return (
+    <MacWindowManager>
+      <ManagedExampleDesktop>{children}</ManagedExampleDesktop>
+    </MacWindowManager>
+  );
+}
+
+function ManagedExampleDesktop({ children }: { readonly children: ReactNode }) {
   const [lastCommand, setLastCommand] = useState<MenuCommand | null>(null);
   useEffect(() => {
     if (lastCommand === null) return;
@@ -24,11 +40,14 @@ export function ExampleDesktop({ children }: { readonly children: ReactNode }) {
   }, [lastCommand]);
   return (
     <DesktopShell
-      appName="Example"
+      appName="Finder"
       menuItems={[fileMenu, "Edit", "View", "Window", "Help"]}
       onMenuAction={setLastCommand}
     >
-      {children}
+      <MacApp id="finder" name="Finder" icon={{ kind: "asset", src: "/mac-assets/dock/finder.png" }}>
+        {children}
+      </MacApp>
+      <MacAppDock label="Mac Dock" extraItems={defaultDockItems} />
       {lastCommand !== null ? (
         <output className="example-command-feedback" aria-live="polite">
           {lastCommand.menu}: {lastCommand.label}

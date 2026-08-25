@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 
 import ExamplePage from "../app/example/page.tsx";
@@ -35,11 +35,12 @@ test("the example surface renders one coherent Finder window", () => {
   // The menu-bar titles render in both stub (inert) and vendored (dropdown) modes.
   expect(screen.getByText("File")).toBeDefined();
   expect(screen.getByRole("button", { name: "Apple" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Finder" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "App Store" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Google Chrome" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Downloads" })).toBeDefined();
-  expect(screen.getByRole("button", { name: "Trash" })).toBeDefined();
+  const dock = within(screen.getByRole("navigation", { name: "Mac Dock" }));
+  expect(dock.getByRole("button", { name: "Finder" })).toBeDefined();
+  expect(dock.getByRole("button", { name: "App Store" })).toBeDefined();
+  expect(dock.getByRole("button", { name: "Google Chrome" })).toBeDefined();
+  expect(dock.getByRole("button", { name: "Downloads" })).toBeDefined();
+  expect(dock.getByRole("button", { name: "Trash" })).toBeDefined();
 });
 
 test("the finder example window renders with its entries", () => {

@@ -246,6 +246,20 @@ img {
   box-shadow: var(--shadow-window), inset 0 0.5px rgba(255, 255, 255, 0.82);
 }
 
+.mac-window[data-key-window="false"] {
+  box-shadow: var(--shadow-window-inactive), inset 0 0.5px var(--window-edge);
+}
+
+.mac-window[data-key-window="false"] .traffic-lights :is(button, span) {
+  color: transparent;
+  border-color: var(--line-soft);
+  background: var(--traffic-disabled);
+}
+
+.mac-window[data-key-window="false"] .traffic-lights svg {
+  opacity: 0;
+}
+
 /* Minimize: quick scale/opacity out (transform + opacity set inline by
    WindowChrome so it composes with the drag translate). */
 .mac-window.mc-minimizing {

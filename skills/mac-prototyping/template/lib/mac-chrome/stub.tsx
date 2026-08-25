@@ -6,7 +6,7 @@
 // names, and default window geometry mirror the real package so pages written
 // against the stub keep working after vendoring. Full drag, focus, overlay,
 // and keyboard behavior exists only in the real package.
-import { useId, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
 
@@ -236,30 +236,214 @@ export function DesktopShell({
   );
 }
 
+/* ----- Managed apps and windows (mirrors app.tsx) ----- */
+
+export type MacWindowState = "open" | "minimized" | "closed";
+
+export interface MacManagedApp {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: DockIconSource;
+  readonly running: boolean;
+  readonly windowIds: readonly string[];
+}
+
+export interface MacManagedWindow {
+  readonly id: string;
+  readonly appId: string;
+  readonly label: string;
+  readonly state: MacWindowState;
+  readonly zoomed: boolean;
+  readonly isKeyWindow: boolean;
+  readonly zIndex: number;
+}
+
+export interface MacWindowManagerValue {
+  readonly apps: readonly MacManagedApp[];
+  readonly windows: readonly MacManagedWindow[];
+  readonly keyWindowId: string | null;
+  readonly keyAppId: string | null;
+  readonly activateApp: (appId: string) => void;
+  readonly activateWindow: (windowId: string) => void;
+  readonly openWindow: (windowId: string) => void;
+  readonly closeWindow: (windowId: string) => void;
+  readonly minimizeWindow: (windowId: string) => void;
+  readonly restoreWindow: (windowId: string) => void;
+  readonly toggleZoom: (windowId: string) => void;
+  readonly bringAllToFront: (appId?: string) => void;
+  readonly quitApp: (appId: string) => void;
+}
+
+type StubAppRecord = Omit<MacManagedApp, "windowIds"> & { readonly order: number };
+type StubWindowRecord = Omit<MacManagedWindow, "isKeyWindow" | "zIndex"> & { readonly order: number };
+type StubManagerState = {
+  readonly apps: readonly StubAppRecord[];
+  readonly windows: readonly StubWindowRecord[];
+  readonly nextOrder: number;
+};
+type StubManagerContextValue = MacWindowManagerValue & {
+  readonly registerApp: (app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => void;
+  readonly unregisterApp: (appId: string) => void;
+  readonly registerWindow: (window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => void;
+  readonly unregisterWindow: (windowId: string) => void;
+  readonly consumeKeyboardWindowFocusIntent: () => boolean;
+};
+type StubAppContextValue = { readonly id: string; readonly defaultRunning: boolean };
+
+const StubManagerContext = createContext<StubManagerContextValue | null>(null);
+const StubAppContext = createContext<StubAppContextValue | null>(null);
+
+export function MacWindowManager({ children }: { readonly children: ReactNode }) {
+  const [state, setState] = useState<StubManagerState>({ apps: [], windows: [], nextOrder: 1 });
+  const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
+  useEffect(() => {
+    function recordKeyboardInteraction() { interactionModalityRef.current = "keyboard"; }
+    function recordPointerInteraction() { interactionModalityRef.current = "pointer"; }
+    document.addEventListener("keydown", recordKeyboardInteraction, true);
+    document.addEventListener("pointerdown", recordPointerInteraction, true);
+    return () => {
+      document.removeEventListener("keydown", recordKeyboardInteraction, true);
+      document.removeEventListener("pointerdown", recordPointerInteraction, true);
+    };
+  }, []);
+  const consumeKeyboardWindowFocusIntent = useCallback(() => {
+    if (interactionModalityRef.current !== "keyboard") return false;
+    interactionModalityRef.current = null;
+    return true;
+  }, []);
+  const registerApp = useCallback((app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => {
+    setState((current) => current.apps.some((candidate) => candidate.id === app.id) ? current : {
+      ...current,
+      apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, running: app.defaultRunning, order: current.nextOrder }],
+      nextOrder: current.nextOrder + 1,
+    });
+  }, []);
+  const unregisterApp = useCallback((appId: string) => setState((current) => ({ ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) })), []);
+  const registerWindow = useCallback((window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => {
+    setState((current) => current.windows.some((candidate) => candidate.id === window.id) ? current : {
+      ...current,
+      windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0 }],
+      nextOrder: window.defaultOpen ? current.nextOrder + 1 : current.nextOrder,
+    });
+  }, []);
+  const unregisterWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.filter((window) => window.id !== windowId) })), []);
+  const activateWindow = useCallback((windowId: string) => setState((current) => {
+    const target = current.windows.find((window) => window.id === windowId);
+    if (target === undefined) return current;
+    return {
+      ...current,
+      apps: current.apps.map((app) => app.id === target.appId ? { ...app, running: true } : app),
+      windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "open", order: current.nextOrder } : window),
+      nextOrder: current.nextOrder + 1,
+    };
+  }), []);
+  const activateApp = useCallback((appId: string) => setState((current) => {
+    const appWindows = current.windows.filter((window) => window.appId === appId).slice().sort((left, right) => right.order - left.order);
+    const target = appWindows.find((window) => window.state !== "closed") ?? appWindows[0];
+    return {
+      ...current,
+      apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
+      windows: target === undefined ? current.windows : current.windows.map((window) => window.id === target.id ? { ...window, state: "open", order: current.nextOrder } : window),
+      nextOrder: target === undefined ? current.nextOrder : current.nextOrder + 1,
+    };
+  }), []);
+  const closeWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "closed" } : window) })), []);
+  const minimizeWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "minimized" } : window) })), []);
+  const toggleZoom = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, zoomed: !window.zoomed } : window) })), []);
+  const bringAllToFront = useCallback((appId?: string) => setState((current) => {
+    let nextOrder = current.nextOrder;
+    const windows = current.windows.map((window) => window.state === "open" && (appId === undefined || window.appId === appId) ? { ...window, order: nextOrder++ } : window);
+    return { ...current, windows, nextOrder };
+  }), []);
+  const quitApp = useCallback((appId: string) => setState((current) => ({
+    ...current,
+    apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
+    windows: current.windows.map((window) => window.appId === appId ? { ...window, state: "closed" } : window),
+  })), []);
+  const visible = state.windows.filter((window) => window.state === "open" && state.apps.find((app) => app.id === window.appId)?.running).slice().sort((left, right) => left.order - right.order);
+  const keyWindow = visible.at(-1);
+  const windows: readonly MacManagedWindow[] = state.windows.map((window) => ({ ...window, isKeyWindow: window.id === keyWindow?.id, zIndex: 10 + visible.findIndex((candidate) => candidate.id === window.id) }));
+  const apps: readonly MacManagedApp[] = state.apps.map((app) => ({ ...app, windowIds: state.windows.filter((window) => window.appId === app.id).map((window) => window.id) }));
+  const value = useMemo<StubManagerContextValue>(() => ({
+    apps,
+    windows,
+    keyWindowId: keyWindow?.id ?? null,
+    keyAppId: keyWindow?.appId ?? null,
+    activateApp,
+    activateWindow,
+    openWindow: activateWindow,
+    closeWindow,
+    minimizeWindow,
+    restoreWindow: activateWindow,
+    toggleZoom,
+    bringAllToFront,
+    quitApp,
+    registerApp,
+    unregisterApp,
+    registerWindow,
+    unregisterWindow,
+    consumeKeyboardWindowFocusIntent,
+  }), [activateApp, activateWindow, apps, bringAllToFront, closeWindow, consumeKeyboardWindowFocusIntent, keyWindow?.appId, keyWindow?.id, minimizeWindow, quitApp, registerApp, registerWindow, toggleZoom, unregisterApp, unregisterWindow, windows]);
+  return <StubManagerContext.Provider value={value}>{children}</StubManagerContext.Provider>;
+}
+
+export function useMacWindowManager() {
+  const manager = useContext(StubManagerContext);
+  if (manager === null) throw new Error("useMacWindowManager must be used inside MacWindowManager");
+  return manager;
+}
+
+export function MacApp({ children, defaultRunning = true, icon, id, name }: {
+  readonly children: ReactNode;
+  readonly defaultRunning?: boolean;
+  readonly icon: DockIconSource;
+  readonly id: string;
+  readonly name: string;
+}) {
+  const manager = useMacWindowManager();
+  const initial = useRef({ id, name, icon, defaultRunning });
+  useEffect(() => {
+    manager.registerApp(initial.current);
+    return () => manager.unregisterApp(initial.current.id);
+  }, [manager.registerApp, manager.unregisterApp]);
+  const value = useMemo<StubAppContextValue>(() => ({ id, defaultRunning }), [defaultRunning, id]);
+  return <StubAppContext.Provider value={value}>{children}</StubAppContext.Provider>;
+}
+
+type StubWindowControls = { readonly close: () => void; readonly minimize: () => void; readonly zoom: () => void };
+const StubWindowControlsContext = createContext<StubWindowControls | null>(null);
+
 export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }: {
   readonly disabled?: boolean;
   readonly onClose?: () => void;
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 } = {}) {
+  const controls = useContext(StubWindowControlsContext);
   function control(kind: "close" | "minimize" | "zoom", label: string, action: (() => void) | undefined) {
     return disabled || action === undefined
       ? <span className={`traffic-${kind}`} />
       : <button type="button" className={`traffic-${kind}`} aria-label={label} onClick={action} />;
   }
-  return <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">{control("close", "Close window", onClose)}{control("minimize", "Minimize window", onMinimize)}{control("zoom", "Zoom window", onZoom)}</div>;
+  return <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">{control("close", "Close window", onClose ?? controls?.close)}{control("minimize", "Minimize window", onMinimize ?? controls?.minimize)}{control("zoom", "Zoom window", onZoom ?? controls?.zoom)}</div>;
 }
 
 export function WindowChrome({
   children,
   className = "",
+  defaultOpen = true,
   defaultSize = genericDefaultSize,
   frame,
   label,
   style,
+  windowId,
+  onClose,
+  onMinimize,
+  onZoom,
 }: {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly defaultOpen?: boolean;
   readonly defaultSize?: WindowSize;
   readonly draggable?: boolean;
   readonly dragHandleSelector?: string;
@@ -267,18 +451,46 @@ export function WindowChrome({
   readonly frame?: WindowFrame;
   readonly label: string;
   readonly style?: CSSProperties;
+  readonly windowId?: string;
   readonly onClose?: () => void;
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 }) {
+  const manager = useContext(StubManagerContext);
+  const app = useContext(StubAppContext);
+  const resolvedWindowId = manager !== null && app !== null ? windowId ?? `${app.id}:main` : null;
+  useEffect(() => {
+    if (manager === null || app === null || resolvedWindowId === null) return;
+    manager.registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen });
+    return () => manager.unregisterWindow(resolvedWindowId);
+  }, [app, defaultOpen, label, manager?.registerWindow, manager?.unregisterWindow, resolvedWindowId]);
+  const managedWindow = resolvedWindowId === null ? undefined : manager?.windows.find((window) => window.id === resolvedWindowId);
+  const appRunning = app === null ? true : manager?.apps.find((candidate) => candidate.id === app.id)?.running ?? app.defaultRunning;
+  const visible = manager === null || resolvedWindowId === null || (appRunning && (managedWindow?.state === "open" || managedWindow === undefined && defaultOpen));
+  const controls: StubWindowControls = {
+    close: () => { onClose?.(); if (resolvedWindowId !== null) manager?.closeWindow(resolvedWindowId); },
+    minimize: () => { onMinimize?.(); if (resolvedWindowId !== null) manager?.minimizeWindow(resolvedWindowId); },
+    zoom: () => { onZoom?.(); if (resolvedWindowId !== null) manager?.toggleZoom(resolvedWindowId); },
+  };
+  if (!visible) return null;
   return (
-    <section
-      className={`mac-window ${className}`.trim()}
-      aria-label={label}
-      style={{ ...framePlacement(frame, defaultSize), ...style }}
-    >
-      {children}
-    </section>
+    <StubWindowControlsContext.Provider value={controls}>
+      <section
+        className={`mac-window ${className}${managedWindow?.zoomed ? " mc-zoomed" : ""}`.trim()}
+        aria-label={label}
+        data-app-id={app?.id}
+        data-key-window={managedWindow === undefined ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
+        data-window-id={resolvedWindowId ?? undefined}
+        data-window-state={managedWindow?.state}
+        onFocusCapture={() => {
+          if (resolvedWindowId !== null && manager?.consumeKeyboardWindowFocusIntent()) manager.activateWindow(resolvedWindowId);
+        }}
+        onPointerDown={() => { if (resolvedWindowId !== null) manager?.activateWindow(resolvedWindowId); }}
+        style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex }}
+      >
+        {children}
+      </section>
+    </StubWindowControlsContext.Provider>
   );
 }
 
@@ -449,6 +661,27 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
       })}
     </nav>
   );
+}
+
+export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
+  readonly extraItems?: readonly DockItem[];
+  readonly label?: string;
+  readonly onAppActivate?: (appId: string) => void;
+}) {
+  const manager = useMacWindowManager();
+  const appIds = new Set(manager.apps.map((app) => app.id));
+  const items: readonly DockItem[] = [
+    ...manager.apps.map((app): DockItem => ({
+      id: app.id,
+      label: app.name,
+      icon: app.icon,
+      running: app.running,
+      group: "apps",
+      onActivate: () => { manager.activateApp(app.id); onAppActivate?.(app.id); },
+    })),
+    ...extraItems.filter((item) => !appIds.has(item.id)),
+  ];
+  return <MacDock items={items} label={label} />;
 }
 
 export function MenuBarExtra({ badge, children, icon, label }: {
@@ -858,7 +1091,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
     <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose}>
       {isSidebarVisible ? <aside className="mc-finder-sidebar">
         <div className="mc-finder-sidebar-top" data-window-drag-handle="">
-          <TrafficLights onClose={onClose} />
+          <TrafficLights />
         </div>
         {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
         <nav aria-label="Sidebar">
@@ -885,7 +1118,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
         <MacToolbar
           leading={
             <>
-              {!isSidebarVisible ? <TrafficLights onClose={onClose} /> : null}
+              {!isSidebarVisible ? <TrafficLights /> : null}
               <ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton>
             </>
           }
@@ -1171,9 +1404,9 @@ export function ChatWindow({ conversations, activeConversationId, onSelectConver
   const active = conversations.find((conversation) => conversation.id === activeConversationId);
   return (
     <WindowChrome className="mc-chat-window" label={label ?? active?.title ?? "Chat"} frame={frame} onClose={onClose}>
-      {isSidebarVisible ? <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights onClose={onClose} /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside> : null}
+      {isSidebarVisible ? <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside> : null}
       <section className="mc-chat-main">
-        <MacToolbar leading={<>{!isSidebarVisible ? <TrafficLights onClose={onClose} /> : null}<ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton></>} title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
+        <MacToolbar leading={<>{!isSidebarVisible ? <TrafficLights /> : null}<ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton></>} title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
         <div className="mc-chat-transcript" role="log" aria-label="Conversation">{active?.messages.length ? active.messages.map((message) => <article key={message.id} className={`mc-chat-message mc-${message.author.role}`}>{message.author.icon}<strong>{message.author.name}</strong><p>{message.body}</p><small>{message.at}</small></article>) : emptyTranscript}</div>
         <form className="mc-chat-composer" onSubmit={(event) => { event.preventDefault(); if (composer.value.trim()) composer.onSend(); }}>{composer.accessory}<textarea aria-label={composer.placeholder ?? "Message"} value={composer.value} placeholder={composer.placeholder} onChange={(event) => composer.onChange(event.target.value)} /><button type="submit" disabled={!composer.value.trim()} aria-label="Send message"><SystemSymbol name="arrow.up" /></button></form>
       </section>

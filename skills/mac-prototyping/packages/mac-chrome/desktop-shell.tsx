@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
 import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
@@ -178,6 +179,115 @@ function resolveMenu(item: string | MenuBarMenu): MenuBarMenu {
     : item;
 }
 
+function withManagedWindowCommands(
+  menu: MenuBarMenu,
+  manager: MacWindowManagerValue,
+  onMenuAction: DesktopShellProps["onMenuAction"],
+  isApplicationMenu: boolean,
+): MenuBarMenu {
+  const keyWindow = manager.windows.find((window) => window.id === manager.keyWindowId);
+  const keyApp = manager.apps.find((app) => app.id === manager.keyAppId);
+  const keyAppWindows = manager.windows.filter((window) => (
+    window.appId === manager.keyAppId && window.state !== "closed"
+  ));
+  function command(id: string, label: string, action: () => void) {
+    return () => {
+      action();
+      onMenuAction?.({ menu: menu.title, id, label });
+    };
+  }
+
+  if (menu.title === "File") {
+    return {
+      ...menu,
+      items: menu.items.map((entry) => entry.kind === "action" && entry.id === "close-window"
+        ? {
+            ...entry,
+            disabled: keyWindow === undefined,
+            onSelect: keyWindow === undefined
+              ? undefined
+              : command(entry.id, entry.label, () => manager.closeWindow(keyWindow.id)),
+          }
+        : entry),
+    };
+  }
+  if (isApplicationMenu && keyApp !== undefined) {
+    return {
+      ...menu,
+      items: menu.items.map((entry) => {
+        if (entry.kind !== "action") return entry;
+        if (entry.id === "hide-app") {
+          return {
+            ...entry,
+            onSelect: command(entry.id, entry.label, () => {
+              for (const window of keyAppWindows) manager.minimizeWindow(window.id);
+            }),
+          };
+        }
+        if (entry.id === "hide-others") {
+          return {
+            ...entry,
+            onSelect: command(entry.id, entry.label, () => {
+              for (const window of manager.windows) {
+                if (window.appId !== keyApp.id && window.state === "open") manager.minimizeWindow(window.id);
+              }
+            }),
+          };
+        }
+        if (entry.id === "quit-app") {
+          return {
+            ...entry,
+            onSelect: command(entry.id, entry.label, () => manager.quitApp(keyApp.id)),
+          };
+        }
+        return entry;
+      }),
+    };
+  }
+  if (menu.title !== "Window") return menu;
+
+  const items: MenuSpec = [
+    {
+      kind: "action",
+      id: "minimize",
+      label: "Minimize",
+      shortcut: "⌘M",
+      disabled: keyWindow === undefined,
+      onSelect: keyWindow === undefined
+        ? undefined
+        : command("minimize", "Minimize", () => manager.minimizeWindow(keyWindow.id)),
+    },
+    {
+      kind: "action",
+      id: "zoom",
+      label: "Zoom",
+      disabled: keyWindow === undefined,
+      onSelect: keyWindow === undefined
+        ? undefined
+        : command("zoom", "Zoom", () => manager.toggleZoom(keyWindow.id)),
+    },
+    { kind: "separator", id: "window-separator-1" },
+    {
+      kind: "action",
+      id: "bring-all-to-front",
+      label: "Bring All to Front",
+      disabled: manager.keyAppId === null,
+      onSelect: manager.keyAppId === null
+        ? undefined
+        : command("bring-all-to-front", "Bring All to Front", () => manager.bringAllToFront(manager.keyAppId ?? undefined)),
+    },
+    ...(keyAppWindows.length === 0 ? [] : [{ kind: "separator" as const, id: "window-separator-2" }]),
+    ...keyAppWindows.map((window) => ({
+      kind: "action" as const,
+      id: `window-${window.id}`,
+      label: window.label,
+      checked: window.isKeyWindow,
+      onSelect: command(`window-${window.id}`, window.label, () => manager.restoreWindow(window.id)),
+    })),
+  ];
+  return { ...menu, items };
+}
+
 function withCommandTarget(menu: MenuBarMenu, onMenuAction: DesktopShellProps["onMenuAction"]): MenuBarMenu {
   return {
     ...menu,
@@ -216,6 +326,7 @@ export function DesktopShell({
   wallpaper,
   children,
 }: DesktopShellProps) {
+  const windowManager = useOptionalMacWindowManager();
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const openMenuIndexRef = useRef(openMenuIndex);
@@ -269,7 +380,11 @@ export function DesktopShell({
     { title: "Apple", items: appleMenuItems ?? defaultAppleMenu() },
     { title: appName, items: appMenuItems ?? defaultAppMenu(appName) },
     ...menuItems.map(resolveMenu),
-  ].map((menu) => withCommandTarget(menu, onMenuAction));
+  ]
+    .map((menu, index) => windowManager === null
+      ? menu
+      : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
+    .map((menu) => withCommandTarget(menu, onMenuAction));
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }

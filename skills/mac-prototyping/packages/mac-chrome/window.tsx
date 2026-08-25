@@ -3,6 +3,7 @@
 import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { useManagedWindowRegistration } from "./app.tsx";
 import "./styles/tokens.css";
 import "./styles/base.css";
 
@@ -226,12 +227,14 @@ export function useWindowDrag<T extends HTMLElement>(
 export function WindowChrome({
   children,
   className = "",
+  defaultOpen = true,
   defaultSize = genericDefaultSize,
   draggable = true,
   dragHandleSelector,
   frame,
   label,
   style,
+  windowId,
   onClose,
   onMinimize,
   onZoom,
@@ -242,6 +245,8 @@ export function WindowChrome({
 }: {
   readonly children: ReactNode;
   readonly className?: string;
+  /** Initial managed-window state. Ignored outside MacWindowManager + MacApp. */
+  readonly defaultOpen?: boolean;
   /** Fallback geometry when `frame` omits width/height (surfaces set their own). */
   readonly defaultSize?: WindowSize;
   readonly draggable?: boolean;
@@ -251,6 +256,8 @@ export function WindowChrome({
   readonly label: string;
   /** Merged over the frame placement, under the drag transform. */
   readonly style?: CSSProperties;
+  /** Stable identity inside MacApp. Defaults to `${appId}:main`. */
+  readonly windowId?: string;
   /** Called on close; the window hides itself either way. */
   readonly onClose?: () => void;
   /** Called on minimize; the window animates out and hides either way. */
@@ -264,7 +271,19 @@ export function WindowChrome({
 }) {
   const [hidden, setHidden] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
-  const [zoomed, setZoomed] = useState(false);
+  const [localZoomed, setLocalZoomed] = useState(false);
+  const { app, appRunning, manager, managedWindow, resolvedWindowId } = useManagedWindowRegistration({
+    defaultOpen,
+    label,
+    windowId,
+  });
+  const managed = manager !== null && resolvedWindowId !== null;
+  const zoomed = managedWindow?.zoomed ?? localZoomed;
+  const activateManagedWindow = manager?.activateWindow;
+  const closeManagedWindow = manager?.closeWindow;
+  const consumeKeyboardWindowFocusIntent = manager?.consumeKeyboardWindowFocusIntent;
+  const minimizeManagedWindow = manager?.minimizeWindow;
+  const toggleManagedZoom = manager?.toggleZoom;
   const {
     windowRef,
     style: dragStyle,
@@ -277,7 +296,8 @@ export function WindowChrome({
   const controls = useMemo<WindowControls>(() => ({
     close: () => {
       onClose?.();
-      setHidden(true);
+      if (managed && resolvedWindowId !== null) closeManagedWindow?.(resolvedWindowId);
+      else setHidden(true);
     },
     minimize: () => {
       onMinimize?.();
@@ -285,22 +305,29 @@ export function WindowChrome({
     },
     zoom: () => {
       onZoom?.();
-      setZoomed((current) => !current);
+      if (managed && resolvedWindowId !== null) toggleManagedZoom?.(resolvedWindowId);
+      else setLocalZoomed((current) => !current);
     },
-  }), [onClose, onMinimize, onZoom]);
+  }), [closeManagedWindow, managed, onClose, onMinimize, onZoom, resolvedWindowId, toggleManagedZoom]);
 
   useEffect(() => {
     if (!minimizing) return;
-    const timer = window.setTimeout(() => setHidden(true), minimizeDurationMs);
+    const timer = window.setTimeout(() => {
+      if (managed && resolvedWindowId !== null) minimizeManagedWindow?.(resolvedWindowId);
+      else setHidden(true);
+      setMinimizing(false);
+    }, minimizeDurationMs);
     return () => window.clearTimeout(timer);
-  }, [minimizing]);
+  }, [managed, minimizeManagedWindow, minimizing, resolvedWindowId]);
 
-  if (hidden) return null;
+  const managedOpen = appRunning && (managedWindow?.state === "open" || (managedWindow === null && defaultOpen));
+  if (managed ? !managedOpen : hidden) return null;
 
   const composedStyle: CSSProperties = {
     ...(zoomed ? zoomedPlacement : framePlacement(frame, defaultSize)),
     ...style,
     ...(draggable ? dragStyle : undefined),
+    ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
   };
   if (minimizing) {
     composedStyle.transform = `${draggable ? `${dragStyle.transform ?? ""} ` : ""}translateY(42px) scale(0.5)`;
@@ -314,7 +341,19 @@ export function WindowChrome({
         style={composedStyle}
         className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}`}
         aria-label={label}
-        onPointerDown={onWindowPointerDown}
+        data-app-id={app?.id}
+        data-key-window={managedWindow === null ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
+        data-window-id={resolvedWindowId ?? undefined}
+        data-window-state={managedWindow?.state}
+        onFocusCapture={() => {
+          if (resolvedWindowId !== null && consumeKeyboardWindowFocusIntent?.()) {
+            activateManagedWindow?.(resolvedWindowId);
+          }
+        }}
+        onPointerDown={(event) => {
+          if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
+          onWindowPointerDown(event);
+        }}
         onPointerMove={onWindowPointerMove}
         onPointerUp={onWindowPointerUp}
         onPointerCancel={onWindowPointerCancel}

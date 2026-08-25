@@ -19,10 +19,12 @@ function Harness({
   onOpen = () => undefined,
   initialSelection = "e1",
   iconColumns = 3,
+  withPreview = false,
 }: {
   readonly onOpen?: (entry: FinderEntry) => void;
   readonly initialSelection?: string | null;
   readonly iconColumns?: number;
+  readonly withPreview?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(initialSelection);
   const [mode, setMode] = useState<FinderViewMode>("icons");
@@ -44,8 +46,40 @@ function Harness({
       search={{ value: query, onChange: setQuery }}
       selection={{ selectedId, onSelect: setSelectedId }}
       onOpen={onOpen}
+      preview={withPreview ? (entry) => <span>{entry?.name ?? "No selection"}</span> : undefined}
       iconColumns={iconColumns}
     />
+  );
+}
+
+function ControlledPreviewHarness({ onChange }: { readonly onChange: (visible: boolean) => void }) {
+  const [visible, setVisible] = useState(true);
+
+  function handleVisibleChange(nextVisible: boolean) {
+    onChange(nextVisible);
+    setVisible(nextVisible);
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setVisible((current) => !current)}>
+        Toggle Preview from View menu
+      </button>
+      <FinderWindow
+        title="Vault"
+        sidebar={[]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: "e1", onSelect: () => undefined }}
+        onOpen={() => undefined}
+        preview={(entry) => <span>{entry?.name ?? "No selection"}</span>}
+        previewVisible={visible}
+        onPreviewVisibleChange={handleVisibleChange}
+        iconColumns={3}
+      />
+    </>
   );
 }
 
@@ -170,6 +204,53 @@ describe("FinderWindow sidebar source list", () => {
       />,
     );
     expect(container.querySelector(".mc-sidebar-section.demo-anchored")).toBeTruthy();
+  });
+});
+
+describe("FinderWindow toolbar", () => {
+  it("renders view modes as a divided, exclusive segmented control", () => {
+    const { container } = render(<Harness withPreview />);
+    const viewGroup = screen.getByRole("group", { name: "View" });
+    expect(viewGroup.classList.contains("mc-capsule")).toBe(true);
+    expect(viewGroup.hasAttribute("data-divided")).toBe(true);
+
+    const viewButtons = Array.from(viewGroup.querySelectorAll("button"));
+    expect(viewButtons).toHaveLength(2);
+    expect(viewButtons.filter((button) => button.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "List view" }));
+    expect(screen.getByRole("button", { name: "List view" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Icon view" }).getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelectorAll(".mc-capsule[data-divided]")).toHaveLength(1);
+    expect(container.querySelector(".mc-finder-toolbar .mc-toolbar-actions")?.lastElementChild?.classList.contains("mc-search-bubble")).toBe(true);
+  });
+
+  it("keeps preview visibility internally when it is uncontrolled", () => {
+    render(<Harness withPreview />);
+    expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Preview" }));
+    expect(screen.queryByRole("complementary", { name: "Preview" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show Preview" }));
+    expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
+  });
+
+  it("shares controlled preview visibility between external commands and the toolbar", () => {
+    const onChange = vi.fn();
+    render(<ControlledPreviewHarness onChange={onChange} />);
+    expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Preview from View menu" }));
+    expect(screen.queryByRole("complementary", { name: "Preview" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show Preview" }).getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Preview from View menu" }));
+    expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Hide Preview" }).getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Preview" }));
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("complementary", { name: "Preview" })).toBeNull();
   });
 });
 

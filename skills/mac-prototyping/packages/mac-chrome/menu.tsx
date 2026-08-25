@@ -1,7 +1,18 @@
 "use client";
 
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
-import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from "react-aria-components";
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  Popover,
+  Separator,
+} from "react-aria-components";
 
 import "./styles/tokens.css";
 import "./styles/popover.css";
@@ -170,17 +181,59 @@ export function MacMenu({
   );
 }
 
-/* Details-based popover: no JS, browser handles open/close; ideal for
-   account-style menus whose content is arbitrary. */
-export function MacDetailsMenu({ children, className = "", summary }: {
+/**
+ * Shared arbitrary-content popover machinery. DialogTrigger supplies the
+ * same dismissal and focus-return contract as MacMenu without pretending
+ * non-menu content is an ARIA menu.
+ */
+export function MacPopover({
+  children,
+  className = "",
+  label,
+  offset = 6,
+  placement = "bottom end",
+  trigger,
+  triggerClassName = "",
+}: {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly label: string;
+  readonly offset?: number;
+  readonly placement?: "bottom start" | "bottom end";
+  readonly trigger: ReactNode;
+  readonly triggerClassName?: string;
+}) {
+  return (
+    <DialogTrigger>
+      <Button aria-label={label} className={`mc-popover-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+      <Popover
+        className={`mc-popover-surface ${className}`.trim()}
+        placement={placement}
+        offset={offset}
+      >
+        <Dialog aria-label={label} className="mc-popover-dialog">{children}</Dialog>
+      </Popover>
+    </DialogTrigger>
+  );
+}
+
+/* Account-style arbitrary content anchored to a toolbar control. */
+export function MacDetailsMenu({ children, className = "", label, summary }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly label: string;
   readonly summary: ReactNode;
 }) {
   return (
-    <details className={`mc-details-menu ${className}`.trim()}>
-      <summary>{summary}</summary>
-      <div>{children}</div>
-    </details>
+    <div className={`mc-details-menu ${className}`.trim()}>
+      <MacPopover
+        className="mc-details-menu-popover"
+        label={label}
+        trigger={summary}
+        triggerClassName="mc-details-menu-trigger"
+      >
+        {children}
+      </MacPopover>
+    </div>
   );
 }

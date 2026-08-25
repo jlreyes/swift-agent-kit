@@ -188,7 +188,6 @@
   align-items: flex-start;
   justify-content: center;
   background: var(--scrim);
-  backdrop-filter: blur(1.5px);
 }
 
 .mc-sheet {

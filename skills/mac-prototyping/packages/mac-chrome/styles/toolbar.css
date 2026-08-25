@@ -1,4 +1,4 @@
-/* Liquid-glass Finder toolbar: capsule controls over a translucent bar. */
+/* Finder-style toolbar with restrained, opaque system materials. */
 
 .mc-toolbar {
   position: relative;
@@ -9,8 +9,6 @@
   padding: 0 10px;
   border-bottom: 0.5px solid var(--line);
   background: var(--toolbar-glass);
-  backdrop-filter: blur(var(--blur-toolbar)) saturate(125%);
-  -webkit-backdrop-filter: blur(var(--blur-toolbar)) saturate(125%);
 }
 
 .mc-toolbar-title {
@@ -44,8 +42,6 @@
   border-radius: var(--radius-capsule);
   background: var(--capsule-glass);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
-  backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
-  -webkit-backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
 }
 
 .mc-capsule {
@@ -75,13 +71,25 @@
   border: 0.5px solid var(--capsule-border);
   background: var(--capsule-glass);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
-  backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
-  -webkit-backdrop-filter: blur(var(--blur-capsule)) saturate(115%);
 }
 
 .mc-capsule[data-divided] > .mc-toolbar-button + .mc-toolbar-button {
   border-left: 0.5px solid var(--line);
   border-radius: 0 var(--radius-capsule) var(--radius-capsule) 0;
+}
+
+.mc-capsule[data-divided] > .mc-toolbar-button:not(:last-child) {
+  border-radius: var(--radius-capsule) 0 0 var(--radius-capsule);
+}
+
+/* SystemSymbol deliberately has no global default size. Toolbar controls do:
+   keep every glyph in the same quiet 14px optical box regardless of which
+   symbol renderer or consumer supplied it. */
+.mc-toolbar-button > svg,
+.mc-search-bubble > button > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 .mc-toolbar-button:disabled {

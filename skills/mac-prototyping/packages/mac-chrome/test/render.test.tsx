@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { fireEvent } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import {
   DesktopShell,
   MacDock,
+  MacDetailsMenu,
   MacMenu,
   MacToolbar,
   MenuBarExtra,
@@ -135,6 +137,46 @@ it("opens a MacMenu and moves roving focus with arrows", async () => {
   });
   expect(picked).toBe("budget");
   expect(document.querySelector("[role='menu']")).toBeNull();
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("uses the shared dialog popover for arbitrary toolbar and menu-bar content", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <>
+        <MacDetailsMenu label="Account menu" summary={<SystemSymbol name="person.crop.circle" />}>
+          <button type="button">Account Settings…</button>
+        </MacDetailsMenu>
+        <MenuBarExtra icon={<SystemSymbol name="shield.fill" />} label="Activity">
+          <p>Two component notes are ready.</p>
+        </MenuBarExtra>
+      </>,
+    );
+  });
+
+  const accountTrigger = container.querySelector<HTMLButtonElement>("button[aria-label='Account menu']");
+  expect(accountTrigger).toBeTruthy();
+  await act(async () => accountTrigger?.click());
+  expect(document.querySelector(".mc-details-menu-popover")).toBeTruthy();
+  const accountDialog = document.querySelector<HTMLElement>("[role='dialog'][aria-label='Account menu']");
+  expect(accountDialog).toBeTruthy();
+
+  await act(async () => {
+    accountDialog?.focus();
+    if (accountDialog !== null) fireEvent.keyDown(accountDialog, { code: "Escape", key: "Escape" });
+  });
+  expect(document.querySelector("[role='dialog'][aria-label='Account menu']")).toBeNull();
+  expect(accountTrigger?.getAttribute("aria-expanded")).toBe("false");
+
+  const activityTrigger = container.querySelector<HTMLButtonElement>("button[aria-label='Activity']");
+  await act(async () => activityTrigger?.click());
+  expect(document.querySelector(".mc-menubar-popover")).toBeTruthy();
+  expect(document.querySelector("[role='dialog'][aria-label='Activity']")?.textContent).toContain("Two component notes");
+
   await act(async () => root.unmount());
   container.remove();
 });

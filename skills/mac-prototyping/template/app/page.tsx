@@ -1,5 +1,10 @@
 const surfaces = [
   {
+    href: "/showcase",
+    title: "Component showcase",
+    description: "Interactive stories for every mac-chrome window, toolbar, menu, and system surface.",
+  },
+  {
     href: "/example",
     title: "Example",
     description: "DesktopShell + one window + dock — the page-wrapper starter.",

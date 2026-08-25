@@ -55,6 +55,10 @@ pnpm install
 pnpm test                                          # typecheck + build + rendered-html + jsdom tests
 ```
 
+After vendoring, smoke-check `http://localhost:<port>/showcase` once the
+prototype is served. It is the template's interactive mac-chrome coverage
+surface; `/example` remains the focused starter window.
+
 ## Fork an existing prototype
 
 Copy everything except installed/built state; keep `.git` out unless you want
@@ -110,6 +114,12 @@ sed -e "s|PNPM_DIR|$(dirname "$pnpm_bin")|g" -e "s|PNPM|$pnpm_bin|g" \
 plutil -lint "$plist"
 launchctl bootstrap gui/$(id -u) "$plist"
 ```
+
+Start or restart this Vite LaunchAgent before enabling or re-enabling
+Tailscale Serve on the same port. Leaving the proxy listener active while
+Vite restarts can make Vite fall forward to the next port. The template keeps
+Vite's rebinding guard and allows only `.ts.net` remote hostnames through
+`server.allowedHosts`, which is sufficient for Tailscale Serve.
 
 Done when this returns 200 — typically 5–20s (first boot optimizes
 dependencies); logs at `/tmp/com.macproto.<name>.{out,err}.log` if it never

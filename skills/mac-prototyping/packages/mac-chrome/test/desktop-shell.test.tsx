@@ -48,6 +48,34 @@ describe("DesktopShell menu bar menus", () => {
     expect(container.querySelector(".apple-mark svg")).toBeTruthy();
   });
 
+  it("uses recognizable shared symbols for the native Apple menu commands", async () => {
+    const { container, getByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "Apple" }));
+    await flushFocus();
+
+    const appleMenu = getByRole("menu", { name: "Apple menu" });
+    expect(appleMenu.querySelector("[data-system-symbol='laptopcomputer']")).toBeTruthy();
+    expect(appleMenu.querySelector("[data-system-symbol='gear']")).toBeTruthy();
+    expect(appleMenu.querySelector("[data-system-symbol='appstore']")).toBeTruthy();
+  });
+
+  it("routes Apple menu commands through the same explicit command target", async () => {
+    const onMenuAction = vi.fn();
+    const { getByRole } = render(
+      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(getByRole("button", { name: "Apple" }));
+    await flushFocus();
+    fireEvent.click(getByRole("menuitem", { name: "System Settings…" }));
+    expect(onMenuAction).toHaveBeenCalledWith({
+      menu: "Apple",
+      id: "system-settings",
+      label: "System Settings…",
+    });
+  });
+
   it("clicking a title opens its dropdown and highlights the title", async () => {
     const { getByRole, queryByRole } = renderShell();
     const trigger = getByRole("button", { name: "File" });

@@ -18,7 +18,8 @@ async function render(pathname, headers = {}) {
 
 const routes = [
   ["/", "Mac Prototype", "Mac prototype surfaces"],
-  ["/example", "Example · Mac Prototype", "Example Window"],
+  ["/example", "Example · Mac Prototype", "Documents"],
+  ["/showcase", "Showcase · Mac Prototype", "Library"],
 ];
 
 for (const [pathname, title, content] of routes) {
@@ -40,5 +41,13 @@ test("the example surface renders the mac shell", async () => {
   assert.match(html, /\/mac-assets\/dock\/finder\.png/);
   assert.match(html, /aria-label="Apple"/);
   assert.match(html, /class="sf-symbol"/);
-  assert.match(html, /class="brand-icon"/);
+});
+
+test("the showcase server-renders its catalog shell", async () => {
+  const html = await render("/showcase").then((response) => response.text());
+
+  assert.match(html, /data-showcase-story="toolbar"/);
+  assert.match(html, /aria-label="Showcase Dock"/);
+  assert.match(html, /href="\/mac-chrome-showcase\.svg"/);
+  assert.match(html, /Window \+ Toolbar/);
 });

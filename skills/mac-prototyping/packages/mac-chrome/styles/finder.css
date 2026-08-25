@@ -8,7 +8,6 @@
   border-radius: var(--radius-window);
   background: var(--window-surface);
   box-shadow: var(--shadow-window);
-  backdrop-filter: blur(var(--blur-glass)) saturate(135%);
 }
 
 /* The react-resizable-panels Group (sidebar | content | preview). Panels are
@@ -29,7 +28,6 @@
   overflow: hidden;
   border-right: 0.5px solid var(--line);
   background: var(--sidebar-glass);
-  backdrop-filter: blur(var(--blur-glass)) saturate(130%);
 }
 
 .mc-finder-sidebar-top {
@@ -264,8 +262,8 @@
   background: var(--content-surface);
 }
 
-/* The toolbar itself is the toolbar layer's (mc-toolbar): translucent glass
-   bar, left-aligned 13px title, capsule controls. Only flex sizing within the
+/* The toolbar itself is the toolbar layer's (mc-toolbar): opaque material,
+   left-aligned 13px title, capsule controls. Only flex sizing within the
    window column lives here. */
 .mc-finder-toolbar {
   flex: 0 0 auto;
@@ -495,7 +493,6 @@
   border-radius: var(--radius-sheet);
   background: var(--window-surface);
   box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-glass));
 }
 
 .mc-quicklook-panel > header {

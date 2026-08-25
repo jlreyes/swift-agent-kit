@@ -1,0 +1,232 @@
+.showcase-story-layer {
+  display: contents;
+}
+
+.showcase-toolbar-leading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.showcase-library-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100% - 83px);
+}
+
+.showcase-library-layout.has-inspector {
+  grid-template-columns: minmax(0, 1fr) 210px;
+}
+
+.showcase-library-content {
+  overflow: auto;
+  padding: 28px;
+}
+
+.showcase-library-items {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 18px;
+}
+
+.showcase-library-items.is-list {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+.showcase-library-items button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 108px;
+  padding: 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #3a3c40;
+  cursor: default;
+}
+
+.showcase-library-items.is-list button {
+  flex-direction: row;
+  min-height: 38px;
+  padding: 5px 9px;
+}
+
+.showcase-library-items button:hover,
+.showcase-library-items button:focus-visible {
+  background: rgba(0, 122, 255, 0.1);
+  outline: none;
+}
+
+.showcase-library-items svg {
+  width: 44px;
+  height: 44px;
+  color: #5588ba;
+}
+
+.showcase-library-items.is-list svg {
+  width: 23px;
+  height: 23px;
+}
+
+.showcase-inspector {
+  padding: 28px 20px;
+  border-left: 1px solid rgba(0, 0, 0, 0.11);
+  background: rgba(246, 247, 249, 0.64);
+  color: #61646a;
+}
+
+.showcase-inspector > svg {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 12px;
+}
+
+.showcase-inspector strong {
+  display: block;
+  color: #2c2e31;
+}
+
+.showcase-inspector p,
+.showcase-preview-card p,
+.showcase-setup-copy p,
+.showcase-extra-popover p {
+  color: #71747a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.showcase-window-status {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: #74777c;
+  font-size: 11px;
+}
+
+.showcase-account-menu,
+.showcase-conversation-details,
+.showcase-extra-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 190px;
+  padding: 12px;
+}
+
+.showcase-account-menu small {
+  color: #777a80;
+}
+
+.showcase-conversation-details span {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.showcase-chat-empty {
+  margin: auto;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.mc-details-menu-popover .showcase-account-menu button,
+.showcase-extra-popover button {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: #087cff;
+  color: white;
+}
+
+.showcase-app-icon {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  place-items: center;
+  border-radius: var(--radius-window);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.showcase-app-icon > svg {
+  width: 28px;
+  height: 28px;
+}
+
+.showcase-desktop-status {
+  position: absolute;
+  z-index: 55;
+  bottom: 86px;
+  left: 12px;
+  max-width: 320px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--window-surface);
+  box-shadow: var(--shadow-raised);
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.showcase-preview-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.showcase-preview-card > svg {
+  width: 54px;
+  height: 54px;
+  color: #5185b6;
+}
+
+.showcase-preview-card p {
+  max-width: 240px;
+  margin: 0;
+}
+
+.showcase-empty-preview {
+  padding: 24px;
+  color: #777a80;
+  font-size: 13px;
+  text-align: center;
+}
+
+.showcase-footer-status {
+  flex: 1;
+  color: #73767b;
+  font-size: 12px;
+}
+
+.showcase-setup-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.showcase-setup-copy .mc-button {
+  margin-top: 12px;
+}
+
+.mc-sheet > p {
+  max-width: 440px;
+  margin: 0 auto;
+  color: #62656a;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.mc-sheet > footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}

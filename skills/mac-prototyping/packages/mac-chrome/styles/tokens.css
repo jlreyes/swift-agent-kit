@@ -24,18 +24,22 @@
   --line: rgba(0, 0, 0, 0.1);
   --line-soft: rgba(0, 0, 0, 0.065);
 
-  /* Glass surfaces */
-  --glass: rgba(247, 248, 250, 0.76);
-  --glass-strong: rgba(252, 252, 253, 0.9);
-  --sidebar-glass: rgba(232, 235, 239, 0.78);
-  --menu-bar-glass: rgba(9, 13, 19, 0.38);
-  --toolbar-glass: rgba(247, 248, 250, 0.68);
-  --capsule-glass: rgba(255, 255, 255, 0.42);
-  --capsule-glass-hover: rgba(255, 255, 255, 0.62);
-  --capsule-glass-selected: rgba(255, 255, 255, 0.84);
+  /* Chrome surfaces. Public token names retain their original `-glass`
+     spelling for compatibility, but interactive chrome defaults to stable,
+     opaque materials rather than a simulated Liquid Glass treatment. */
+  --glass: #f7f8fa;
+  --glass-strong: #fcfcfd;
+  --sidebar-glass: #e8ebef;
+  --menu-bar-glass: #263544;
+  --toolbar-glass: #f4f5f6;
+  --capsule-glass: #f8f8f9;
+  --capsule-glass-hover: #ececee;
+  --capsule-glass-selected: #ffffff;
   --capsule-border: rgba(0, 0, 0, 0.11);
-  --dock-glass: rgba(224, 229, 238, 0.66);
-  --popover-surface: rgba(248, 248, 249, 0.97);
+  --dock-glass: #e1e5ea;
+  /* Menus/popovers deliberately use a stable opaque material. Translucent
+     web approximations make text and icons depend on arbitrary wallpaper. */
+  --popover-surface: #f7f7f8;
   --popover-border: rgba(0, 0, 0, 0.12);
 
   /* Window chrome */
@@ -72,7 +76,9 @@
   --shadow-window:
     0 34px 80px rgba(10, 15, 24, 0.28),
     0 4px 18px rgba(10, 15, 24, 0.17);
-  --shadow-popover: 0 18px 48px rgba(0, 0, 0, 0.24);
+  --shadow-popover:
+    0 10px 28px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.1);
 
   /* Windows-layer surfaces (Finder / Chooser / Setup Assistant / Chat) */
   --text-strong: #1d1d1f;
@@ -84,10 +90,10 @@
   --selection-tint: rgba(57, 125, 196, 0.15);
   --selection-strong: #397dc4;
   --focus-ring: rgba(10, 122, 255, 0.55);
-  --window-surface: rgba(249, 249, 250, 0.985);
-  --content-surface: rgba(251, 252, 253, 0.88);
-  --toolbar-surface: rgba(247, 248, 249, 0.78);
-  --footer-surface: rgba(246, 246, 247, 0.94);
+  --window-surface: #f9f9fa;
+  --content-surface: #fbfcfd;
+  --toolbar-surface: #f7f8f9;
+  --footer-surface: #f6f6f7;
   --scrim: rgba(32, 37, 43, 0.18);
   --bubble-owner: rgba(10, 122, 255, 0.14);
   --bubble-agent: rgba(0, 0, 0, 0.05);

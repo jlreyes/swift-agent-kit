@@ -5,6 +5,7 @@ export type SystemSymbolName =
   | "arrow.triangle.2.circlepath"
   | "arrow.up"
   | "arrow.up.right"
+  | "appstore"
   | "briefcase.fill"
   | "building.2.fill"
   | "building.columns.fill"
@@ -21,8 +22,10 @@ export type SystemSymbolName =
   | "envelope.badge"
   | "folder"
   | "folder.badge.plus"
+  | "gear"
   | "key.fill"
   | "list.bullet"
+  | "laptopcomputer"
   | "magnifyingglass"
   | "network"
   | "person.2.fill"
@@ -42,6 +45,8 @@ function SymbolPaths({ name }: { readonly name: SystemSymbolName }) {
       return <><path d="M12 19.5V5.5" /><path d="m5.8 11.2 6.2-6.2 6.2 6.2" /></>;
     case "arrow.up.right":
       return <><path d="M7 17 17 7" /><path d="M9 7h8v8" /></>;
+    case "appstore":
+      return <><circle cx="12" cy="12" r="9" /><path d="m8.1 16.9 4.4-9.8M15.9 16.9l-4.4-9.8M6.7 14h10.6" /></>;
     case "briefcase.fill":
       return <><path d="M8.3 6V4.8c0-1 .8-1.8 1.8-1.8h3.8c1 0 1.8.8 1.8 1.8V6" /><rect x="3" y="6" width="18" height="14" rx="2.5" className="symbol-fill" /><path d="M3.7 11.1c5.5 2 11.1 2 16.6 0M10.4 12.7h3.2" className="symbol-knockout" /></>;
     case "building.2.fill":
@@ -74,10 +79,14 @@ function SymbolPaths({ name }: { readonly name: SystemSymbolName }) {
       return <path d="M3 6.2c0-1 .8-1.7 1.7-1.7h5l2 2h7.6c.9 0 1.7.8 1.7 1.7v9.6c0 .9-.8 1.7-1.7 1.7H4.7c-.9 0-1.7-.8-1.7-1.7Z" />;
     case "folder.badge.plus":
       return <><path d="M3 6.2c0-1 .8-1.7 1.7-1.7h5l2 2h7.6c.9 0 1.7.8 1.7 1.7v9.6c0 .9-.8 1.7-1.7 1.7H4.7c-.9 0-1.7-.8-1.7-1.7Z" /><circle cx="18.2" cy="16.8" r="3.2" className="symbol-fill" /><path d="M18.2 15.1v3.4M16.5 16.8h3.4" className="symbol-knockout" /></>;
+    case "gear":
+      return <><path d="m9.8 3.5.5-1.5h3.4l.5 1.5 1.7.7 1.4-.7 2.4 2.4-.7 1.4.7 1.7 1.5.5v3.4l-1.5.5-.7 1.7.7 1.4-2.4 2.4-1.4-.7-1.7.7-.5 1.5h-3.4l-.5-1.5-1.7-.7-1.4.7-2.4-2.4.7-1.4-.7-1.7-1.5-.5V9.5L4 9l.7-1.7L4 5.9l2.4-2.4 1.4.7Z" /><circle cx="12" cy="12" r="3.3" /></>;
     case "key.fill":
       return <><circle cx="8" cy="12" r="4.5" /><path d="M12.5 12H21M17.2 12v3M20 12v2" /></>;
     case "list.bullet":
       return <><path d="M8.5 5.5H20M8.5 12H20M8.5 18.5H20" /><circle cx="4.2" cy="5.5" r="1" /><circle cx="4.2" cy="12" r="1" /><circle cx="4.2" cy="18.5" r="1" /></>;
+    case "laptopcomputer":
+      return <><rect x="4" y="4" width="16" height="12" rx="1.6" /><path d="M2.5 19h19M8.5 19h7" /></>;
     case "magnifyingglass":
       return <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.2 15.2 4.8 4.8" /></>;
     case "network":

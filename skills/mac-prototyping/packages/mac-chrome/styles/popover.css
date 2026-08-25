@@ -1,4 +1,6 @@
-/* Popover surfaces: ARIA menus, details-menus, and the menu-bar-extra shell. */
+/* Popover surfaces: ARIA menus, dialogs, and the menu-bar-extra shell.
+   These are intentionally opaque. Simulated glass makes legibility depend on
+   whatever happens to sit behind a portalled overlay. */
 
 .mc-menu {
   position: relative;
@@ -9,15 +11,19 @@
    renders them as role=menuitem/-radio divs, or <a> when they carry href. */
 .mc-menu-popover {
   display: grid;
-  width: 350px;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(300px, calc(100vw - 16px));
   max-height: 392px;
   overflow: auto;
-  padding: 5px;
-  border: 1px solid var(--popover-border);
-  border-radius: var(--radius-popover);
+  padding: 4px;
+  border: 0.5px solid var(--popover-border);
+  border-radius: var(--radius-menu-popover);
   background: var(--popover-surface);
   box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-popover));
+  color: var(--ink);
+  font-family: var(--font-mac);
+  text-shadow: none;
   outline: none;
 }
 
@@ -29,13 +35,13 @@
 
 .mc-menu-popover .mc-menu-item {
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr) 15px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
-  min-height: 48px;
-  padding: 6px 9px;
+  gap: 6px;
+  min-height: 27px;
+  padding: 3px 8px 3px 5px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-menu-item);
   background: transparent;
   color: var(--ink);
   text-align: left;
@@ -46,7 +52,7 @@
 .mc-menu-popover .mc-menu-copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
 }
 
 .mc-menu-popover .mc-menu-icon,
@@ -57,8 +63,8 @@
 }
 
 .mc-menu-popover .mc-menu-icon > svg {
-  width: 19px;
-  height: 19px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.65;
@@ -74,7 +80,7 @@
 .mc-menu-shortcut {
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
@@ -93,14 +99,18 @@
 }
 
 .mc-menu-popover strong {
-  font-size: 12px;
-  font-weight: 620;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mc-menu-popover small {
   color: var(--muted);
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 10.5px;
+  line-height: 1.2;
 }
 
 .mc-menu-popover .mc-menu-item[data-focused] small,
@@ -109,72 +119,96 @@
 }
 
 .menu-section-label {
-  padding: 9px 10px 3px;
+  padding: 7px 7px 3px;
   color: var(--faint);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 660;
   letter-spacing: 0.055em;
 }
 
 .menu-separator {
   height: 1px;
-  margin: 4px 6px;
+  margin: 3px 6px;
   background: var(--line);
+}
+
+/* DialogTrigger/Popover is the single arbitrary-content overlay path. It
+   supplies outside-press dismissal, Escape handling, and focus restoration. */
+.mc-popover-surface {
+  z-index: 100;
+  overflow: hidden;
+  border: 0.5px solid var(--popover-border);
+  border-radius: var(--radius-popover);
+  background: var(--popover-surface);
+  box-shadow: var(--shadow-popover);
+  color: var(--ink);
+  font-family: var(--font-mac);
+  text-shadow: none;
+}
+
+.mc-popover-surface * {
+  text-shadow: none;
+}
+
+.mc-popover-dialog {
+  outline: none;
 }
 
 .mc-details-menu {
   position: relative;
 }
 
-.mc-details-menu summary {
+.mc-details-menu-trigger {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 29px;
+  min-width: 30px;
+  height: 30px;
   padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.8), 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 0.5px solid var(--capsule-border);
+  border-radius: var(--radius-control);
+  background: #f8f8f9;
+  box-shadow: var(--shadow-raised);
   color: var(--chrome-ink);
-  list-style: none;
   font-size: 12px;
   font-weight: 520;
 }
 
-.mc-details-menu summary::-webkit-details-marker {
-  display: none;
+.mc-details-menu-trigger[data-hovered],
+.mc-details-menu-trigger[aria-expanded="true"] {
+  background: #ececee;
 }
 
-.mc-details-menu > div {
-  position: absolute;
-  z-index: 40;
-  top: 35px;
-  right: 0;
+.mc-details-menu-trigger > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mc-details-menu-popover {
+  width: min(264px, calc(100vw - 16px));
+}
+
+.mc-details-menu-popover .mc-popover-dialog {
   display: grid;
   gap: 2px;
-  width: 264px;
   padding: 10px;
-  border: 1px solid var(--popover-border);
-  border-radius: var(--radius-popover);
-  background: var(--popover-surface);
-  box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-popover));
 }
 
-.mc-details-menu > div b {
+.mc-details-menu-popover b,
+.mc-details-menu-popover strong {
   padding: 3px 4px 0;
   font-size: 13px;
 }
 
-.mc-details-menu > div small {
+.mc-details-menu-popover small {
   padding: 0 4px 8px;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
 }
 
-.mc-details-menu > div button {
+.mc-details-menu-popover button {
   padding: 6px 7px;
   border: 0;
   border-radius: 5px;
@@ -183,7 +217,7 @@
   font-size: 12px;
 }
 
-.mc-details-menu > div button:hover {
+.mc-details-menu-popover button:hover {
   background: var(--accent);
   color: white;
 }
@@ -222,7 +256,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-.mc-menubar-trigger.active,
+.mc-menubar-trigger[aria-expanded="true"],
 .mc-menubar-trigger:hover {
   background: rgba(255, 255, 255, 0.18);
 }
@@ -258,27 +292,16 @@
   text-shadow: none;
 }
 
-/* Menu-bar popover surface (activity/menu extras hang off the menu bar). */
-.menu-popover {
-  position: absolute;
-  z-index: 90;
+.mc-menubar-popover {
+  width: min(280px, calc(100vw - 16px));
+}
+
+.mc-menubar-popover .mc-popover-dialog {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border: 0.5px solid var(--window-edge);
-  border-radius: var(--radius-popover);
-  background: var(--popover-surface);
-  box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-popover)) saturate(145%);
 }
 
-.mc-menubar-popover {
-  top: 30px;
-  right: 8px;
-  width: 382px;
-}
-
-.menu-popover > header {
+.mc-menubar-popover header {
   height: 53px;
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) 28px;
@@ -287,27 +310,27 @@
   padding: 0 12px;
 }
 
-.menu-popover > header img {
+.mc-menubar-popover header img {
   width: 30px;
   height: 30px;
   object-fit: contain;
 }
 
-.menu-popover > header svg {
+.mc-menubar-popover header svg {
   width: 26px;
   height: 26px;
 }
 
-.menu-popover > header span {
+.mc-menubar-popover header span {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-.menu-popover > header strong { font-size: 11.5px; }
-.menu-popover > header small { color: var(--muted); font-size: 9px; }
+.mc-menubar-popover header strong { color: var(--ink); font-size: 11.5px; }
+.mc-menubar-popover header small { color: var(--muted); font-size: 9px; }
 
-.menu-popover > header button {
+.mc-menubar-popover header button {
   width: 27px;
   height: 27px;
   border-radius: var(--radius-control);
@@ -315,17 +338,17 @@
   background: transparent;
 }
 
-.menu-popover > footer {
+.mc-menubar-popover footer {
   height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 9px 0 12px;
   border-top: 0.5px solid var(--line);
-  background: rgba(239, 241, 244, 0.7);
+  background: #eff0f2;
 }
 
-.menu-popover > footer button {
+.mc-menubar-popover footer button {
   height: 25px;
   padding: 0 7px;
   border-radius: var(--radius-control);
@@ -334,8 +357,8 @@
   font-size: 8.5px;
 }
 
-.menu-popover > footer button:hover {
-  background: rgba(255, 255, 255, 0.64);
+.mc-menubar-popover footer button:hover {
+  background: #fff;
 }
 
 /* In-flow menu-bar extras (DesktopShell menuBarExtras slot): the extra sits in
@@ -360,9 +383,4 @@
   position: relative;
   top: auto;
   right: auto;
-}
-
-.mc-menubar-extras .mc-menubar-popover {
-  top: 30px;
-  right: -8px;
 }

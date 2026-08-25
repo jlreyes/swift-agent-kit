@@ -304,6 +304,8 @@ export function FinderWindow({
   onOpen,
   onDrop,
   preview,
+  previewVisible,
+  onPreviewVisibleChange,
   statusBar,
   toolbarExtras,
   title,
@@ -325,6 +327,9 @@ export function FinderWindow({
   readonly onOpen: (entry: FinderEntry) => void;
   readonly onDrop?: (transfer: DataTransfer) => void;
   readonly preview?: (selection: FinderEntry | null) => ReactNode;
+  /** Controlled preview-pane visibility. Omit to keep the default-visible internal state. */
+  readonly previewVisible?: boolean;
+  readonly onPreviewVisibleChange?: (visible: boolean) => void;
   readonly statusBar?: ReactNode;
   readonly toolbarExtras?: ReactNode;
   readonly title?: string;
@@ -339,10 +344,12 @@ export function FinderWindow({
   readonly iconColumns?: number;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const [previewVisible, setPreviewVisible] = useState(true);
+  const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
+  const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
   // Bumped on every re-show so the remounted preview panel gets a fresh id —
   // the panel group must not restore the collapsed layout it hid at.
   const [previewGeneration, setPreviewGeneration] = useState(0);
+  const previousPreviewVisible = useRef(isPreviewVisible);
   const [quickLookId, setQuickLookId] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -353,7 +360,7 @@ export function FinderWindow({
 
   const selectedEntry = entries.find((entry) => entry.id === selection.selectedId) ?? null;
   const quickLookEntry = quickLookId === null ? null : entries.find((entry) => entry.id === quickLookId) ?? null;
-  const previewOpen = preview !== undefined && previewVisible;
+  const previewOpen = preview !== undefined && isPreviewVisible;
   // Roving tabindex: the grid is one tab stop (the selected entry, else the
   // first); arrow keys rove within it.
   const tabStopId = selectedEntry !== null ? selectedEntry.id : entries[0]?.id;
@@ -376,6 +383,18 @@ export function FinderWindow({
     }
     grid.focus();
   });
+
+  useEffect(() => {
+    const wasVisible = previousPreviewVisible.current;
+    previousPreviewVisible.current = isPreviewVisible;
+    // A controlled parent can show the preview without going through the
+    // toolbar callback. Give that externally driven re-show the same fresh
+    // panel identity as the built-in toggle so a collapsed width is not
+    // restored by react-resizable-panels.
+    if (isPreviewVisible && !wasVisible) {
+      setPreviewGeneration((generation) => generation + 1);
+    }
+  }, [isPreviewVisible]);
 
   function columnsForNavigation(): number {
     if (mode === "list") return 1;
@@ -432,13 +451,13 @@ export function FinderWindow({
     selection.onSelect(entry.id);
   }
 
+  function setPreviewVisibility(visible: boolean) {
+    if (previewVisible === undefined) setUncontrolledPreviewVisible(visible);
+    onPreviewVisibleChange?.(visible);
+  }
+
   function togglePreview() {
-    if (previewVisible) {
-      setPreviewVisible(false);
-      return;
-    }
-    setPreviewGeneration((generation) => generation + 1);
-    setPreviewVisible(true);
+    setPreviewVisibility(!isPreviewVisible);
   }
 
   function handlePreviewResize(size: PanelSize, _id: string | number | undefined, previous: PanelSize | undefined) {
@@ -447,7 +466,7 @@ export function FinderWindow({
     // collapse) hides the preview and returns focus to the toolbar toggle.
     if (size.inPixels < previewCollapseWidth && previous.inPixels >= previewCollapseWidth) {
       previewToggleRef.current?.focus();
-      setPreviewVisible(false);
+      setPreviewVisibility(false);
     }
   }
 
@@ -511,7 +530,7 @@ export function FinderWindow({
               trailing={
                 <>
                   {toolbarExtras}
-                  <ToolbarCapsule className="mc-finder-view-control" role="group" label="View">
+                  <ToolbarCapsule className="mc-finder-view-control" divided role="group" label="View">
                     <ToolbarButton
                       label="Icon view"
                       pressed={mode === "icons"}
@@ -529,6 +548,19 @@ export function FinderWindow({
                       <SystemSymbol name="list.bullet" />
                     </ToolbarButton>
                   </ToolbarCapsule>
+                  {preview !== undefined ? (
+                    <ToolbarButton
+                      ref={previewToggleRef}
+                      className="mc-finder-preview-toggle"
+                      label={isPreviewVisible ? "Hide Preview" : "Show Preview"}
+                      title={`${isPreviewVisible ? "Hide" : "Show"} Preview`}
+                      pressed={isPreviewVisible}
+                      selected={isPreviewVisible}
+                      onClick={togglePreview}
+                    >
+                      <SystemSymbol name="sidebar.trailing" />
+                    </ToolbarButton>
+                  ) : null}
                   <ToolbarSearchBubble
                     open={searchOpen}
                     value={search.value}
@@ -540,19 +572,6 @@ export function FinderWindow({
                     }}
                     onChange={search.onChange}
                   />
-                  {preview !== undefined ? (
-                    <ToolbarButton
-                      ref={previewToggleRef}
-                      className="mc-finder-preview-toggle"
-                      label={previewVisible ? "Hide Preview" : "Show Preview"}
-                      title={`${previewVisible ? "Hide" : "Show"} Preview`}
-                      pressed={previewVisible}
-                      selected={previewVisible}
-                      onClick={togglePreview}
-                    >
-                      <SystemSymbol name="sidebar.trailing" />
-                    </ToolbarButton>
-                  ) : null}
                 </>
               }
             />

@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { MacMenu, type MenuSpec } from "./menu";
+import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/popover.css";
@@ -126,10 +127,25 @@ function StatusControlCenter() {
 
 function defaultAppleMenu(): MenuSpec {
   return [
-    { kind: "action", id: "about-this-mac", label: "About This Mac" },
+    {
+      kind: "action",
+      id: "about-this-mac",
+      label: "About This Mac",
+      icon: <SystemSymbol name="laptopcomputer" />,
+    },
     { kind: "separator", id: "apple-separator-1" },
-    { kind: "action", id: "system-settings", label: "System Settings…" },
-    { kind: "action", id: "app-store", label: "App Store…" },
+    {
+      kind: "action",
+      id: "system-settings",
+      label: "System Settings…",
+      icon: <SystemSymbol name="gear" />,
+    },
+    {
+      kind: "action",
+      id: "app-store",
+      label: "App Store…",
+      icon: <SystemSymbol name="appstore" />,
+    },
     { kind: "separator", id: "apple-separator-2" },
     { kind: "action", id: "force-quit", label: "Force Quit…", shortcut: "⌥⌘Esc" },
     { kind: "separator", id: "apple-separator-3" },

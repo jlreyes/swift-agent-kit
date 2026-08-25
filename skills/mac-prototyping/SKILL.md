@@ -1,6 +1,6 @@
 ---
 name: mac-prototyping
-description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, Liquid Glass toolbar, Finder/chooser/setup-assistant/chat surfaces, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
+description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, restrained native-material toolbars, Finder/chooser/setup-assistant/chat surfaces, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
 metadata:
   author: jlreyes
 ---
@@ -45,6 +45,11 @@ owns the state and composes `DesktopShell` + windows (`FinderWindow`,
 `ChooserWindow`, `WindowChrome`+`MacToolbar`, …) over plain data props.
 Product state and fixtures live outside `lib/mac-chrome/`.
 
+Every new prototype includes two starter routes. Open `/showcase` first when
+discovering components or auditing mac-chrome: it is the interactive coverage
+surface for every runtime export. Keep `/example` as the small, coherent
+starter surface for product work. The template launcher links both routes.
+
 ## Invariants
 
 These exist because their violations are exactly what made past prototypes
@@ -54,7 +59,7 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `lib/mac-chrome/styles/tokens.css`. `--accent` (system blue) styles
   controls and focus; `--brand` (product color) styles identity only.
 - **One CSS file per component/surface.** Never a shared growing global
-  stylesheet; never a new backdrop-filter recipe when a token exists.
+  stylesheet. Do not add `backdrop-filter` recipes to the default chrome.
 - **The chrome package never imports product code.** Product → chrome only.
 - **Icons come in three tiers.** SF-style glyphs: `SystemSymbol` (original
   SVGs) or `symbolist` + the `SFSymbol` wrapper (system-font-rendered at
@@ -72,8 +77,20 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   Symbol SVGs, no macOS app-icon bitmaps.
 - **No Unicode stand-ins for system glyphs** (`▦ ☷ ⌕` etc.) — SVG or
   symbolist only.
-- **Glass belongs to chrome** (toolbars, dock, menu bar, popovers), never to
-  content backgrounds.
+- **Fidelity before effect.** Default chrome to restrained opaque or
+  near-opaque system materials with a hairline and a subtle system-like
+  shadow. Do not emulate Liquid Glass or introduce custom
+  `backdrop-filter`/saturation recipes unless the owner explicitly asks for
+  that experiment. Menus and status popovers must remain legible over any
+  wallpaper.
+- **One menu/popover system.** Commands and anchored disclosures use the
+  shared `MacMenu` or `MacDetailsMenu` primitives. Do not add bespoke overlays
+  or native `<details>` controls to a toolbar or menu bar; they skip the
+  platform dismissal, focus, and geometry contract.
+- **Chrome earns its controls.** Reusable toolbar commands have matching
+  functional menu commands. The current app appears as a running Dock item;
+  default windows remain clear of the menu bar and Dock, including at small
+  viewports.
 - If a house TypeScript-standards skill is loaded in this environment, it
   governs prototype code too; this skill adds prototyping-specific rules,
   it does not waive house ones.
@@ -82,7 +99,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 
 1. After a change: run the prototype's tests, then look at the real thing —
    screenshot or click the changed flow at the served URL. Automate
-   multi-path checks (Playwright/console) instead of hand-stepping.
+   multi-path checks (Playwright/console) instead of hand-stepping. For
+   component discovery or a broad chrome audit, begin at `/showcase` before
+   checking the product surface.
 2. Deploy/serve first and share the URL; reviews run after, not before.
 3. For direction decisions, new surfaces, or a final pass, convene the
    `mac-design-audit` agent with exactly: the pattern rubric, the diff or

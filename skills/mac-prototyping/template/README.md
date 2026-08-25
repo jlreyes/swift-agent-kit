@@ -28,6 +28,27 @@ in-memory `localStorage` helper is included there for stateful surfaces).
 `tests/setup.ts` shims ResizeObserver and CSS.escape, which jsdom lacks and
 the vendored mac-chrome's libraries require.
 
+## Starter surfaces
+
+The launcher at `/` links both starter routes:
+
+- `/showcase` is the interactive catalog and coverage surface for every
+  mac-chrome runtime export. Use it to discover components and smoke-check a
+  freshly vendored toolkit. It is also a running Dock app, so its desktop
+  identity is visible while exercising the shell.
+- `/example` is the deliberately small, coherent product-window starter.
+  Build the product's first surface from it rather than treating the catalog
+  as application UI.
+
+New prototypes inherit both routes. Keep the launcher links when adding
+product surfaces.
+
+The catalog exercises real shared chrome. Use `MacMenu` for command menus and
+`MacDetailsMenu` for anchored disclosures; do not add raw `<details>` or a
+bespoke popup to a toolbar. The toolkit defaults to restrained opaque or
+near-opaque materials, compact command menus, and readable status popovers —
+not a web approximation of Liquid Glass.
+
 ## Add a surface
 
 1. A surface is two files. `app/<name>/page.tsx` is a small server file —

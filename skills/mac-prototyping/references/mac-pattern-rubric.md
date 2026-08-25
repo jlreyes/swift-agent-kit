@@ -29,8 +29,30 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - No subtitle or item count under the title; a centered title — one line or
   two — reads as web, not Mac. The title is always leading-aligned.
 - Toolbar glyphs are SVG/system symbols, never Unicode approximations.
-- Glass (blur + translucency) lives in the toolbar capsules and chrome, not
-  in content areas.
+- Every visible non-title item is traffic-light chrome, navigation/search, an
+  actionable command or menu, an exclusive-selection control, or genuine
+  status. Decorative glyphs, bare prose, and implementation labels such as
+  “Toolbar” or “Controls” have no `NSToolbarItem` counterpart and are P1.
+- Inventory each toolbar descendant during review: accessible name, role,
+  action, state, and the matching menu command when the item represents a
+  reusable command rather than transient input or status. An enabled item
+  must activate observable behavior; omit unconfigured actions instead of
+  shipping inert chrome. “Window contents need not function” never exempts
+  window chrome.
+- Use one explicit 14–16px optical box for toolbar glyphs inside 28–30px
+  controls. Browser-dependent SVG sizing or mixed icon weight is a defect.
+- Finder-style persistent view modes follow Finder’s `NSSegmentedControl`
+  pattern: clearly divided segments with exactly one visible selection, or a
+  single View menu. An ambiguous undivided icon capsule is P1.
+- Fidelity beats simulated material effects. Use restrained opaque or
+  near-opaque toolbar and capsule surfaces with hairlines and subtle shadows;
+  never add custom blur, saturation, or Liquid Glass recipes unless the owner
+  explicitly asks for that experiment. The effect must not compete with the
+  iconography or reduce contrast.
+- A command dropdown or anchored toolbar disclosure is `NSMenu`/`NSPopover`:
+  use the shared menu/popover primitive, its focus and dismissal behavior, and
+  compact native geometry. A local `<details>` widget or bespoke overlay is a
+  P1 even if its contents happen to look correct.
 
 ## Window roles & chrome
 
@@ -47,7 +69,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - Default placement: horizontally centered, biased slightly above vertical
   center, title bar below the menu bar and clear of the Dock; a window
   flush to a canvas edge, under chrome, or off-center at rest is a
-  placement defect — verify with live geometry, never from the code.
+  placement defect — verify with live geometry at normal and small viewports,
+  never from the code.
 
 ## Menu bar
 
@@ -63,9 +86,20 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   `onMenuAction` command target. The Apple mark and Battery, Wi-Fi, and
   Control Center status glyphs are self-contained SVGs; do not recreate Wi-Fi
   with CSS arcs.
+- `NSMenu` command menus are compact: compact row height, padding, type scale,
+  icon box, separators, and a modest content-width popover — never an
+  oversized card. They use an opaque or near-opaque material, not a glassy
+  page overlay. Where the current macOS Apple menu presents a row icon, retain
+  that row icon in the prototype; the Apple-menu active state is a compact
+  menu-title selection, not a large decorative tile.
+- `NSStatusItem`/`MenuBarExtra` popovers reset foreground color and
+  `text-shadow` inside their surface so menu-bar white text cannot inherit
+  into a light popup. Audit an open status popover, not only its trigger.
 - Omitted date and clock props show a live host-local macOS-style date and
   clock. Omitted Dock items show Finder, App Store, Google Chrome, Downloads,
   and Trash, using ignored private hydrated assets when available.
+- A showcase is an app in this desktop: give it a distinct, running Dock item
+  in addition to the default system set.
 
 ## Control roles & emphasis
 

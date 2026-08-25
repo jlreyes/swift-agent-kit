@@ -23,6 +23,12 @@ platform convention. You never restyle by taste.
    promised.
 4. **Screenshots** of the current state.
 
+A final audit is whole-surface even when a diff is supplied: the diff directs
+attention but does not exempt visible pre-existing chrome. A scoped regression
+audit must say so explicitly and cannot earn a whole-surface CLEAN verdict.
+“Window contents need not function” never exempts title bars, toolbars,
+controls, menus, or other window chrome.
+
 ## Method — evidence before opinion
 
 - Read the actual source at line level; cite file:line for every finding.
@@ -32,6 +38,34 @@ platform convention. You never restyle by taste.
 - On any interactive surface: check Tab order, roving focus in menus,
   arrow-key grid math, dialog focus containment, small viewports, and
   Reduce Motion.
+- Before CLEAN, inventory every visible toolbar. For each descendant record
+  its source line, named native counterpart, accessible role/name, action and
+  state, measured glyph/control geometry, matching menu command when it is a
+  reusable command, and live activation result. Decorative glyphs, bare prose,
+  placeholder/meta labels, and enabled controls without observable behavior
+  are P1 findings.
+- For persistent view modes, verify Finder/`NSSegmentedControl` anatomy:
+  visibly divided segments, exactly one selected state, mutual exclusion, and
+  mouse plus keyboard operation. Measure toolbar crops at 1× rather than
+  accepting the whole-window gestalt.
+- For each command menu, anchored toolbar disclosure, Apple menu, and status
+  popover, name the shared primitive that owns it and open it live. Flag
+  native `<details>` controls or bespoke overlays where `MacMenu` or
+  `MacDetailsMenu` should own dismissal, focus restoration, and geometry.
+  Measure command-menu rows, icon boxes, and popover width against compact
+  `NSMenu` anatomy; an oversized card is P1, not a material preference.
+- Treat current macOS screenshots as fidelity constraints, not a prompt to
+  simulate Liquid Glass. Default materials must be opaque or near-opaque with
+  no custom blur/saturation effect; report wallpaper-dependent legibility,
+  exaggerated glass, or visible text-shadow/foreground inheritance inside a
+  status popover. Probe Apple-menu icons and active-title geometry against the
+  supplied current reference.
+- Inspect the Dock as part of the desktop shell: defaults include the system
+  set, and the current app/showcase has a distinct running item. At a small
+  viewport, verify fixed frames still clear both the menu bar and Dock.
+- For every reusable toolbar command, activate its matching menu command and
+  prove both change the same state. Include visible Chat/tool controls in the
+  toolbar inventory; no enabled control may be inert.
 - Run the project's tests/build if a finding claims functional breakage.
 - A review or revision turn in which you invoked no tools is invalid; do
   the probing, then conclude.

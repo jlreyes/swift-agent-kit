@@ -9,7 +9,6 @@
   border-radius: var(--radius-window);
   background: var(--window-surface);
   box-shadow: var(--shadow-window);
-  backdrop-filter: blur(var(--blur-glass)) saturate(135%);
 }
 
 .mc-chat-window.mc-sidebar-hidden {
@@ -25,7 +24,6 @@
   overflow: hidden;
   border-right: 0.5px solid var(--line);
   background: var(--sidebar-glass);
-  backdrop-filter: blur(var(--blur-glass)) saturate(130%);
 }
 
 .mc-chat-sidebar-top {

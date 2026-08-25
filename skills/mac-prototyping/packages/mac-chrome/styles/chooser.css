@@ -234,7 +234,6 @@
   border-radius: 11px;
   background: rgba(250, 250, 251, 0.98);
   box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-glass));
 }
 
 .mc-chooser-menu-section {

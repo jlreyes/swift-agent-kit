@@ -19,7 +19,6 @@
     inset 0 0 0 0.5px var(--capsule-border),
     inset 0 0.5px rgba(255, 255, 255, 0.86);
   transform: translateX(-50%);
-  backdrop-filter: blur(var(--blur-dock)) saturate(165%);
 }
 
 .p0-dock-item-wrap {

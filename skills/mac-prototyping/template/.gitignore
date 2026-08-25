@@ -41,3 +41,6 @@ next-env.d.ts
 /outputs/
 /work/
 /qa/
+
+# Apple-owned wallpaper and app icons hydrated from the local macOS install.
+/public/mac-assets/

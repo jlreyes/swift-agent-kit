@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from "react-aria-components";
 
 import "./styles/tokens.css";
@@ -11,6 +11,8 @@ export interface MenuAction {
   readonly id: string;
   readonly label: string;
   readonly detail?: string;
+  /** Right-aligned macOS shortcut notation, for example `⇧⌘N`. */
+  readonly shortcut?: string;
   readonly icon?: ReactNode;
   readonly trailingIcon?: ReactNode;
   /** Renders as a link instead of a button. */
@@ -18,6 +20,7 @@ export interface MenuAction {
   readonly target?: string;
   /** When set, renders role=menuitemradio with aria-checked. */
   readonly checked?: boolean;
+  readonly disabled?: boolean;
   readonly onSelect?: () => void;
 }
 
@@ -36,6 +39,8 @@ export type MenuPopoverConfig = {
   readonly placement?: "bottom start" | "bottom end";
   /** Gap between trigger and menu, px. @default 7 */
   readonly offset?: number;
+  /** Keep surrounding menu-bar titles interactive while this menu is open. */
+  readonly nonModal?: boolean;
 };
 
 function MenuActionItem({ entry }: { readonly entry: MenuAction }) {
@@ -47,14 +52,21 @@ function MenuActionItem({ entry }: { readonly entry: MenuAction }) {
       href={entry.href}
       target={entry.target}
       rel={entry.target === "_blank" ? "noreferrer" : undefined}
+      isDisabled={entry.disabled}
       onAction={() => entry.onSelect?.()}
     >
-      {entry.icon}
-      <span>
+      <span className="mc-menu-icon" aria-hidden="true">
+        {entry.icon ?? (entry.checked === true ? (
+          <svg viewBox="0 0 12 12"><path d="m1.8 6.2 2.5 2.6 5.9-6" /></svg>
+        ) : null)}
+      </span>
+      <span className="mc-menu-copy">
         <strong>{entry.label}</strong>
         {entry.detail !== undefined ? <small>{entry.detail}</small> : null}
       </span>
-      {entry.trailingIcon}
+      <span className="mc-menu-trailing" aria-hidden="true">
+        {entry.shortcut !== undefined ? <kbd className="mc-menu-shortcut">{entry.shortcut}</kbd> : entry.trailingIcon}
+      </span>
     </MenuItem>
   );
 }
@@ -110,24 +122,48 @@ function renderBlock(block: MenuBlock): readonly ReactNode[] {
 /* ARIA menu-button on react-aria MenuTrigger/Menu/MenuItem: open/close, Esc and
    outside-press dismissal, focus restore, arrow/Home/End navigation, and
    typeahead are library semantics; the popover.css look stays ours. */
-export function MacMenu({ className = "", items, label, popover, trigger, triggerClassName = "" }: {
+export function MacMenu({
+  className = "",
+  isOpen,
+  items,
+  label,
+  onMenuKeyDown,
+  onOpenChange,
+  onTriggerPointerEnter,
+  popover,
+  trigger,
+  triggerClassName = "",
+  triggerLabel,
+}: {
   readonly className?: string;
+  readonly isOpen?: boolean;
   readonly items: MenuSpec;
   readonly label: string;
+  readonly onMenuKeyDown?: (event: ReactKeyboardEvent) => void;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly onTriggerPointerEnter?: () => void;
   readonly popover?: MenuPopoverConfig;
   readonly trigger: ReactNode;
+  readonly triggerLabel?: string;
   readonly triggerClassName?: string;
 }) {
+  const controlledState = isOpen === undefined ? {} : { isOpen };
   return (
-    <div className={`mc-menu ${className}`.trim()}>
-      <MenuTrigger>
-        <Button className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
-        <Popover placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+    <div className={`mc-menu ${className}`.trim()} onPointerEnter={onTriggerPointerEnter}>
+      <MenuTrigger {...controlledState} onOpenChange={onOpenChange}>
+        <Button aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+        <Popover isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
           {/* MenuTrigger injects aria-labelledby (the trigger), which would
               outrank the label prop; blank it so `label` names the menu. */}
-          <Menu aria-label={label} aria-labelledby="" className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}>
-            {menuBlocks(items).flatMap(renderBlock)}
-          </Menu>
+          <div className="mc-menu-key-scope" onKeyDown={onMenuKeyDown}>
+            <Menu
+              aria-label={label}
+              aria-labelledby=""
+              className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}
+            >
+              {menuBlocks(items).flatMap(renderBlock)}
+            </Menu>
+          </div>
         </Popover>
       </MenuTrigger>
     </div>

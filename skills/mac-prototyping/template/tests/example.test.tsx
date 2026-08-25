@@ -34,6 +34,12 @@ test("the example surface renders its window title", () => {
   expect(screen.getByRole("navigation", { name: "Mac Dock" })).toBeDefined();
   // The menu-bar titles render in both stub (inert) and vendored (dropdown) modes.
   expect(screen.getByText("File")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Apple" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Finder" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "App Store" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Google Chrome" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Downloads" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Trash" })).toBeDefined();
 });
 
 test("the example brand icons resolve to real simple-icons paths", () => {

@@ -1,7 +1,6 @@
 ---
 name: mac-prototyping
 description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, Liquid Glass toolbar, Finder/chooser/setup-assistant/chat surfaces, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
-compatibility: macOS host for the serve/launchd workflow; Node 24+ and pnpm for the template. Components are plain React 19 + CSS.
 metadata:
   author: jlreyes
 ---
@@ -27,10 +26,10 @@ lives in this skill directory:
 ## Start or fork a prototype
 
 New = copy `template/` to a stable path (`~/Prototypes/<name>`), rename,
-vendor `packages/mac-chrome` as `lib/mac-chrome/`, `pnpm install`. Fork =
-rsync an existing prototype (minus `node_modules`/build dirs), rename,
-install. Exact recipes, the 8600–8699 port convention (`lsof` is the
-registry), and the launchd serve/stop recipes are in
+vendor `packages/mac-chrome` as `lib/mac-chrome/`, hydrate its local macOS
+assets, then `pnpm install`. Fork = rsync an existing prototype (minus
+`node_modules`/build dirs), rename, install. Exact recipes, the 8600–8699
+port convention (`lsof` is the registry), and the launchd serve/stop recipes are in
 [references/workflows.md](references/workflows.md).
 
 Fork instead of complicating: when an idea would fight the current
@@ -66,7 +65,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   private-assets tier. Chrome icon slots render aria-hidden, so `BrandIcon`
   titles carry no accessible name there — test icons by data attribute, not
   role. Apple-system lookalikes (Finder/Safari dock icons, wallpapers):
-  private local assets hydrated at creation time, never committed. **No
+  private local assets hydrated at creation time, never committed. Hydration
+  gets the local system app/folder/trash icons and Tahoe Day wallpaper; its
+  output stays ignored. **No
   Apple-owned assets in any repo** — no SF Pro font files, no exported SF
   Symbol SVGs, no macOS app-icon bitmaps.
 - **No Unicode stand-ins for system glyphs** (`▦ ☷ ⌕` etc.) — SVG or

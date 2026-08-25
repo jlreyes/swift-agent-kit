@@ -75,6 +75,26 @@ it("renders the desktop chrome composition", async () => {
   container.remove();
 });
 
+it("renders the native default Dock set when items are omitted", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(<MacDock />);
+  });
+  expect(Array.from(container.querySelectorAll(".p0-dock-item")).map((item) => item.getAttribute("aria-label"))).toEqual([
+    "Finder",
+    "App Store",
+    "Google Chrome",
+    "Downloads",
+    "Trash",
+  ]);
+  expect(container.querySelectorAll(".p0-dock-divider")).toHaveLength(1);
+  expect(container.querySelector<HTMLImageElement>("img[src='/mac-assets/dock/finder.png']")).toBeTruthy();
+  await act(async () => root.unmount());
+  container.remove();
+});
+
 it("opens a MacMenu and moves roving focus with arrows", async () => {
   const container = document.createElement("div");
   document.body.append(container);
@@ -107,7 +127,7 @@ it("opens a MacMenu and moves roving focus with arrows", async () => {
   await act(async () => {
     // The menu opens with the first item ("blank") current; the arrow roves to
     // the next item, the radio "budget".
-    (document.activeElement as HTMLElement | null)?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    menu?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
   });
   expect((document.activeElement as HTMLElement | null)?.getAttribute("data-key")).toBe("budget");
   await act(async () => {

@@ -78,10 +78,10 @@ img {
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  /* Default wallpaper: the original abstract SVG shipped beside this sheet.
-     Consumers override per-shell via the DesktopShell `wallpaper` prop
-     (sets --mc-wallpaper). */
-  --mc-wallpaper-default: url("./wallpaper.svg");
+  /* New-prototype hydration supplies the host's real Tahoe still. The
+     original abstract sheet remains a no-network fallback when that private
+     local asset has not been generated yet. */
+  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
   background:
     linear-gradient(180deg, rgba(7, 14, 24, 0.04), rgba(7, 14, 24, 0.12)),
     var(--mc-wallpaper, var(--mc-wallpaper-default));
@@ -113,19 +113,25 @@ img {
 .menu-right {
   display: flex;
   align-items: center;
-  gap: 17px;
   white-space: nowrap;
 }
 
-.menu-left strong {
-  font-weight: 650;
+.menu-left {
+  gap: 0;
 }
 
 .apple-mark {
+  width: 14px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+}
+
+.apple-mark svg {
   width: 13px;
-  color: white;
-  font-size: 14px;
-  text-align: center;
+  height: 15px;
+  display: block;
+  fill: currentColor;
 }
 
 .menu-right {
@@ -145,14 +151,24 @@ img {
 }
 
 .mc-menu-trigger.mc-menubar-menu-title {
-  margin: -3px -9px;
-  padding: 3px 9px;
-  border-radius: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
   background: transparent;
   color: inherit;
   font: inherit;
   text-shadow: inherit;
   white-space: nowrap;
+}
+
+.mc-apple-menu .mc-menubar-menu-title {
+  width: 30px;
+  padding: 0;
+}
+
+.mc-app-menu .mc-menubar-menu-title {
+  padding-right: 9px;
+  font-weight: 650;
 }
 
 .mc-menu-trigger.mc-menubar-menu-title:hover {
@@ -168,75 +184,57 @@ img {
    rather than the wrapper. */
 .mc-menu-popover.mc-menubar-menu-popover {
   width: max-content;
-  min-width: 196px;
-  max-width: 300px;
-  padding: 4px;
+  min-width: 224px;
+  max-width: 340px;
+  padding: 5px;
+  border-radius: var(--radius-menu-popover);
   text-shadow: none;
 }
 
 .mc-menu-popover.mc-menubar-menu-popover .mc-menu-item {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
-  gap: 6px;
-  min-height: 25px;
-  padding: 3px 9px 3px 6px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 9px 2px 5px;
+  border-radius: var(--radius-menu-item);
 }
 
 .mc-menu-popover.mc-menubar-menu-popover strong {
-  font-size: 12px;
-  font-weight: 470;
+  font-size: 13px;
+  font-weight: 450;
   white-space: nowrap;
 }
 
-.status-glyph {
-  font-size: 13px;
+.mc-menu-popover.mc-menubar-menu-popover small {
+  display: none;
 }
 
-.status-battery {
-  position: relative;
-  width: 18px;
-  height: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  border-radius: 2px;
+.mc-menu-popover.mc-menubar-menu-popover .menu-separator {
+  margin: 4px 7px;
 }
 
-.status-battery::after {
-  position: absolute;
-  top: 2px;
-  right: -3px;
-  width: 2px;
-  height: 4px;
-  border-radius: 0 1px 1px 0;
-  background: rgba(255, 255, 255, 0.9);
-  content: "";
+.menu-right > svg {
+  width: auto;
+  height: 13px;
+  display: block;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.status-battery i {
-  position: absolute;
-  inset: 1px;
-  width: 70%;
-  border-radius: 1px;
-  background: white;
+.menu-right > svg[data-status-icon="battery"] {
+  width: 27px;
 }
 
-.status-wifi {
-  position: relative;
-  width: 15px;
-  height: 11px;
+.menu-right .status-fill,
+.menu-right > svg[data-status-icon="wifi"] circle,
+.menu-right .status-knob {
+  fill: currentColor;
+  stroke: none;
 }
-
-.status-wifi i {
-  position: absolute;
-  left: 50%;
-  border: 1.3px solid white;
-  border-top-color: transparent;
-  border-right-color: transparent;
-  border-radius: 50%;
-  transform: translateX(-50%) rotate(-45deg);
-}
-
-.status-wifi i:nth-child(1) { top: -3px; width: 14px; height: 14px; }
-.status-wifi i:nth-child(2) { top: 1px; width: 9px; height: 9px; }
-.status-wifi i:nth-child(3) { top: 5px; width: 4px; height: 4px; background: white; }
 
 .mac-window {
   position: absolute;

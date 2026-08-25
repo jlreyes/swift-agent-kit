@@ -47,14 +47,17 @@ the vendored mac-chrome's libraries require.
    The sibling component (`files-surface.tsx` here) starts with
    `"use client"`, owns the state, and composes `DesktopShell` +
    `WindowChrome` + `MacToolbar` + `MacDock` from `lib/mac-chrome` — follow
-   `app/example/`.
+   `app/example/`. Its `example-desktop.tsx` supplies `DesktopShell` a
+   client-side `onMenuAction` target and shows temporary visible feedback for
+   each command; replace that feedback with the product behavior.
 2. List it in `app/page.tsx` (the launcher).
 3. Add the route to `tests/rendered-html.test.mjs` (title + content marker).
 
-**Time-dependent chrome props** (menu-bar clock, "today" dates): the server
-render and the first client render must match, so seed a fixed value for the
-initial render and go live inside `useEffect`. Calling `new Date()` during
-render is a hydration mismatch.
+When `DesktopShell` date and clock props are omitted, it renders a live
+host-local macOS-style date and clock and handles their hydration internally.
+For product-owned time-dependent UI (such as "today" dates), keep the server
+and first client render aligned, then go live inside `useEffect`; calling
+`new Date()` during that product render is a hydration mismatch.
 
 ## Icons — three tiers
 
@@ -63,10 +66,14 @@ render is a hydration mismatch.
 2. **Third-party service marks** — `components/BrandIcon.tsx`
    (`simple-icons`): inline SVG paths in the brand color (e.g.
    `<BrandIcon slug="notion" />`). Committable.
-3. **Apple-system lookalikes, real wallpaper/app icons** — private local
-   assets: copy your asset dir into `public/` after scaffolding and point
-   dock items / the `.desktop-canvas` background at them. Never committed;
-   the shipped gradient wallpaper and `public/dock/` SVGs are the stand-ins.
+3. **Apple-system lookalikes, real wallpaper/app icons** — after setting
+   `SKILL_DIR` as in the toolkit workflow, hydrate them with
+   `"$SKILL_DIR"/scripts/hydrate-macos-assets.sh <prototype-root>`. It
+   populates ignored `public/mac-assets/` with local system app/folder/Trash
+   icons and the macOS Tahoe Day wallpaper; `ffmpeg` is preferred for the
+   wallpaper extraction and `qlmanage` is the fallback. Never commit those
+   Apple-owned files. `DesktopShell` defaults to the hydrated Tahoe wallpaper
+   and falls back to the shipped abstract SVG when it is unavailable.
 
 ## Where mac-chrome comes from
 

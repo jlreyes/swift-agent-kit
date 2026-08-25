@@ -18,8 +18,16 @@ export interface DockItem {
   readonly draggablePayload?: Readonly<Record<string, string>>;
 }
 
-export function MacDock({ items, label = "Dock" }: {
-  readonly items: readonly DockItem[];
+export const defaultDockItems: readonly DockItem[] = [
+  { id: "finder", label: "Finder", icon: "/mac-assets/dock/finder.png", running: true, group: "apps" },
+  { id: "app-store", label: "App Store", icon: "/mac-assets/dock/app-store.png", group: "apps" },
+  { id: "chrome", label: "Google Chrome", icon: "/mac-assets/dock/chrome.png", group: "apps" },
+  { id: "downloads", label: "Downloads", icon: "/mac-assets/dock/downloads.png", group: "places" },
+  { id: "trash", label: "Trash", icon: "/mac-assets/dock/trash.png", group: "places" },
+];
+
+export function MacDock({ items = defaultDockItems, label = "Dock" }: {
+  readonly items?: readonly DockItem[];
   readonly label?: string;
 }) {
   return (

@@ -37,7 +37,8 @@ test("the example surface renders the mac shell", async () => {
 
   assert.match(html, /aria-label="Mac Dock"/);
   assert.match(html, /class="mac-menu-bar"/);
-  assert.match(html, /\/dock\/files\.svg/);
+  assert.match(html, /\/mac-assets\/dock\/finder\.png/);
+  assert.match(html, /aria-label="Apple"/);
   assert.match(html, /class="sf-symbol"/);
   assert.match(html, /class="brand-icon"/);
 });

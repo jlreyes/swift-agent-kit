@@ -11,3 +11,4 @@ skills/*/references/
 !skills/xcode-tools/references/
 skills/*/scripts/
 !skills/apple-api-updates/scripts/
+!skills/mac-prototyping/scripts/

@@ -1,6 +1,6 @@
-export { DesktopShell, type DesktopShellProps, type MenuBarMenu } from "./desktop-shell.tsx";
+export { DesktopShell, type DesktopShellProps, type MenuBarMenu, type MenuCommand } from "./desktop-shell.tsx";
 export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame } from "./window.tsx";
-export { MacDock, type DockItem } from "./dock.tsx";
+export { defaultDockItems, MacDock, type DockItem } from "./dock.tsx";
 export { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 export {
   MacToolbar,

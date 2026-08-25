@@ -13,6 +13,7 @@ about any surface is "which native component is this, and does its anatomy
 match?"
 
 Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
+[Menu bar](#menu-bar) ·
 [Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
 [Preview/inspector](#preview--inspector) · [Grid & empty states](#grid--empty-states) ·
 [Creation windows](#creation-window-precedents) · [Keyboard & a11y](#keyboard--accessibility) ·
@@ -47,6 +48,24 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   center, title bar below the menu bar and clear of the Dock; a window
   flush to a canvas edge, under chrome, or off-center at rest is a
   placement defect — verify with live geometry, never from the code.
+
+## Menu bar
+
+- By default, `DesktopShell` supplies Apple and app menus plus functional
+  File/Edit/View/Window/Help menus. A caller that deliberately supplies
+  `menuItems` owns that post-app-menu list; standard titles retain their
+  built-in menus and `MenuBarMenu` objects customize or replace them.
+- While a menu is open, pointer-hover switches menus; Left/Right moves between
+  menu titles; Tab/Shift-Tab dismisses and advances focus; Escape and an
+  outside press dismiss.
+- Menu rows show native shortcut and disabled anatomy where those fields
+  apply. Every enabled action has `onSelect`, `href`, or the shell's
+  `onMenuAction` command target. The Apple mark and Battery, Wi-Fi, and
+  Control Center status glyphs are self-contained SVGs; do not recreate Wi-Fi
+  with CSS arcs.
+- Omitted date and clock props show a live host-local macOS-style date and
+  clock. Omitted Dock items show Finder, App Store, Google Chrome, Downloads,
+  and Trash, using ignored private hydrated assets when available.
 
 ## Control roles & emphasis
 
@@ -119,7 +138,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 ## Keyboard & accessibility
 
 - Menus: one roving focus target; open-menu descendants leave the Tab
-  sequence; Esc/Tab/arrows/Home/End all handled.
+  sequence; Esc/Tab/arrows/Home/End all handled; Left/Right moves among
+  menu-bar titles and Tab/Shift-Tab dismisses before focus advances.
 - Grids: ArrowUp/Down move by the active column count; boundary clamping
   stays in-column; no modulo wrap into adjacent columns.
 - Dialogs/sheets contain focus (it never escapes to BODY); Cancel unwinds

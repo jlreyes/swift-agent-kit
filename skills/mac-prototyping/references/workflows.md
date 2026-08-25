@@ -13,15 +13,14 @@ All commands verified on macOS with pnpm 10+.
 
 ## New prototype
 
-Copy the template, name it, install. Done when `pnpm test` is green.
+Copy the template, name it, vendor mac-chrome, hydrate private macOS assets,
+then install. Done when `pnpm test` is green.
 
 ```sh
 name=myproto
 cp -R "$SKILL_DIR"/template ~/Prototypes/$name   # or: rsync -a "$SKILL_DIR"/template/ ~/Prototypes/$name/
 cd ~/Prototypes/$name
 node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $name
-pnpm install
-pnpm test                                          # typecheck + build + rendered-html + jsdom tests
 ```
 
 (`pnpm install` prints "Ignored build scripts: esbuild, sharp, …" — that is
@@ -41,11 +40,19 @@ rsync -a --delete --delete-excluded --exclude node_modules --exclude test \
   "$SKILL_DIR"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
 ```
 
-Optional: hydrate private assets (wallpaper, icons — never committed to a
-public repo) into `public/`:
+Hydrate local private assets before running the prototype. This copies and
+converts local system app, folder, and Trash icons and extracts the actual
+macOS Tahoe Day wallpaper into `public/mac-assets/`. The output is ignored by
+the template and must never be committed. The script prefers `ffmpeg` for the
+Tahoe extraction and uses `qlmanage` as its fallback:
 
 ```sh
-cp -R ~/my-private-assets/. ~/Prototypes/$name/public/
+"$SKILL_DIR"/scripts/hydrate-macos-assets.sh ~/Prototypes/$name
+```
+
+```sh
+pnpm install
+pnpm test                                          # typecheck + build + rendered-html + jsdom tests
 ```
 
 ## Fork an existing prototype

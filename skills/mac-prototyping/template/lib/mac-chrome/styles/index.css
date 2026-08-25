@@ -9,16 +9,15 @@
   overflow: auto;
 }
 
-/* Default wallpaper: the committable original abstract SVG beside this sheet
-   (mirrors the real package). The DesktopShell `wallpaper` prop overrides it
-   via --mc-wallpaper. */
+/* The private Tahoe still is hydrated from the host during creation; the
+   committable original SVG remains the offline fallback. */
 .desktop-canvas {
   position: relative;
   width: 1200px;
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  --mc-wallpaper-default: url("./wallpaper.svg");
+  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
   background: var(--mc-wallpaper, var(--mc-wallpaper-default));
   background-position: center;
   background-size: cover;
@@ -46,7 +45,32 @@
 .mac-menu-bar .menu-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+}
+
+.mac-menu-bar .menu-left {
+  gap: 0;
+}
+
+.mac-menu-bar .menu-right {
+  gap: 11px;
+}
+
+.mc-menu-trigger.mc-menubar-menu-title {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.apple-mark,
+.apple-mark svg {
+  width: 13px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
 }
 
 .mac-menu-bar .menu-mark {
@@ -130,6 +154,19 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   transform: translateX(-50%);
   backdrop-filter: blur(24px) saturate(160%);
+}
+
+.p0-dock-item-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p0-dock-divider {
+  width: 1px;
+  height: 44px;
+  display: block;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .p0-dock-item {

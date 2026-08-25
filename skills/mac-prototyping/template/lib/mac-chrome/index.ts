@@ -4,6 +4,7 @@
 // package's prop shapes, so vendoring is a drop-in replacement.
 export {
   DesktopShell,
+  defaultDockItems,
   FinderWindow,
   MacDock,
   MacToolbar,
@@ -20,6 +21,7 @@ export type {
   FinderViewMode,
   MenuAction,
   MenuBarMenu,
+  MenuCommand,
   MenuEntry,
   MenuSpec,
   SidebarItem,

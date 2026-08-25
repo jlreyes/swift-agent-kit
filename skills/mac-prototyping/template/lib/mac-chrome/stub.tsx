@@ -13,11 +13,13 @@ export interface MenuAction {
   readonly id: string;
   readonly label: string;
   readonly detail?: string;
+  readonly shortcut?: string;
   readonly icon?: ReactNode;
   readonly trailingIcon?: ReactNode;
   readonly href?: string;
   readonly target?: string;
   readonly checked?: boolean;
+  readonly disabled?: boolean;
   readonly onSelect?: () => void;
 }
 
@@ -32,6 +34,12 @@ export type MenuSpec = readonly MenuEntry[];
 export type MenuBarMenu = {
   readonly title: string;
   readonly items: MenuSpec;
+};
+
+export type MenuCommand = {
+  readonly menu: string;
+  readonly id: string;
+  readonly label: string;
 };
 
 /* ----- Window frame (mirrors window.tsx) ----- */
@@ -65,8 +73,11 @@ function framePlacement(frame: WindowFrame | undefined, defaultSize: WindowSize)
 
 export interface DesktopShellProps {
   readonly appName: string;
-  /** Plain strings render inert; { title, items } opens a real dropdown (real package). */
+  /** Plain standard titles get native defaults in the real package. */
   readonly menuItems?: readonly (string | MenuBarMenu)[];
+  readonly appleMenuItems?: MenuSpec;
+  readonly appMenuItems?: MenuSpec;
+  readonly onMenuAction?: (command: MenuCommand) => void;
   readonly date?: string;
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items. */
@@ -93,11 +104,13 @@ export function DesktopShell({
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
           <div className="menu-left">
-            <span className="apple-mark" aria-hidden="true"></span>
-            <strong>{appName}</strong>
+            <button type="button" className="mc-menu-trigger mc-menubar-menu-title" aria-label="Apple">
+              <span className="apple-mark"><svg viewBox="0 0 18 20" aria-hidden="true"><path d="M14.8 10.5c0-2 1.7-3 1.8-3.1a4 4 0 0 0-3.2-1.7c-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.8A4.4 4.4 0 0 0 3.3 8c-1.6 2.8-.4 6.9 1.1 9.1.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3.1-.7 1.4 0 1.8.7 3.1.7s2.1-1.1 2.8-2.2a9.8 9.8 0 0 0 1.3-2.7 4 4 0 0 1-2.8-3.9ZM12.5 4.3A4 4 0 0 0 13.4 1a4.1 4.1 0 0 0-2.8 1.4 3.8 3.8 0 0 0-1 3.1 3.4 3.4 0 0 0 2.9-1.2Z" /></svg></span>
+            </button>
+            <button type="button" className="mc-menu-trigger mc-menubar-menu-title"><strong>{appName}</strong></button>
             {menuItems.map((item) => {
               const title = typeof item === "string" ? item : item.title;
-              return <span key={title}>{title}</span>;
+              return <button type="button" className="mc-menu-trigger mc-menubar-menu-title" key={title}>{title}</button>;
             })}
           </div>
           <div className="menu-right" aria-label="Mac status items">
@@ -189,8 +202,16 @@ export interface DockItem {
   readonly onActivate?: () => void;
 }
 
-export function MacDock({ items, label = "Dock" }: {
-  readonly items: readonly DockItem[];
+export const defaultDockItems: readonly DockItem[] = [
+  { id: "finder", label: "Finder", icon: "/mac-assets/dock/finder.png", running: true, group: "apps" },
+  { id: "app-store", label: "App Store", icon: "/mac-assets/dock/app-store.png", group: "apps" },
+  { id: "chrome", label: "Google Chrome", icon: "/mac-assets/dock/chrome.png", group: "apps" },
+  { id: "downloads", label: "Downloads", icon: "/mac-assets/dock/downloads.png", group: "places" },
+  { id: "trash", label: "Trash", icon: "/mac-assets/dock/trash.png", group: "places" },
+];
+
+export function MacDock({ items = defaultDockItems, label = "Dock" }: {
+  readonly items?: readonly DockItem[];
   readonly label?: string;
 }) {
   return (

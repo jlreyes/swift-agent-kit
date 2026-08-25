@@ -52,6 +52,8 @@
   /* Radii */
   --radius-window: 12px;
   --radius-control: 7px;
+  --radius-menu-item: 5px;
+  --radius-menu-popover: 10px;
   --radius-capsule: 999px;
   --radius-popover: 11px;
   /* Aliases kept for extracted CSS written against the older names */

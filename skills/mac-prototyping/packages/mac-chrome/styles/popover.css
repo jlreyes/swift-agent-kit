@@ -43,13 +43,20 @@
   cursor: default;
 }
 
-.mc-menu-popover .mc-menu-item > span {
+.mc-menu-popover .mc-menu-copy {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.mc-menu-popover .mc-menu-item > svg {
+.mc-menu-popover .mc-menu-icon,
+.mc-menu-popover .mc-menu-trailing {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.mc-menu-popover .mc-menu-icon > svg {
   width: 19px;
   height: 19px;
   fill: none;
@@ -59,10 +66,17 @@
   stroke-linejoin: round;
 }
 
-.mc-menu-popover .mc-menu-item > svg:last-child {
-  grid-column: 3;
+.mc-menu-popover .mc-menu-trailing > svg {
   width: 13px;
   height: 13px;
+}
+
+.mc-menu-shortcut {
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 /* react-aria menus move focus with the pointer; [data-focused] covers both
@@ -72,6 +86,10 @@
   outline: none;
   background: var(--accent);
   color: white;
+}
+
+.mc-menu-popover .mc-menu-item[data-disabled] {
+  color: var(--faint);
 }
 
 .mc-menu-popover strong {

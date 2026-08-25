@@ -25,7 +25,7 @@ function renderShell(onPick?: () => void) {
     ? { ...fileMenu, items: [{ kind: "action", id: "new", label: "New Window", onSelect: onPick }] }
     : fileMenu;
   return render(
-    <DesktopShell appName="Test" menuItems={[items, "Edit", "View"]}>
+    <DesktopShell appName="Test" menuItems={[items, "Edit", "View", "Window"]} onMenuAction={vi.fn()}>
       <p>Desktop</p>
     </DesktopShell>,
   );
@@ -38,11 +38,14 @@ async function flushFocus() {
 }
 
 describe("DesktopShell menu bar menus", () => {
-  it("renders string entries inert and menu entries as real triggers", () => {
-    const { container, getByRole, queryByRole } = renderShell();
+  it("renders the Apple, application, and every standard menu as real triggers", () => {
+    const { container, getByRole } = renderShell();
+    expect(getByRole("button", { name: "Apple" })).toBeTruthy();
+    expect(getByRole("button", { name: "Test" })).toBeTruthy();
     expect(getByRole("button", { name: "File" })).toBeTruthy();
-    expect(queryByRole("button", { name: "Edit" })).toBeNull();
-    expect(container.querySelector(".menu-left")?.textContent).toContain("Edit");
+    expect(getByRole("button", { name: "Edit" })).toBeTruthy();
+    expect(getByRole("button", { name: "View" })).toBeTruthy();
+    expect(container.querySelector(".apple-mark svg")).toBeTruthy();
   });
 
   it("clicking a title opens its dropdown and highlights the title", async () => {
@@ -94,10 +97,109 @@ describe("DesktopShell menu bar menus", () => {
     // react-aria's outside dismissal completes on the press *release*
     // (pointerdown arms it, click/mouseup outside dismisses).
     fireEvent.pointerDown(document.body);
+    fireEvent.pointerUp(document.body);
     fireEvent.mouseDown(document.body);
     fireEvent.mouseUp(document.body);
     fireEvent.click(document.body);
     expect(queryByRole("menu")).toBeNull();
+  });
+
+  it("switches directly to an adjacent menu while the menu bar is active", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    expect(getByRole("menu", { name: "File menu" })).toBeTruthy();
+
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    expect(queryByRole("menu", { name: "File menu" })).toBeNull();
+    expect(getByRole("menu", { name: "Edit menu" })).toBeTruthy();
+  });
+
+  it("moves between menu-bar menus with horizontal arrows", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "File menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    expect(queryByRole("menu", { name: "File menu" })).toBeNull();
+    expect(getByRole("menu", { name: "Edit menu" })).toBeTruthy();
+  });
+
+  it("Tab dismisses the menu and advances to the next menu-bar title", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "File menu" }), { key: "Tab" });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Edit" }));
+  });
+
+  it("restores Tab and Shift-Tab focus relative to a menu switched while open", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "Edit menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "View menu" }), { key: "Tab" });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Window" }));
+
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "Edit menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "View menu" }), { key: "Tab", shiftKey: true });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Edit" }));
+  });
+
+  it("routes built-in actions to an explicit target and disables them without one", async () => {
+    const onMenuAction = vi.fn();
+    const targeted = render(
+      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(targeted.getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.click(targeted.getByRole("menuitem", { name: /Undo/ }));
+    expect(onMenuAction).toHaveBeenCalledWith({ menu: "Edit", id: "undo", label: "Undo" });
+    targeted.unmount();
+
+    const untargeted = render(
+      <DesktopShell appName="Test">
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(untargeted.getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    expect(untargeted.getByRole("menuitem", { name: /Undo/ }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("shows native-style shortcut columns in the standard menus", async () => {
+    const { getByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    const undo = getByRole("menuitem", { name: /Undo/ });
+    expect(undo.querySelector(".mc-menu-shortcut")?.textContent).toBe("⌘Z");
+  });
+});
+
+describe("DesktopShell status items", () => {
+  it("uses self-contained SVG glyphs without the overlapping CSS Wi-Fi artifact", () => {
+    const { container } = renderShell();
+    expect(container.querySelector("[data-status-icon='battery']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='wifi']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='control-center']")).toBeTruthy();
+    expect(container.querySelector(".status-wifi i")).toBeNull();
   });
 });
 

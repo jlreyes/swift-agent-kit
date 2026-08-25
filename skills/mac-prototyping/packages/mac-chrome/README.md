@@ -29,17 +29,31 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `MacDock`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MenuBarExtra`, `useModalFocusTrap`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `WindowFrame`, `DockItem`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MenuBarExtra`, `useModalFocusTrap`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `WindowFrame`, `DockItem`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
-`DesktopShell({ appName, menuItems = defaultMenuItems, date = "Wed Aug 6", clock = "9:47 AM", menuBarExtras, wallpaper, children }: DesktopShellProps)`
-`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly wallpaper?: string; readonly children: ReactNode }`
+`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, date, clock, menuBarExtras, wallpaper, children }: DesktopShellProps)`
+`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly wallpaper?: string; readonly children: ReactNode }`
 `type MenuBarMenu = { readonly title: string; readonly items: MenuSpec }`
-- `menuItems`: plain strings render as inert titles (as before); `{ title, items }` entries render a working dropdown on the MacMenu machinery — click opens, arrows navigate, Esc/click-away close, and the open menu's title is highlighted.
+`type MenuCommand = { readonly menu: string; readonly id: string; readonly label: string }`
+- The shell always provides functional Apple and app menus; use
+  `appleMenuItems` or `appMenuItems` to replace either menu's default items.
+  When `menuItems` is omitted, it supplies File, Edit, View, Window, and Help.
+  When provided, its array is the exact post-app-menu list: standard string
+  names resolve to their built-in menus, while `MenuBarMenu` objects customize
+  or replace menus with product commands.
+- An action with `onSelect` or `href` owns its behavior. Otherwise,
+  `onMenuAction` receives its `{ menu, id, label }` command; without either a
+  per-action target or `onMenuAction`, the shell disables the action.
+- An active menu switches when its title is hovered. Left/Right moves between
+  menu titles; Tab/Shift-Tab dismisses it and advances focus; Escape and an
+  outside press dismiss it. The Apple mark and the Battery, Wi-Fi, and Control
+  Center glyphs are self-contained SVGs.
+- Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
-- `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
+- `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
 
 ### TrafficLights
 maps to: `NSWindow.standardWindowButton(.closeButton/.miniaturizeButton/.zoomButton)`.
@@ -61,8 +75,11 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 
 ### MacDock
 maps to: the system Dock (`NSDockTile` per app); no SwiftUI counterpart — system UI.
-`MacDock({ items, label = "Dock" }: { readonly items: readonly DockItem[]; readonly label?: string })`
+`MacDock({ items, label = "Dock" }: { readonly items?: readonly DockItem[]; readonly label?: string })`
 `interface DockItem { readonly id: string; readonly label: string; readonly icon: ReactNode | string; readonly running?: boolean; readonly group?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
+When `items` is omitted, the Dock shows Finder, App Store, Google Chrome,
+Downloads, and Trash. The local icons hydrated into `public/mac-assets/` are
+private assets: they are ignored and must never be committed.
 
 ### SystemSymbol
 maps to: SwiftUI `Image(systemName:)` (SF Symbols).
@@ -97,12 +114,12 @@ maps to: `.searchable(...)` / `NSSearchToolbarItem` (collapsed-to-icon form).
 
 ### MacMenu
 maps to: `NSMenu` / SwiftUI `Menu` — via react-aria `MenuTrigger`/`Menu`/`MenuItem`, which supply open/close, Esc and outside-press dismissal, focus restore, arrow/Home/End navigation, and typeahead.
-`MacMenu({ className = "", items, label, popover, trigger, triggerClassName = "" }: { readonly className?: string; readonly items: MenuSpec; readonly label: string; readonly popover?: MenuPopoverConfig; readonly trigger: ReactNode; readonly triggerClassName?: string })`
-`interface MenuAction { readonly kind: "action"; readonly id: string; readonly label: string; readonly detail?: string; readonly icon?: ReactNode; readonly trailingIcon?: ReactNode; readonly href?: string; readonly target?: string; readonly checked?: boolean; readonly onSelect?: () => void }`
+`MacMenu({ className = "", isOpen, items, label, onMenuKeyDown, onOpenChange, onTriggerPointerEnter, popover, trigger, triggerClassName = "", triggerLabel }: { readonly className?: string; readonly isOpen?: boolean; readonly items: MenuSpec; readonly label: string; readonly onMenuKeyDown?: (event: ReactKeyboardEvent) => void; readonly onOpenChange?: (open: boolean) => void; readonly onTriggerPointerEnter?: () => void; readonly popover?: MenuPopoverConfig; readonly trigger: ReactNode; readonly triggerClassName?: string; readonly triggerLabel?: string })`
+`interface MenuAction { readonly kind: "action"; readonly id: string; readonly label: string; readonly detail?: string; readonly shortcut?: string; readonly disabled?: boolean; readonly icon?: ReactNode; readonly trailingIcon?: ReactNode; readonly href?: string; readonly target?: string; readonly checked?: boolean; readonly onSelect?: () => void }`
 `type MenuEntry = MenuAction | { readonly kind: "separator"; readonly id: string } | { readonly kind: "section"; readonly id: string; readonly label: string }`
 `type MenuSpec = readonly MenuEntry[]`
-`type MenuPopoverConfig = { readonly className?: string; readonly placement?: "bottom start" | "bottom end"; readonly offset?: number }`
-`className` lands on the wrapper (`.mc-menu`). The popover itself is portalled and positioned by react-aria; `popover` carries the overlay knobs — the menu-bar dropdowns pass `{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 5 }` for the compact lead-aligned NSMenu skin. Entries with `checked` render as `menuitemradio` inside a single-selection group.
+`type MenuPopoverConfig = { readonly className?: string; readonly placement?: "bottom start" | "bottom end"; readonly offset?: number; readonly nonModal?: boolean }`
+`className` lands on the wrapper (`.mc-menu`). The popover itself is portalled and positioned by react-aria; `popover` carries the overlay knobs — the menu-bar dropdowns pass `{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 3, nonModal: true }` for the compact lead-aligned NSMenu skin and to keep other menu titles interactive. `shortcut` renders the native trailing shortcut text; `disabled` renders an unavailable row. Entries with `checked` render as `menuitemradio` inside a single-selection group.
 
 ### MacDetailsMenu
 maps to: `NSPopover` anchored to a control; SwiftUI `.popover`.

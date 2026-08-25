@@ -9,9 +9,25 @@ import {
   defaultDockItems,
   DesktopShell,
   FinderWindow,
+  MacButton,
+  MacContentUnavailable,
+  MacControlGroup,
   MacDetailsMenu,
+  MacDisclosureGroup,
   MacDock,
+  MacDockAppIcon,
+  MacForm,
+  MacFormSection,
+  MacInspector,
+  MacLabeledContent,
+  MacList,
   MacMenu,
+  MacNavigationSplitView,
+  MacPopover,
+  MacSegmentedControl,
+  MacSourceList,
+  MacTextField,
+  MacToggle,
   MacToolbar,
   MenuBarExtra,
   SetupAssistant,
@@ -30,28 +46,118 @@ import {
   type DockItem,
   type FinderEntry,
   type FinderViewMode,
+  type MacListSection,
+  type MacSourceListSection,
   type MenuBarMenu,
   type MenuSpec,
-  type SidebarSection,
   type SetupStep,
+  type SidebarSection,
   type SystemSymbolName,
 } from "../../lib/mac-chrome/index.ts";
 
-type StoryId = "toolbar" | "finder" | "chooser" | "setup" | "chat";
-type ToolbarViewMode = "grid" | "list";
+type StoryId =
+  | "anatomy"
+  | "window-toolbar"
+  | "navigation"
+  | "collections"
+  | "controls"
+  | "menus"
+  | "presentation"
+  | "finder"
+  | "chooser"
+  | "setup"
+  | "chat";
+type RecipeId = "finder" | "chooser" | "setup" | "chat";
 
-const stories: ReadonlyArray<{ readonly id: StoryId; readonly label: string }> = [
-  { id: "toolbar", label: "Window + Toolbar" },
-  { id: "finder", label: "Finder" },
-  { id: "chooser", label: "Chooser" },
-  { id: "setup", label: "Setup Assistant" },
-  { id: "chat", label: "Chat" },
+type StoryDefinition = {
+  readonly id: StoryId;
+  readonly label: string;
+  readonly symbol: SystemSymbolName;
+  readonly nativeCounterpart: string;
+  readonly summary: string;
+};
+
+const storyGroups: ReadonlyArray<{
+  readonly id: string;
+  readonly title: string;
+  readonly stories: readonly StoryDefinition[];
+}> = [
+  {
+    id: "overview",
+    title: "Overview",
+    stories: [
+      {
+        id: "anatomy",
+        label: "App Anatomy",
+        symbol: "laptopcomputer",
+        nativeCounterpart: "NSWindow + NavigationSplitView",
+        summary: "The live showcase is assembled from the same public shell, window, navigation, toolbar, inspector, and Dock primitives available to prototypes.",
+      },
+    ],
+  },
+  {
+    id: "building-blocks",
+    title: "Building Blocks",
+    stories: [
+      {
+        id: "window-toolbar",
+        label: "Window & Toolbar",
+        symbol: "laptopcomputer",
+        nativeCounterpart: "NSWindow + NSToolbar",
+        summary: "Window controls, contextual titles, grouped commands, search, and toolbar/menu command parity.",
+      },
+      {
+        id: "navigation",
+        label: "Navigation & Split View",
+        symbol: "sidebar.left",
+        nativeCounterpart: "NavigationSplitView + List(.sidebar)",
+        summary: "Two or three navigation columns with resizable dividers. A supplementary inspector stays separate from the navigation hierarchy.",
+      },
+      {
+        id: "collections",
+        label: "Lists & Collections",
+        symbol: "list.bullet",
+        nativeCounterpart: "List + DisclosureGroup",
+        summary: "Selectable rows, sections, secondary values, accessories, disabled states, and content disclosure.",
+      },
+      {
+        id: "controls",
+        label: "Controls & Forms",
+        symbol: "gear",
+        nativeCounterpart: "Form + LabeledContent",
+        summary: "Compact Mac buttons, fields, toggles, segmented controls, form sections, and aligned labeled content.",
+      },
+      {
+        id: "menus",
+        label: "Menus & Popovers",
+        symbol: "list.bullet",
+        nativeCounterpart: "Menu + Popover",
+        summary: "Command menus and arbitrary-content popovers share dismissal, focus return, anchoring, and restrained solid materials.",
+      },
+      {
+        id: "presentation",
+        label: "Presentation & Feedback",
+        symbol: "briefcase.fill",
+        nativeCounterpart: "Sheet + ContentUnavailableView",
+        summary: "Attached modal tasks, empty states, inline status, and action feedback without floating desktop notifications.",
+      },
+    ],
+  },
+  {
+    id: "compositions",
+    title: "Compositions",
+    stories: [
+      { id: "finder", label: "Finder", symbol: "folder", nativeCounterpart: "Finder-style browser", summary: "Source list, selectable collection, preview, Quick Look, toolbar, and status-bar recipe." },
+      { id: "chooser", label: "Chooser", symbol: "square.grid.2x2", nativeCounterpart: "Selection chooser", summary: "Choice collection, contextual preview, secondary commands, and an action footer." },
+      { id: "setup", label: "Setup Assistant", symbol: "sparkles", nativeCounterpart: "Setup Assistant", summary: "Ordered step navigation, focused content, fixed actions, and an attached sheet." },
+      { id: "chat", label: "Chat", symbol: "person.2.fill", nativeCounterpart: "Sidebar conversation app", summary: "Conversation source list, transcript, composer, toolbar search, and participant popover." },
+    ],
+  },
 ];
 
-/**
- * Runtime-export coverage map for the embedded showcase. Hooks and pure
- * helpers are represented by the surface whose behavior exercises them.
- */
+const stories = storyGroups.flatMap((group) => group.stories);
+
+/** Runtime-export coverage for the embedded catalog and its live recipes. */
 export const coveredExports = [
   "ChatWindow",
   "ChooserWindow",
@@ -60,9 +166,25 @@ export const coveredExports = [
   "DesktopShell",
   "finderKeyTarget",
   "FinderWindow",
+  "MacButton",
+  "MacContentUnavailable",
+  "MacControlGroup",
   "MacDetailsMenu",
+  "MacDisclosureGroup",
   "MacDock",
+  "MacDockAppIcon",
+  "MacForm",
+  "MacFormSection",
+  "MacInspector",
+  "MacLabeledContent",
+  "MacList",
   "MacMenu",
+  "MacNavigationSplitView",
+  "MacPopover",
+  "MacSegmentedControl",
+  "MacSourceList",
+  "MacTextField",
+  "MacToggle",
   "MacToolbar",
   "MenuBarExtra",
   "QuickLook",
@@ -82,62 +204,16 @@ export const coveredExports = [
 ] as const;
 
 const finderEntries: readonly FinderEntry[] = [
-  {
-    id: "brief",
-    name: "Project Brief.md",
-    kind: "document",
-    icon: <SystemSymbol name="doc.text.fill" />,
-    modified: "Today, 10:24 AM",
-    size: "18 KB",
-  },
-  {
-    id: "references",
-    name: "References",
-    kind: "folder",
-    icon: <SystemSymbol name="folder" />,
-    modified: "Yesterday",
-    size: "—",
-  },
-  {
-    id: "research",
-    name: "Research Notes.md",
-    kind: "document",
-    icon: <SystemSymbol name="doc.text.fill" />,
-    modified: "Monday",
-    size: "42 KB",
-  },
-  {
-    id: "archive",
-    name: "Archive",
-    kind: "folder",
-    icon: <SystemSymbol name="folder" />,
-    modified: "Aug 18",
-    size: "—",
-  },
+  { id: "brief", name: "Project Brief.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Today, 10:24 AM", size: "18 KB" },
+  { id: "references", name: "References", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Yesterday", size: "—" },
+  { id: "research", name: "Research Notes.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Monday", size: "42 KB" },
+  { id: "archive", name: "Archive", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Aug 18", size: "—" },
 ];
 
 const chooserChoices: readonly ChooserChoice[] = [
-  {
-    id: "personal",
-    symbol: "person.crop.circle",
-    title: "Personal",
-    caption: "A private workspace for one person",
-    preview: <StoryPreview symbol="person.crop.circle" title="Personal workspace" detail="A focused starting point with private defaults." />,
-  },
-  {
-    id: "team",
-    symbol: "person.2.fill",
-    title: "Team",
-    caption: "Shared work for a small group",
-    preview: <StoryPreview symbol="person.2.fill" title="Team workspace" detail="A shared space with roles and collaborative activity." />,
-  },
-  {
-    id: "organization",
-    symbol: "building.2.fill",
-    title: "Organization",
-    caption: "Structured access across departments",
-    preview: <StoryPreview symbol="building.2.fill" title="Organization workspace" detail="A structured home for multiple groups and policies." />,
-  },
+  { id: "personal", symbol: "person.crop.circle", title: "Personal", caption: "A private workspace for one person", preview: <StoryPreview symbol="person.crop.circle" title="Personal workspace" detail="A focused starting point with private defaults." /> },
+  { id: "team", symbol: "person.2.fill", title: "Team", caption: "Shared work for a small group", preview: <StoryPreview symbol="person.2.fill" title="Team workspace" detail="A shared space with roles and collaborative activity." /> },
+  { id: "organization", symbol: "building.2.fill", title: "Organization", caption: "Structured access across departments", preview: <StoryPreview symbol="building.2.fill" title="Organization workspace" detail="A structured home for multiple groups and policies." /> },
 ];
 
 const setupSteps: readonly SetupStep[] = [
@@ -146,9 +222,6 @@ const setupSteps: readonly SetupStep[] = [
   { id: "privacy", name: "Privacy", symbol: "shield.fill" },
 ];
 
-// The helper is intentionally instantiated by a showcase fixture even though
-// the chooser's primary interaction state is React-owned. This keeps its
-// same-tab/cross-tab persistence contract exercised in a realistic client.
 const recentChoiceIds = createStoredIdList("mac-chrome-showcase-recent-choices", (id) =>
   chooserChoices.some((choice) => choice.id === id),
 );
@@ -167,145 +240,442 @@ function StoryPreview({ detail, symbol, title }: {
   );
 }
 
-function ToolbarStory({ inspectorOpen, view, onInspectorOpenChange, onViewChange }: {
-  readonly inspectorOpen: boolean;
-  readonly view: ToolbarViewMode;
-  readonly onInspectorOpenChange: (open: boolean) => void;
-  readonly onViewChange: (mode: ToolbarViewMode) => void;
-}) {
+function StoryHeader({ description, title }: { readonly description: string; readonly title: string }) {
+  return (
+    <header className="showcase-story-header">
+      <h2>{title}</h2>
+      <p>{description}</p>
+    </header>
+  );
+}
+
+function AppAnatomyStory() {
+  const anatomy = [
+    ["DesktopShell", "wallpaper, menu bar, status items, Dock"],
+    ["WindowChrome", "frame, traffic lights, dragging, window actions"],
+    ["MacNavigationSplitView", "sidebar and flexible detail column"],
+    ["MacSourceList", "persistent catalog navigation"],
+    ["MacToolbar", "context title and duplicate menu commands"],
+    ["MacInspector", "optional supplementary controls, outside navigation"],
+  ] as const;
+  return (
+    <div className="showcase-story-scroll">
+      <StoryHeader title="Mac app anatomy" description="This app window is the example: each visible region is a reusable public primitive, composed rather than redrawn for the screenshot." />
+      <section className="showcase-anatomy" aria-label="Mac app anatomy layers">
+        <div className="showcase-anatomy-icon">
+          <MacDockAppIcon
+            icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "#0a84ff", foreground: "#ffffff" }}
+            label="Showcase app icon"
+          />
+        </div>
+        <dl>
+          {anatomy.map(([name, detail]) => (
+            <div key={name}><dt>{name}</dt><dd>{detail}</dd></div>
+          ))}
+        </dl>
+      </section>
+      <p className="showcase-note">Navigation split views can have two or three navigation columns. The inspector on the right is supplementary and is deliberately not counted as the third navigation column.</p>
+    </div>
+  );
+}
+
+function WindowToolbarStory() {
   const [query, setQuery] = useState("");
-  const [lastAction, setLastAction] = useState("Ready");
+  const [view, setView] = useState("grid");
+  const [status, setStatus] = useState("Ready");
+  const items = ["Briefs", "References", "Research", "Archive"].filter((item) => item.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <div className="showcase-story-pane">
+      <StoryHeader title="Window and toolbar" description="Toolbars contain navigation, contextual titles, commands, view controls, and search—not decorative labels such as “Toolbar.”" />
+      <div className="showcase-toolbar-example">
+        <MacToolbar
+          className="showcase-example-toolbar"
+          leading={
+            <ToolbarCapsule divided role="group" label="History">
+              <ToolbarButton label="Back" onClick={() => setStatus("Back")}><ToolbarGlyph name="back" /></ToolbarButton>
+              <ToolbarButton label="Forward" disabled onClick={() => setStatus("Forward")}><ToolbarGlyph name="forward" /></ToolbarButton>
+            </ToolbarCapsule>
+          }
+          title="Library"
+          trailing={
+            <>
+            <MacSegmentedControl
+              ariaLabel="Library view"
+              value={view}
+              onChange={setView}
+              options={[
+                { id: "grid", label: "Grid", icon: <SystemSymbol name="square.grid.2x2" /> },
+                { id: "list", label: "List", icon: <SystemSymbol name="list.bullet" /> },
+              ]}
+            />
+            <ToolbarSearchBubble value={query} onChange={setQuery} placeholder="Search Library" />
+            </>
+          }
+        />
+        <div className={`showcase-library-items is-${view}`}>
+          {items.map((label) => (
+            <button type="button" key={label} onClick={() => setStatus(`Selected ${label}`)}>
+              <SystemSymbol name={label === "Briefs" || label === "Research" ? "doc.text.fill" : "folder"} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+        <output className="showcase-inline-status" aria-live="polite">{status}</output>
+      </div>
+    </div>
+  );
+}
 
-  const actionMenu: MenuSpec = [
-    { kind: "section", id: "create", label: "Create" },
-    { kind: "action", id: "new-folder", label: "New Folder", shortcut: "⇧⌘N", icon: <SystemSymbol name="folder.badge.plus" />, onSelect: () => setLastAction("Created a folder") },
-    { kind: "action", id: "new-document", label: "New Document", shortcut: "⌘N", icon: <SystemSymbol name="doc.text.fill" />, onSelect: () => setLastAction("Created a document") },
-    { kind: "separator", id: "create-separator" },
-    { kind: "action", id: "refresh", label: "Refresh", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, onSelect: () => setLastAction("Refreshed") },
+function NavigationStory() {
+  const [section, setSection] = useState("projects");
+  const [item, setItem] = useState("website");
+  const sidebarSections: readonly MacSourceListSection[] = [{
+    id: "workspace",
+    title: "Workspace",
+    collapsible: true,
+    items: [
+      { id: "projects", label: "Projects", icon: <SystemSymbol name="folder" /> },
+      { id: "archive", label: "Archive", icon: <SystemSymbol name="folder" /> },
+    ],
+  }];
+  const listSections: readonly MacListSection[] = [{
+    id: "projects",
+    items: [
+      { id: "website", label: "Website refresh", description: "Updated today", icon: <SystemSymbol name="network" /> },
+      { id: "launch", label: "Launch plan", description: "Updated yesterday", icon: <SystemSymbol name="doc.text.fill" /> },
+      { id: "research", label: "Research", description: "Updated Monday", icon: <SystemSymbol name="folder" /> },
+    ],
+  }];
+  const selectedLabel = listSections[0]?.items.find((row) => row.id === item)?.label ?? "No selection";
+  return (
+    <div className="showcase-story-pane">
+      <StoryHeader title="A true three-column navigation split" description="Sidebar → content list → detail is a navigation hierarchy. The showcase inspector remains a separate fourth, supplementary region." />
+      <div className="showcase-navigation-demo">
+        <MacNavigationSplitView
+          id="navigation-story"
+          sidebar={<MacSourceList label="Example sidebar" sections={sidebarSections} selectedId={section} onSelectionChange={setSection} />}
+          content={<MacList ariaLabel="Projects" sections={listSections} selectedId={item} onSelectionChange={(id) => id !== null && setItem(id)} />}
+          detail={
+            <div className="showcase-navigation-detail">
+              <SystemSymbol name={section === "archive" ? "folder" : "doc.text.fill"} />
+              <h3>{selectedLabel}</h3>
+              <p>The detail column responds to the selection in the middle content list.</p>
+            </div>
+          }
+          sidebarLabel="Example sidebar"
+          contentLabel="Project list"
+          detailLabel="Project detail"
+          sidebarSizing={{ defaultSize: 160, minSize: 130, maxSize: 220 }}
+          contentSizing={{ defaultSize: 210, minSize: 170, maxSize: 280 }}
+          detailSizing={{ defaultSize: 320, minSize: 220 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CollectionsStory() {
+  const [selectedId, setSelectedId] = useState<string | null>("design");
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const sections: readonly MacListSection[] = [
+    {
+      id: "pinned",
+      title: "Pinned",
+      items: [
+        { id: "design", label: "Design system", description: "12 components", secondary: "Today", icon: <SystemSymbol name="sparkles" /> },
+        { id: "research", label: "Research notes", description: "8 documents", secondary: "Mon", icon: <SystemSymbol name="doc.text.fill" /> },
+      ],
+    },
+    {
+      id: "shared",
+      title: "Shared",
+      items: [
+        { id: "handoff", label: "Engineering handoff", description: "Read only", accessory: <SystemSymbol name="shield.fill" />, disabled: true, icon: <SystemSymbol name="folder" /> },
+      ],
+    },
   ];
+  return (
+    <div className="showcase-story-scroll">
+      <StoryHeader title="Lists and disclosure" description="Use a source list for window navigation and a standard list for selectable content. They share selection semantics but not the same visual role." />
+      <div className="showcase-two-up">
+        <section className="showcase-sample-group" aria-label="Standard list example">
+          <h3>Standard list</h3>
+          <MacList ariaLabel="Example documents" sections={sections} selectedId={selectedId} onSelectionChange={setSelectedId} />
+        </section>
+        <section className="showcase-sample-group" aria-label="Disclosure example">
+          <h3>Disclosure groups</h3>
+          <MacDisclosureGroup title="General" expanded={detailsOpen} onExpandedChange={setDetailsOpen}>
+            The disclosure controls content in place without changing the current navigation selection.
+          </MacDisclosureGroup>
+          <MacDisclosureGroup title="Advanced" expanded={false} disabled onExpandedChange={() => undefined}>
+            Disabled content.
+          </MacDisclosureGroup>
+        </section>
+      </div>
+    </div>
+  );
+}
 
+function ControlsStory() {
+  const [name, setName] = useState("Mac Chrome");
+  const [updates, setUpdates] = useState(true);
+  const [analytics, setAnalytics] = useState(false);
+  const [density, setDensity] = useState("comfortable");
+  const [status, setStatus] = useState("No changes yet");
+  return (
+    <div className="showcase-story-scroll">
+      <StoryHeader title="Controls and forms" description="Form rows align labels and values while the controls keep compact Mac geometry and native web semantics." />
+      <MacForm ariaLabel="Example preferences" className="showcase-form" onSubmit={(event) => { event.preventDefault(); setStatus("Preferences saved"); }}>
+        <MacFormSection title="General" description="Standard controls compose inside labeled rows.">
+          <MacLabeledContent label="Workspace name"><MacTextField ariaLabel="Workspace name" value={name} onChange={setName} /></MacLabeledContent>
+          <MacLabeledContent label="Density"><MacSegmentedControl ariaLabel="Interface density" value={density} onChange={setDensity} options={[{ id: "compact", label: "Compact" }, { id: "comfortable", label: "Comfortable" }]} /></MacLabeledContent>
+          <MacLabeledContent label="Updates"><MacToggle selected={updates} onChange={setUpdates}>Install automatically</MacToggle></MacLabeledContent>
+          <MacLabeledContent label="Analytics"><MacToggle style="switch" selected={analytics} onChange={setAnalytics}>Share diagnostics</MacToggle></MacLabeledContent>
+        </MacFormSection>
+        <div className="showcase-form-actions">
+          <MacControlGroup ariaLabel="Preference actions">
+            <MacButton onPress={() => setStatus("Defaults restored")}>Restore Defaults</MacButton>
+            <MacButton type="submit" variant="primary">Save</MacButton>
+          </MacControlGroup>
+          <output aria-live="polite">{status}</output>
+        </div>
+      </MacForm>
+    </div>
+  );
+}
+
+function MenusStory() {
+  const [status, setStatus] = useState("Choose a command or open the info popover.");
+  const [exampleOption, setExampleOption] = useState(true);
+  const items: MenuSpec = [
+    { kind: "section", id: "create", label: "Create" },
+    { kind: "action", id: "folder", label: "New Folder", shortcut: "⇧⌘N", icon: <SystemSymbol name="folder.badge.plus" />, onSelect: () => setStatus("New Folder selected") },
+    { kind: "action", id: "document", label: "New Document", shortcut: "⌘N", icon: <SystemSymbol name="doc.text.fill" />, onSelect: () => setStatus("New Document selected") },
+    { kind: "separator", id: "separator" },
+    { kind: "action", id: "refresh", label: "Refresh", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, onSelect: () => setStatus("Refreshed") },
+  ];
+  return (
+    <div className="showcase-story-scroll">
+      <StoryHeader title="Menus and popovers" description="Menus are command lists. Popovers host small arbitrary interfaces. Both use shared overlay behavior rather than ad hoc dropdown CSS." />
+      <section className="showcase-control-row" aria-label="Menu and popover examples">
+        <MacMenu trigger={<><SystemSymbol name="list.bullet" /> Actions</>} triggerLabel="Actions" label="Example actions" items={items} />
+        <MacPopover label="Component information" trigger={<><SystemSymbol name="person.crop.circle" /> Info</>}>
+          <div className="showcase-popover-copy">
+            <strong>Popover content</strong>
+            <p>Use this for a small amount of transient functionality, not a list of commands.</p>
+            <MacToggle
+              selected={exampleOption}
+              onChange={(selected) => {
+                setExampleOption(selected);
+                setStatus(selected ? "Example option enabled" : "Example option disabled");
+              }}
+            >
+              Example option
+            </MacToggle>
+          </div>
+        </MacPopover>
+      </section>
+      <output className="showcase-inline-status" aria-live="polite">{status}</output>
+    </div>
+  );
+}
+
+function PresentationStory() {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [projectName, setProjectName] = useState("Untitled Project");
+  const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <div className="showcase-story-pane">
+      <StoryHeader title="Presentation and feedback" description="Use an attached sheet for a scoped modal task and a content-unavailable state inside the region that has no content." />
+      <MacContentUnavailable
+        icon={<SystemSymbol name="folder" />}
+        title="No projects"
+        description="Create a project to see it in this collection. The status belongs in the active window, not on the desktop."
+        actions={<MacButton ref={sheetTriggerRef} className="showcase-sheet-trigger" variant="primary" onPress={() => setSheetOpen(true)}>Create Project…</MacButton>}
+      />
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} label="Create Project" fallbackFocusRef={sheetTriggerRef} initialFocusSelector=".mc-field-input">
+        <SetupHeading symbol="folder.badge.plus" title="Create Project" />
+        <div className="showcase-sheet-form">
+          <MacTextField ariaLabel="Project name" value={projectName} onChange={setProjectName} />
+          <div className="showcase-form-actions"><MacButton onPress={() => setSheetOpen(false)}>Cancel</MacButton><MacButton variant="primary" onPress={() => setSheetOpen(false)}>Create</MacButton></div>
+        </div>
+      </Sheet>
+    </div>
+  );
+}
+
+function CompositionStory({ story, onOpen }: { readonly story: StoryDefinition; readonly onOpen: (id: RecipeId) => void }) {
+  const recipe = story.id as RecipeId;
+  const parts: Record<RecipeId, readonly string[]> = {
+    finder: ["MacNavigationSplitView", "MacSourceList", "MacToolbar", "collection + preview", "Quick Look"],
+    chooser: ["WindowChrome", "selection collection", "MacMenu", "preview", "action footer"],
+    setup: ["WindowChrome", "step rail", "form content", "Sheet", "fixed actions"],
+    chat: ["MacNavigationSplitView", "MacSourceList", "MacToolbar", "transcript", "composer"],
+  };
+  return (
+    <div className="showcase-story-scroll">
+      <StoryHeader title={story.label} description={story.summary} />
+      <section className="showcase-recipe-summary">
+        <SystemSymbol name={story.symbol} />
+        <h3>Composed from</h3>
+        <ul>{parts[recipe].map((part) => <li key={part}>{part}</li>)}</ul>
+        <MacButton variant="primary" onPress={() => onOpen(recipe)}>Open Example Window</MacButton>
+      </section>
+      <p className="showcase-note">The complete recipe opens as its own window over the desktop. It is not squeezed into or visually nested inside the component catalog.</p>
+    </div>
+  );
+}
+
+function StoryContent({ story, onOpenRecipe }: { readonly story: StoryDefinition; readonly onOpenRecipe: (id: RecipeId) => void }) {
+  if (story.id === "anatomy") return <AppAnatomyStory />;
+  if (story.id === "window-toolbar") return <WindowToolbarStory />;
+  if (story.id === "navigation") return <NavigationStory />;
+  if (story.id === "collections") return <CollectionsStory />;
+  if (story.id === "controls") return <ControlsStory />;
+  if (story.id === "menus") return <MenusStory />;
+  if (story.id === "presentation") return <PresentationStory />;
+  return <CompositionStory story={story} onOpen={onOpenRecipe} />;
+}
+
+function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible, query, sidebarVisible, status, onBack, onForward, onInspectorVisibleChange, onOpenRecipe, onQueryChange, onSelectStory, onSidebarVisibleChange }: {
+  readonly activeStory: StoryDefinition;
+  readonly canGoBack: boolean;
+  readonly canGoForward: boolean;
+  readonly inspectorVisible: boolean;
+  readonly query: string;
+  readonly sidebarVisible: boolean;
+  readonly status: string;
+  readonly onBack: () => void;
+  readonly onForward: () => void;
+  readonly onInspectorVisibleChange: (visible: boolean) => void;
+  readonly onOpenRecipe: (id: RecipeId) => void;
+  readonly onQueryChange: (value: string) => void;
+  readonly onSelectStory: (id: StoryId) => void;
+  readonly onSidebarVisibleChange: (visible: boolean) => void;
+}) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const sourceSections: readonly MacSourceListSection[] = storyGroups.flatMap((group) => {
+    const matchingStories = group.stories.filter((story) => story.label.toLowerCase().includes(normalizedQuery));
+    return matchingStories.length === 0 ? [] : [{
+      id: group.id,
+      title: group.title,
+      collapsible: true,
+      items: matchingStories.map((story) => ({
+        id: story.id,
+        label: story.label,
+        icon: <SystemSymbol name={story.symbol} />,
+      })),
+    }];
+  });
   return (
     <WindowChrome
-      label="Window and toolbar showcase"
-      frame={{
-        top: 64,
-        left: "max(12px, calc(50% - 450px))",
-        width: "min(900px, calc(100vw - 24px))",
-        height: "min(560px, calc(100vh - 154px))",
-      }}
+      className="showcase-catalog-window"
+      label="Mac Chrome component showcase"
+      frame={{ top: 38, left: "max(16px, calc(50vw - 550px))", width: "min(1100px, calc(100vw - 32px))", height: "min(632px, calc(100vh - 126px))" }}
     >
-      <MacToolbar
-        leading={
-          <div className="showcase-toolbar-leading">
-            <TrafficLights />
-            <ToolbarCapsule divided role="group" label="History">
-              <ToolbarButton label="Back" onClick={() => setLastAction("Back")}><ToolbarGlyph name="back" /></ToolbarButton>
-              <ToolbarButton label="Forward" disabled onClick={() => setLastAction("Forward")}><ToolbarGlyph name="forward" /></ToolbarButton>
-            </ToolbarCapsule>
-          </div>
-        }
-        title="Library"
-        trailing={
-          <>
-            <ToolbarCapsule divided role="group" label="View">
-              <ToolbarButton label="Icon view" pressed={view === "grid"} selected={view === "grid"} onClick={() => onViewChange("grid")}>
-                <ToolbarGlyph name="grid" />
-              </ToolbarButton>
-              <ToolbarButton label="List view" pressed={view === "list"} selected={view === "list"} onClick={() => onViewChange("list")}>
-                <ToolbarGlyph name="list" />
-              </ToolbarButton>
-            </ToolbarCapsule>
-            <ToolbarToggle label="Toggle inspector" pressed={inspectorOpen} onPressedChange={onInspectorOpenChange}>
-              <ToolbarGlyph name="inspector" />
-            </ToolbarToggle>
-            <MacMenu
-              triggerClassName="mc-toolbar-button"
-              trigger={<ToolbarGlyph name="more" />}
-              triggerLabel="More actions"
-              label="More actions"
-              items={actionMenu}
-            />
-            <MacDetailsMenu
-              className="showcase-toolbar-details"
-              label="Account menu"
-              summary={<SystemSymbol name="person.crop.circle" />}
-            >
-              <div className="showcase-account-menu">
-                <strong>Example Account</strong>
-                <small>Local showcase profile</small>
-                <button type="button" onClick={() => setLastAction("Opened account settings")}>Account Settings…</button>
+      <div className="showcase-catalog-shell">
+        <div className="showcase-catalog-navigation">
+          <MacNavigationSplitView
+            id="showcase-catalog"
+            sidebarVisible={sidebarVisible}
+            sidebarLabel="Component catalog"
+            detailLabel={`${activeStory.label} story`}
+            sidebarSizing={{ defaultSize: 224, minSize: 190, maxSize: 290 }}
+            detailSizing={{ defaultSize: 620, minSize: 430 }}
+            sidebar={
+              <div className="showcase-catalog-sidebar">
+                <div className="showcase-sidebar-titlebar" data-window-drag-handle=""><TrafficLights /></div>
+                <div className="showcase-source-list-scroll">
+                  {sourceSections.length > 0 ? (
+                    <MacSourceList
+                      label="Component catalog"
+                      sections={sourceSections}
+                      selectedId={activeStory.id}
+                      onSelectionChange={(id) => {
+                        const story = stories.find((candidate) => candidate.id === id);
+                        if (story !== undefined) onSelectStory(story.id);
+                      }}
+                    />
+                  ) : <MacContentUnavailable title="No components" description="Try a different search." />}
+                </div>
               </div>
-            </MacDetailsMenu>
-            <ToolbarSearchBubble value={query} onChange={setQuery} placeholder="Search Library" />
-          </>
-        }
-      />
-      <div className={`showcase-library-layout${inspectorOpen ? " has-inspector" : ""}`}>
-        <section className="showcase-library-content" aria-label="Library content">
-          <div className={`showcase-library-items is-${view}`}>
-            {["Briefs", "References", "Research", "Archive"].filter((label) => label.toLowerCase().includes(query.toLowerCase())).map((label) => (
-              <button type="button" key={label} onClick={() => setLastAction(`Selected ${label}`)}>
-                <SystemSymbol name={label === "Briefs" || label === "Research" ? "doc.text.fill" : "folder"} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-        {inspectorOpen ? (
-          <aside className="showcase-inspector" aria-label="Inspector">
-            <SystemSymbol name="sidebar.trailing" />
-            <strong>Inspector</strong>
-            <p>Selection details appear here.</p>
-          </aside>
-        ) : null}
+            }
+            detail={
+              <div className="showcase-catalog-main">
+                <MacToolbar
+                  leading={
+                    <div className="showcase-toolbar-leading">
+                      {!sidebarVisible ? <TrafficLights /> : null}
+                      <ToolbarToggle label={sidebarVisible ? "Hide Sidebar" : "Show Sidebar"} pressed={sidebarVisible} onPressedChange={onSidebarVisibleChange}>
+                        <SystemSymbol name="sidebar.left" />
+                      </ToolbarToggle>
+                      <ToolbarCapsule divided role="group" label="History">
+                        <ToolbarButton label="Back" disabled={!canGoBack} onClick={onBack}><ToolbarGlyph name="back" /></ToolbarButton>
+                        <ToolbarButton label="Forward" disabled={!canGoForward} onClick={onForward}><ToolbarGlyph name="forward" /></ToolbarButton>
+                      </ToolbarCapsule>
+                    </div>
+                  }
+                  title={activeStory.label}
+                  trailing={
+                    <>
+                      <ToolbarToggle label={inspectorVisible ? "Hide Inspector" : "Show Inspector"} pressed={inspectorVisible} onPressedChange={onInspectorVisibleChange}>
+                        <ToolbarGlyph name="inspector" />
+                      </ToolbarToggle>
+                      <ToolbarSearchBubble label="Search components" value={query} onChange={onQueryChange} placeholder="Search Components" />
+                    </>
+                  }
+                />
+                <main className="showcase-story-content" data-showcase-story={activeStory.id} aria-label={`${activeStory.label} story`}>
+                  <StoryContent story={activeStory} onOpenRecipe={onOpenRecipe} />
+                </main>
+                <footer className="showcase-catalog-status"><span>{status}</span><span>{stories.length} examples</span></footer>
+              </div>
+            }
+          />
+        </div>
+        <MacInspector visible={inspectorVisible} label="Component inspector" className="showcase-component-inspector" defaultWidth={250}>
+          <header><SystemSymbol name="sidebar.trailing" /><strong>Component</strong></header>
+          <dl>
+            <div><dt>Native counterpart</dt><dd>{activeStory.nativeCounterpart}</dd></div>
+            <div><dt>Public composition</dt><dd>{activeStory.id === "navigation" ? "Three navigation columns; inspector separate" : activeStory.summary}</dd></div>
+            <div><dt>State owner</dt><dd>Controlled by the application</dd></div>
+            <div><dt>Material</dt><dd>Opaque, restrained, no simulated Liquid Glass</dd></div>
+          </dl>
+        </MacInspector>
       </div>
-      <output className="showcase-window-status" aria-live="polite">{lastAction}</output>
     </WindowChrome>
   );
 }
 
-function FinderStory({ mode, previewVisible, onModeChange, onPreviewVisibleChange }: {
+function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeChange, onPreviewVisibleChange, onSidebarVisibleChange }: {
   readonly mode: FinderViewMode;
   readonly previewVisible: boolean;
+  readonly sidebarVisible: boolean;
+  readonly onClose: () => void;
   readonly onModeChange: (mode: FinderViewMode) => void;
   readonly onPreviewVisibleChange: (visible: boolean) => void;
+  readonly onSidebarVisibleChange: (visible: boolean) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>("brief");
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("Documents");
-  const [lastAction, setLastAction] = useState("Select an item, then press Space for Quick Look.");
-
+  const [status, setStatus] = useState("Select an item, then press Space for Quick Look.");
   const sidebar: readonly SidebarSection[] = [
-    {
-      id: "favorites",
-      title: "Favorites",
-      collapsible: true,
-      items: [
-        { id: "recents", label: "Recents", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, selected: location === "Recents", onSelect: () => setLocation("Recents") },
-        { id: "documents", label: "Documents", icon: <SystemSymbol name="doc.text.fill" />, badge: 4, selected: location === "Documents", onSelect: () => setLocation("Documents") },
-      ],
-    },
-    {
-      id: "locations",
-      title: "Locations",
-      items: [
-        { id: "cloud", label: "Shared Server", icon: <SystemSymbol name="network" />, selected: location === "Shared Server", onSelect: () => setLocation("Shared Server") },
-      ],
-    },
+    { id: "favorites", title: "Favorites", collapsible: true, items: [
+      { id: "recents", label: "Recents", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, selected: location === "Recents", onSelect: () => setLocation("Recents") },
+      { id: "documents", label: "Documents", icon: <SystemSymbol name="doc.text.fill" />, badge: 4, selected: location === "Documents", onSelect: () => setLocation("Documents") },
+    ] },
+    { id: "locations", title: "Locations", items: [{ id: "cloud", label: "Shared Server", icon: <SystemSymbol name="network" />, selected: location === "Shared Server", onSelect: () => setLocation("Shared Server") }] },
   ];
   const shownEntries = finderEntries.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()));
-
   return (
     <FinderWindow
       title={location}
       label="Finder showcase"
-      frame={{
-        top: 54,
-        left: "max(12px, calc(50% - 480px))",
-        width: "min(960px, calc(100vw - 24px))",
-        height: "min(590px, calc(100vh - 144px))",
-      }}
+      frame={{ top: 54, left: "max(12px, calc(50% - 480px))", width: "min(960px, calc(100vw - 24px))", height: "min(590px, calc(100vh - 144px))" }}
       sidebar={sidebar}
+      sidebarVisible={sidebarVisible}
+      onSidebarVisibleChange={onSidebarVisibleChange}
       entries={shownEntries}
       mode={mode}
       onModeChange={onModeChange}
@@ -313,37 +683,21 @@ function FinderStory({ mode, previewVisible, onModeChange, onPreviewVisibleChang
       onPreviewVisibleChange={onPreviewVisibleChange}
       search={{ value: query, onChange: setQuery }}
       selection={{ selectedId, onSelect: setSelectedId }}
-      onOpen={(entry) => setLastAction(`Opened ${entry.name}`)}
-      preview={(entry) => entry === null ? (
-        <p className="showcase-empty-preview">Select an item to preview it.</p>
-      ) : (
-        <StoryPreview
-          symbol={entry.kind === "folder" ? "folder" : "doc.text.fill"}
-          title={entry.name}
-          detail={[entry.modified, entry.size].filter(Boolean).join(" · ")}
-        />
-      )}
-      statusBar={<span>{shownEntries.length} items · {lastAction}</span>}
-      toolbarExtras={
-        <ToolbarButton label="Create folder" onClick={() => setLastAction("Created a folder")}>
-          <SystemSymbol name="folder.badge.plus" />
-        </ToolbarButton>
-      }
+      onOpen={(entry) => setStatus(`Opened ${entry.name}`)}
+      preview={(entry) => entry === null ? <p className="showcase-empty-preview">Select an item to preview it.</p> : <StoryPreview symbol={entry.kind === "folder" ? "folder" : "doc.text.fill"} title={entry.name} detail={[entry.modified, entry.size].filter(Boolean).join(" · ")} />}
+      statusBar={<span>{shownEntries.length} items · {status}</span>}
+      toolbarExtras={<ToolbarButton label="Create folder" onClick={() => setStatus("Created a folder")}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>}
       iconColumns={4}
+      onClose={onClose}
     />
   );
 }
 
-function ChooserStory() {
+function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
   const recentIds = recentChoiceIds.useStoredIds();
   const [selectedId, setSelectedId] = useState<string | null>("personal");
-  const [lastAction, setLastAction] = useState("Choose a workspace type.");
-
-  function select(id: string) {
-    setSelectedId(id);
-    recentChoiceIds.add(id);
-  }
-
+  const [status, setStatus] = useState("Choose a workspace type.");
+  function select(id: string) { setSelectedId(id); recentChoiceIds.add(id); }
   return (
     <ChooserWindow
       title="Choose a workspace"
@@ -351,98 +705,56 @@ function ChooserStory() {
       finePrint={recentIds.length > 0 ? `Recently viewed: ${recentIds.length}` : "You can change this later."}
       windowTitle="New Workspace"
       label="Chooser showcase"
-      frame={{
-        top: 72,
-        left: "max(12px, calc(50% - 420px))",
-        width: "min(840px, calc(100vw - 24px))",
-        height: "min(530px, calc(100vh - 162px))",
-      }}
+      frame={{ top: 72, left: "max(12px, calc(50% - 420px))", width: "min(840px, calc(100vw - 24px))", height: "min(530px, calc(100vh - 162px))" }}
       choices={chooserChoices}
       selected={selectedId}
       onSelect={select}
-      onActivate={(id) => setLastAction(`Opened ${chooserChoices.find((choice) => choice.id === id)?.title ?? id}`)}
-      secondaryGroup={{
-        label: "More Options",
-        caption: "Import or connect instead",
-        activeCaption: "An alternate path is active",
-        sections: [
-          {
-            id: "other",
-            commands: [
-              { id: "import", title: "Import a workspace…", symbol: "doc.badge.arrow.down", onSelect: () => setLastAction("Import selected") },
-              { id: "connect", title: "Connect to a server…", symbol: "network", onSelect: () => setLastAction("Connect selected") },
-            ],
-          },
-        ],
-      }}
-      footer={
-        <>
-          <span className="showcase-footer-status" aria-live="polite">{lastAction}</span>
-          <button type="button" className="mc-button mc-primary" disabled={selectedId === null} onClick={() => setLastAction("Workspace created")}>Create</button>
-        </>
-      }
+      onActivate={(id) => setStatus(`Opened ${chooserChoices.find((choice) => choice.id === id)?.title ?? id}`)}
+      secondaryGroup={{ label: "More Options", caption: "Import or connect instead", activeCaption: "An alternate path is active", sections: [{ id: "other", commands: [
+        { id: "import", title: "Import a workspace…", symbol: "doc.badge.arrow.down", onSelect: () => setStatus("Import selected") },
+        { id: "connect", title: "Connect to a server…", symbol: "network", onSelect: () => setStatus("Connect selected") },
+      ] }] }}
+      footer={<><span className="showcase-footer-status" aria-live="polite">{status}</span><MacButton variant="primary" disabled={selectedId === null} onPress={() => setStatus("Workspace created")}>Create</MacButton></>}
+      onClose={onClose}
     />
   );
 }
 
-function SetupStory() {
+function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [furthestIndex, setFurthestIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetFallbackRef = useRef<HTMLButtonElement>(null);
   const step = setupSteps[stepIndex] ?? setupSteps[0];
-
-  function selectStep(id: string) {
-    const index = setupSteps.findIndex((candidate) => candidate.id === id);
-    if (index >= 0 && index <= furthestIndex) setStepIndex(index);
-  }
-
   return (
     <SetupAssistant
       label="Setup Assistant showcase"
-      frame={{
-        top: 58,
-        left: "max(12px, calc(50% - 370px))",
-        width: "min(740px, calc(100vw - 24px))",
-        height: "min(580px, calc(100vh - 148px))",
-      }}
+      frame={{ top: 58, left: "max(12px, calc(50% - 370px))", width: "min(740px, calc(100vw - 24px))", height: "min(580px, calc(100vh - 148px))" }}
       steps={setupSteps}
       currentStep={step.id}
       furthestIndex={furthestIndex}
-      onSelectStep={selectStep}
+      onSelectStep={(id) => { const index = setupSteps.findIndex((candidate) => candidate.id === id); if (index >= 0 && index <= furthestIndex) setStepIndex(index); }}
       onBack={() => setStepIndex((current) => Math.max(0, current - 1))}
-      onContinue={() => {
-        const next = Math.min(setupSteps.length - 1, stepIndex + 1);
-        setFurthestIndex((current) => Math.max(current, next));
-        setStepIndex(next);
-      }}
+      onContinue={() => { const next = Math.min(setupSteps.length - 1, stepIndex + 1); setFurthestIndex((current) => Math.max(current, next)); setStepIndex(next); }}
       backLabel={stepIndex === 0 ? "Not Now" : "Back"}
       continueLabel={stepIndex === setupSteps.length - 1 ? "Finish" : "Continue"}
       modalOpen={sheetOpen}
+      onClose={onClose}
     >
       <SetupHeading symbol={step.symbol} title={step.name} />
-      <div className="showcase-setup-copy">
-        <p>{step.id === "welcome" ? "A guided path through the standard setup surface." : step.id === "account" ? "Connect an example account when you are ready." : "Review local privacy controls before finishing."}</p>
-        <button ref={sheetFallbackRef} type="button" className="mc-button" onClick={() => setSheetOpen(true)}>Show Details…</button>
-      </div>
-      <Sheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        label={`${step.name} details`}
-        fallbackFocusRef={sheetFallbackRef}
-        initialFocusSelector="[data-sheet-close]"
-      >
-        <SetupHeading symbol={step.symbol} title={`${step.name} Details`} />
-        <p>This attached sheet demonstrates modal focus, Escape dismissal, and focus restoration.</p>
-        <footer>
-          <button data-sheet-close="" type="button" className="mc-button mc-primary" onClick={() => setSheetOpen(false)}>Done</button>
-        </footer>
+      <div className="showcase-setup-copy"><p>{step.id === "welcome" ? "A guided path through the standard setup surface." : step.id === "account" ? "Connect an example account when you are ready." : "Review local privacy controls before finishing."}</p><MacButton ref={sheetFallbackRef} onPress={() => setSheetOpen(true)}>Show Details…</MacButton></div>
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} label={`${step.name} details`} fallbackFocusRef={sheetFallbackRef} initialFocusSelector=".mc-button-primary">
+        <SetupHeading symbol={step.symbol} title={`${step.name} Details`} /><p>This attached sheet demonstrates modal focus, Escape dismissal, and focus restoration.</p><footer><MacButton variant="primary" onPress={() => setSheetOpen(false)}>Done</MacButton></footer>
       </Sheet>
     </SetupAssistant>
   );
 }
 
-function ChatStory() {
+function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
+  readonly sidebarVisible: boolean;
+  readonly onClose: () => void;
+  readonly onSidebarVisibleChange: (visible: boolean) => void;
+}) {
   const [activeConversationId, setActiveConversationId] = useState("project");
   const [composerValue, setComposerValue] = useState("");
   const [query, setQuery] = useState("");
@@ -450,270 +762,209 @@ function ChatStory() {
   const owner = useMemo(() => ({ name: "You", role: "owner" as const }), []);
   const agent = useMemo(() => ({ name: "Assistant", role: "agent" as const, icon: <SystemSymbol name="sparkles" /> }), []);
   const conversations = [
-    {
-      id: "project",
-      title: "Project Notes",
-      icon: <SystemSymbol name="doc.text.fill" />,
-      messages: [
-        { id: "one", author: owner, at: "9:41 AM", body: "Can you summarize the open decisions?" },
-        { id: "two", author: agent, at: "9:42 AM", body: "There are three decisions ready for review." },
-        { id: "system", author: { name: "System", role: "system" as const }, at: "9:43 AM", body: "Draft saved locally." },
-        ...sentMessages,
-      ],
-    },
-    {
-      id: "research",
-      title: "Research",
-      icon: <SystemSymbol name="magnifyingglass" />,
-      messages: [{ id: "research-one", author: agent, at: "Yesterday", body: "The reference set is ready." }],
-    },
+    { id: "project", title: "Project Notes", icon: <SystemSymbol name="doc.text.fill" />, messages: [
+      { id: "one", author: owner, at: "9:41 AM", body: "Can you summarize the open decisions?" },
+      { id: "two", author: agent, at: "9:42 AM", body: "There are three decisions ready for review." },
+      { id: "system", author: { name: "System", role: "system" as const }, at: "9:43 AM", body: "Draft saved locally." },
+      ...sentMessages,
+    ] },
+    { id: "research", title: "Research", icon: <SystemSymbol name="magnifyingglass" />, messages: [{ id: "research-one", author: agent, at: "Yesterday", body: "The reference set is ready." }] },
   ];
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const visibleConversations = normalizedQuery.length === 0
-    ? conversations
-    : conversations.flatMap((conversation) => {
-        const titleMatches = conversation.title.toLocaleLowerCase().includes(normalizedQuery);
-        const matchingMessages = titleMatches
-          ? conversation.messages
-          : conversation.messages.filter((message) =>
-              typeof message.body === "string" && message.body.toLocaleLowerCase().includes(normalizedQuery));
-        return matchingMessages.length === 0 ? [] : [{ ...conversation, messages: matchingMessages }];
-      });
-  const visibleActiveConversationId = visibleConversations.some((conversation) => conversation.id === activeConversationId)
-    ? activeConversationId
-    : visibleConversations[0]?.id ?? activeConversationId;
-
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleConversations = normalizedQuery.length === 0 ? conversations : conversations.flatMap((conversation) => {
+    const titleMatches = conversation.title.toLowerCase().includes(normalizedQuery);
+    const matchingMessages = titleMatches ? conversation.messages : conversation.messages.filter((message) => typeof message.body === "string" && message.body.toLowerCase().includes(normalizedQuery));
+    return matchingMessages.length === 0 ? [] : [{ ...conversation, messages: matchingMessages }];
+  });
+  const visibleActiveConversationId = visibleConversations.some((conversation) => conversation.id === activeConversationId) ? activeConversationId : visibleConversations[0]?.id ?? activeConversationId;
   return (
     <ChatWindow
       label="Chat showcase"
-      frame={{
-        top: 65,
-        left: "max(12px, calc(50% - 390px))",
-        width: "min(780px, calc(100vw - 24px))",
-        height: "min(550px, calc(100vh - 155px))",
-      }}
+      frame={{ top: 65, left: "max(12px, calc(50% - 390px))", width: "min(780px, calc(100vw - 24px))", height: "min(550px, calc(100vh - 155px))" }}
       conversations={visibleConversations}
       activeConversationId={visibleActiveConversationId}
       onSelectConversation={setActiveConversationId}
       search={{ value: query, onChange: setQuery }}
-      toolbarExtras={
-        <MacDetailsMenu
-          className="showcase-toolbar-details"
-          label="Conversation details"
-          summary={<SystemSymbol name="person.2.fill" />}
-        >
-          <div className="showcase-conversation-details">
-            <strong>Participants</strong>
-            <span>You · Owner</span>
-            <span>Assistant · Agent</span>
-          </div>
-        </MacDetailsMenu>
-      }
-      emptyTranscript={<p className="showcase-chat-empty">No matching conversations or messages.</p>}
-      composer={{
-        value: composerValue,
-        onChange: setComposerValue,
-        placeholder: "Message",
-        accessory: (
-          <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}>
-            <SystemSymbol name="folder.badge.plus" />
-          </ToolbarButton>
-        ),
-        onSend: () => {
-          const body = composerValue.trim();
-          if (!body) return;
-          setSentMessages((current) => [...current, { id: `sent-${current.length}`, author: owner, at: "Now", body, status: "Sent" }]);
-          setComposerValue("");
-        },
-      }}
+      sidebarVisible={sidebarVisible}
+      onSidebarVisibleChange={onSidebarVisibleChange}
+      toolbarExtras={<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu>}
+      emptyTranscript={<MacContentUnavailable title="No matching conversations" description="Try a different search." />}
+      composer={{ value: composerValue, onChange: setComposerValue, placeholder: "Message", accessory: <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>, onSend: () => { const body = composerValue.trim(); if (!body) return; setSentMessages((current) => [...current, { id: `sent-${current.length}`, author: owner, at: "Now", body, status: "Sent" }]); setComposerValue(""); } }}
+      onClose={onClose}
     />
   );
 }
 
-function ActiveStory({
-  story,
-  toolbarInspectorOpen,
-  toolbarView,
-  finderMode,
-  finderPreviewVisible,
-  onToolbarInspectorOpenChange,
-  onToolbarViewChange,
-  onFinderModeChange,
-  onFinderPreviewVisibleChange,
-}: {
-  readonly story: StoryId;
-  readonly toolbarInspectorOpen: boolean;
-  readonly toolbarView: ToolbarViewMode;
+function RecipeWindow({ chatSidebarVisible, finderMode, finderPreviewVisible, finderSidebarVisible, recipe, onChatSidebarVisibleChange, onClose, onFinderModeChange, onFinderPreviewVisibleChange, onFinderSidebarVisibleChange }: {
+  readonly chatSidebarVisible: boolean;
   readonly finderMode: FinderViewMode;
   readonly finderPreviewVisible: boolean;
-  readonly onToolbarInspectorOpenChange: (open: boolean) => void;
-  readonly onToolbarViewChange: (mode: ToolbarViewMode) => void;
+  readonly finderSidebarVisible: boolean;
+  readonly recipe: RecipeId;
+  readonly onChatSidebarVisibleChange: (visible: boolean) => void;
+  readonly onClose: () => void;
   readonly onFinderModeChange: (mode: FinderViewMode) => void;
   readonly onFinderPreviewVisibleChange: (visible: boolean) => void;
+  readonly onFinderSidebarVisibleChange: (visible: boolean) => void;
 }) {
-  if (story === "finder") {
-    return (
-      <FinderStory
-        mode={finderMode}
-        previewVisible={finderPreviewVisible}
-        onModeChange={onFinderModeChange}
-        onPreviewVisibleChange={onFinderPreviewVisibleChange}
-      />
-    );
-  }
-  if (story === "chooser") return <ChooserStory />;
-  if (story === "setup") return <SetupStory />;
-  if (story === "chat") return <ChatStory />;
-  return (
-    <ToolbarStory
-      inspectorOpen={toolbarInspectorOpen}
-      view={toolbarView}
-      onInspectorOpenChange={onToolbarInspectorOpenChange}
-      onViewChange={onToolbarViewChange}
-    />
-  );
+  if (recipe === "finder") return <FinderRecipe mode={finderMode} previewVisible={finderPreviewVisible} sidebarVisible={finderSidebarVisible} onClose={onClose} onModeChange={onFinderModeChange} onPreviewVisibleChange={onFinderPreviewVisibleChange} onSidebarVisibleChange={onFinderSidebarVisibleChange} />;
+  if (recipe === "chooser") return <ChooserRecipe onClose={onClose} />;
+  if (recipe === "setup") return <SetupRecipe onClose={onClose} />;
+  return <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={onClose} onSidebarVisibleChange={onChatSidebarVisibleChange} />;
 }
 
 export function ShowcaseDesktop() {
-  const [activeStory, setActiveStory] = useState<StoryId>("toolbar");
-  const [extraCount, setExtraCount] = useState(2);
-  const [toolbarInspectorOpen, setToolbarInspectorOpen] = useState(true);
-  const [toolbarView, setToolbarView] = useState<ToolbarViewMode>("grid");
+  const [storyHistory, setStoryHistory] = useState<readonly StoryId[]>(["anatomy"]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [catalogSidebarVisible, setCatalogSidebarVisible] = useState(true);
+  const [catalogInspectorVisible, setCatalogInspectorVisible] = useState(true);
   const [finderMode, setFinderMode] = useState<FinderViewMode>("icons");
+  const [finderSidebarVisible, setFinderSidebarVisible] = useState(true);
   const [finderPreviewVisible, setFinderPreviewVisible] = useState(true);
-  const [shellStatus, setShellStatus] = useState("Mac Chrome Showcase is ready.");
-  const activeLabel = stories.find((story) => story.id === activeStory)?.label ?? "Window + Toolbar";
+  const [chatSidebarVisible, setChatSidebarVisible] = useState(true);
+  const [query, setQuery] = useState("");
+  const [activeRecipe, setActiveRecipe] = useState<RecipeId | null>(null);
+  const [extraCount, setExtraCount] = useState(2);
+  const [status, setStatus] = useState("Mac Chrome standard library is ready.");
+  const activeStoryId = storyHistory[historyIndex] ?? "anatomy";
+  const activeStory = stories.find((story) => story.id === activeStoryId) ?? stories[0];
+  const viewTarget: RecipeId | "catalog" = activeRecipe ?? "catalog";
+
+  function selectStory(id: StoryId) {
+    if (id === activeStoryId) return;
+    setStoryHistory((current) => [...current.slice(0, historyIndex + 1), id]);
+    setHistoryIndex((current) => current + 1);
+    setStatus(`Showing ${stories.find((story) => story.id === id)?.label ?? id}.`);
+  }
+
+  function updateCatalogSidebarVisibility(visible: boolean) {
+    setCatalogSidebarVisible(visible);
+    setStatus(visible ? "Sidebar shown." : "Sidebar hidden.");
+  }
+
+  function updateCatalogInspectorVisibility(visible: boolean) {
+    setCatalogInspectorVisible(visible);
+    setStatus(visible ? "Inspector shown." : "Inspector hidden.");
+  }
+
+  function updateFinderMode(mode: FinderViewMode) {
+    setFinderMode(mode);
+    setStatus(mode === "icons" ? "Finder switched to Icon View." : "Finder switched to List View.");
+  }
+
+  function updateFinderSidebarVisibility(visible: boolean) {
+    setFinderSidebarVisible(visible);
+    setStatus(visible ? "Finder sidebar shown." : "Finder sidebar hidden.");
+  }
+
+  function updateFinderPreviewVisibility(visible: boolean) {
+    setFinderPreviewVisible(visible);
+    setStatus(visible ? "Finder preview shown." : "Finder preview hidden.");
+  }
+
+  function updateChatSidebarVisibility(visible: boolean) {
+    setChatSidebarVisible(visible);
+    setStatus(visible ? "Chat sidebar shown." : "Chat sidebar hidden.");
+  }
+
   const showcaseMenu: MenuBarMenu = {
     title: "Showcase",
-    items: stories.map((story) => ({
-      kind: "action",
-      id: story.id,
-      label: story.label,
-      checked: story.id === activeStory,
-      onSelect: () => setActiveStory(story.id),
-    })),
+    items: storyGroups.flatMap((group, groupIndex) => [
+      ...(groupIndex === 0 ? [] : [{ kind: "separator" as const, id: `separator-${group.id}` }]),
+      { kind: "section" as const, id: `section-${group.id}`, label: group.title },
+      ...group.stories.map((story) => ({ kind: "action" as const, id: story.id, label: story.label, checked: story.id === activeStoryId, onSelect: () => selectStory(story.id) })),
+    ]),
   };
-  const viewMenu: MenuBarMenu | "View" = activeStory === "toolbar"
-    ? {
-        title: "View",
-        items: [
-          {
-            kind: "action",
-            id: "icon-view",
-            label: "as Icons",
-            shortcut: "⌘1",
-            checked: toolbarView === "grid",
-            onSelect: () => {
-              setToolbarView("grid");
-              setShellStatus("View › as Icons");
-            },
-          },
-          {
-            kind: "action",
-            id: "list-view",
-            label: "as List",
-            shortcut: "⌘2",
-            checked: toolbarView === "list",
-            onSelect: () => {
-              setToolbarView("list");
-              setShellStatus("View › as List");
-            },
-          },
-          { kind: "separator", id: "view-separator" },
-          {
-            kind: "action",
-            id: "toggle-inspector",
-            label: toolbarInspectorOpen ? "Hide Inspector" : "Show Inspector",
-            shortcut: "⌥⌘I",
-            onSelect: () => {
-              setToolbarInspectorOpen((open) => !open);
-              setShellStatus(`View › ${toolbarInspectorOpen ? "Hide" : "Show"} Inspector`);
-            },
-          },
-        ],
-      }
-    : activeStory === "finder"
-      ? {
-          title: "View",
-          items: [
-            {
-              kind: "action",
-              id: "icon-view",
-              label: "as Icons",
-              shortcut: "⌘1",
-              checked: finderMode === "icons",
-              onSelect: () => {
-                setFinderMode("icons");
-                setShellStatus("View › as Icons");
-              },
-            },
-            {
-              kind: "action",
-              id: "list-view",
-              label: "as List",
-              shortcut: "⌘2",
-              checked: finderMode === "list",
-              onSelect: () => {
-                setFinderMode("list");
-                setShellStatus("View › as List");
-              },
-            },
-            { kind: "separator", id: "view-separator" },
-            {
-              kind: "action",
-              id: "toggle-preview",
-              label: finderPreviewVisible ? "Hide Preview" : "Show Preview",
-              shortcut: "⇧⌘P",
-              onSelect: () => {
-                setFinderPreviewVisible((visible) => !visible);
-                setShellStatus(`View › ${finderPreviewVisible ? "Hide" : "Show"} Preview`);
-              },
-            },
-          ],
-        }
-      : "View";
+  let viewItems: MenuSpec;
+  if (viewTarget === "catalog") {
+    viewItems = [
+      { kind: "action", id: "catalog-toggle-sidebar", label: catalogSidebarVisible ? "Hide Sidebar" : "Show Sidebar", shortcut: "⌃⌘S", onSelect: () => updateCatalogSidebarVisibility(!catalogSidebarVisible) },
+      { kind: "action", id: "catalog-toggle-inspector", label: catalogInspectorVisible ? "Hide Inspector" : "Show Inspector", shortcut: "⌥⌘I", onSelect: () => updateCatalogInspectorVisibility(!catalogInspectorVisible) },
+    ];
+  } else if (viewTarget === "finder") {
+    viewItems = [
+      { kind: "action", id: "finder-icon-view", label: "Icon View", checked: finderMode === "icons", onSelect: () => updateFinderMode("icons") },
+      { kind: "action", id: "finder-list-view", label: "List View", checked: finderMode === "list", onSelect: () => updateFinderMode("list") },
+      { kind: "separator", id: "finder-view-separator" },
+      { kind: "action", id: "finder-toggle-sidebar", label: finderSidebarVisible ? "Hide Sidebar" : "Show Sidebar", shortcut: "⌃⌘S", onSelect: () => updateFinderSidebarVisibility(!finderSidebarVisible) },
+      { kind: "action", id: "finder-toggle-preview", label: finderPreviewVisible ? "Hide Preview" : "Show Preview", shortcut: "⌥⌘P", onSelect: () => updateFinderPreviewVisibility(!finderPreviewVisible) },
+    ];
+  } else if (viewTarget === "chat") {
+    viewItems = [
+      { kind: "action", id: "chat-toggle-sidebar", label: chatSidebarVisible ? "Hide Sidebar" : "Show Sidebar", shortcut: "⌃⌘S", onSelect: () => updateChatSidebarVisibility(!chatSidebarVisible) },
+    ];
+  } else {
+    viewItems = [{ kind: "action", id: `${viewTarget}-no-view-options`, label: "No View Options", disabled: true }];
+  }
+  const viewMenu: MenuBarMenu = { title: "View", items: viewItems };
+  const interactiveDefaultDockItems = defaultDockItems.map((item): DockItem => {
+    if (item.id === "finder") {
+      return {
+        ...item,
+        onActivate: () => {
+          setActiveRecipe("finder");
+          setStatus(activeRecipe === "finder" ? "Finder example activated." : "Finder example opened.");
+        },
+      };
+    }
+    const statuses: Readonly<Record<string, string>> = {
+      "app-store": "App Store is represented by its standard Dock icon; no store window is included.",
+      chrome: "Google Chrome is already showing this showcase.",
+      downloads: "Downloads is empty in this showcase.",
+      trash: "Trash is empty.",
+    };
+    return { ...item, onActivate: () => setStatus(statuses[item.id] ?? `${item.label} activated.`) };
+  });
   const showcaseDockItems: readonly DockItem[] = [
-    ...defaultDockItems.filter((item) => item.group === "apps"),
+    ...interactiveDefaultDockItems.filter((item) => item.group === "apps"),
     {
       id: "mac-chrome-showcase",
       label: "Mac Chrome Showcase",
-      icon: <span className="showcase-app-icon"><SystemSymbol name="laptopcomputer" /></span>,
+      icon: { kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "#0a84ff", foreground: "#ffffff" },
       running: true,
       group: "apps",
-      onActivate: () => setShellStatus("Mac Chrome Showcase is already open."),
+      onActivate: () => setStatus("Mac Chrome Showcase is already open."),
     },
-    ...defaultDockItems.filter((item) => item.group !== "apps"),
+    ...interactiveDefaultDockItems.filter((item) => item.group !== "apps"),
   ];
 
   return (
     <DesktopShell
       appName="Mac Chrome"
       menuItems={[showcaseMenu, viewMenu, "Window", "Help"]}
-      onMenuAction={(command) => setShellStatus(`${command.menu} › ${command.label}`)}
-      menuBarExtras={
-        <MenuBarExtra badge={extraCount} icon={<SystemSymbol name="sparkles" />} label="Showcase activity">
-          <div className="showcase-extra-popover">
-            <strong>Showcase activity</strong>
-            <p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p>
-            <button type="button" onClick={() => setExtraCount(0)}>Mark as Read</button>
-          </div>
-        </MenuBarExtra>
-      }
+      onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
+      menuBarExtras={<MenuBarExtra badge={extraCount} icon={<SystemSymbol name="sparkles" />} label="Showcase activity"><div className="showcase-extra-popover"><strong>Showcase activity</strong><p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p><button type="button" disabled={extraCount === 0} onClick={() => { if (extraCount === 0) return; setExtraCount(0); setStatus("Showcase activity marked as read."); }}>Mark as Read</button></div></MenuBarExtra>}
     >
-      <div className="showcase-story-layer" data-showcase-story={activeStory} aria-label={`${activeLabel} story`}>
-        <ActiveStory
-          story={activeStory}
-          toolbarInspectorOpen={toolbarInspectorOpen}
-          toolbarView={toolbarView}
+      <CatalogWindow
+        activeStory={activeStory}
+        canGoBack={historyIndex > 0}
+        canGoForward={historyIndex < storyHistory.length - 1}
+        inspectorVisible={catalogInspectorVisible}
+        query={query}
+        sidebarVisible={catalogSidebarVisible}
+        status={status}
+        onBack={() => setHistoryIndex((current) => Math.max(0, current - 1))}
+        onForward={() => setHistoryIndex((current) => Math.min(storyHistory.length - 1, current + 1))}
+        onInspectorVisibleChange={updateCatalogInspectorVisibility}
+        onOpenRecipe={(recipe) => { setActiveRecipe(recipe); setStatus(`${stories.find((story) => story.id === recipe)?.label ?? recipe} example opened.`); }}
+        onQueryChange={setQuery}
+        onSelectStory={selectStory}
+        onSidebarVisibleChange={updateCatalogSidebarVisibility}
+      />
+      {activeRecipe !== null ? (
+        <RecipeWindow
+          chatSidebarVisible={chatSidebarVisible}
           finderMode={finderMode}
           finderPreviewVisible={finderPreviewVisible}
-          onToolbarInspectorOpenChange={setToolbarInspectorOpen}
-          onToolbarViewChange={setToolbarView}
-          onFinderModeChange={setFinderMode}
-          onFinderPreviewVisibleChange={setFinderPreviewVisible}
+          finderSidebarVisible={finderSidebarVisible}
+          recipe={activeRecipe}
+          onChatSidebarVisibleChange={updateChatSidebarVisibility}
+          onClose={() => { setActiveRecipe(null); setStatus("Example window closed."); }}
+          onFinderModeChange={updateFinderMode}
+          onFinderPreviewVisibleChange={updateFinderPreviewVisibility}
+          onFinderSidebarVisibleChange={updateFinderSidebarVisibility}
         />
-      </div>
-      <output className="showcase-desktop-status" aria-live="polite">{shellStatus}</output>
+      ) : null}
       <MacDock label="Showcase Dock" items={showcaseDockItems} />
     </DesktopShell>
   );

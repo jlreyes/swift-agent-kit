@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -9,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { MacMenu, type MenuEntry, type MenuSpec } from "./menu";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
@@ -140,111 +140,50 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   };
 }
 
+function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
+  const items: MenuEntry[] = [];
+  for (const [sectionIndex, section] of group.sections.entries()) {
+    if (sectionIndex > 0) items.push({ kind: "separator", id: `chooser:${section.id}:separator` });
+    if (section.label !== undefined) {
+      items.push({ kind: "section", id: `chooser:${section.id}`, label: section.label });
+    }
+    for (const command of section.commands) {
+      items.push({
+        kind: "action",
+        id: `chooser:${section.id}:${command.id}`,
+        label: command.title,
+        detail: command.caption,
+        checked: command.checked,
+        icon: command.checked === true || command.symbol === undefined ? undefined : <SystemSymbol name={command.symbol} />,
+        onSelect: command.onSelect,
+      });
+    }
+  }
+  return items;
+}
+
 function SecondaryGroupMenu({ group }: { readonly group: ChooserSecondaryGroup }) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const hasActiveCommand = group.sections.some((section) => section.commands.some((command) => command.checked === true));
 
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')?.focus({ preventScroll: true });
-    });
-    function closeFromOutside(event: PointerEvent) {
-      if (event.target instanceof Node && !wrapperRef.current?.contains(event.target)) setOpen(false);
-    }
-    function handleMenuKey(event: KeyboardEvent) {
-      const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? []);
-      const activeElement = document.activeElement;
-      const index = activeElement instanceof HTMLElement ? items.indexOf(activeElement) : -1;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus({ preventScroll: true });
-      } else if (event.key === "Tab") {
-        event.preventDefault();
-        setOpen(false);
-        const nextTarget = event.shiftKey
-          ? triggerRef.current
-          : wrapperRef.current?.closest(".mc-chooser-window")?.querySelector<HTMLElement>(".mc-window-footer button, .mc-window-footer a") ??
-            triggerRef.current;
-        requestAnimationFrame(() => nextTarget?.focus({ preventScroll: true }));
-      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        const next = index < 0 ? 0 : (index + direction + items.length) % items.length;
-        items[next]?.focus({ preventScroll: true });
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        items[event.key === "Home" ? 0 : items.length - 1]?.focus({ preventScroll: true });
-      }
-    }
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", handleMenuKey);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", handleMenuKey);
-    };
-  }, [open]);
-
-  function choose(command: ChooserCommand) {
-    command.onSelect();
-    setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
-  }
-
   return (
-    <div ref={wrapperRef} className="mc-chooser-secondary">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="mc-chooser-secondary-trigger"
-        data-selected={hasActiveCommand}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <SystemSymbol name="square.grid.2x2" />
-        <span>
-          <strong>{group.label}</strong>
-          {hasActiveCommand && group.activeCaption !== undefined ? <small>{group.activeCaption}</small> : group.caption !== undefined ? <small>{group.caption}</small> : null}
-        </span>
-        <SystemSymbol name="chevron.down" />
-      </button>
-      {open ? (
-        <div ref={menuRef} className="mc-chooser-secondary-menu" role="menu" aria-label={group.label}>
-          {group.sections.map((section) => (
-            <div key={section.id} role="none" className="mc-chooser-menu-section">
-              {section.label !== undefined ? <div className="mc-chooser-menu-label">{section.label}</div> : null}
-              {section.commands.map((command) => (
-                <button
-                  type="button"
-                  key={command.id}
-                  role={command.checked === undefined ? "menuitem" : "menuitemradio"}
-                  aria-checked={command.checked === undefined ? undefined : command.checked}
-                  tabIndex={-1}
-                  onClick={() => choose(command)}
-                >
-                  {command.checked === true ? (
-                    <SystemSymbol name="checkmark" />
-                  ) : command.symbol !== undefined ? (
-                    <SystemSymbol name={command.symbol} />
-                  ) : (
-                    <span className="mc-chooser-menu-symbol-spacer" />
-                  )}
-                  <span>
-                    <strong>{command.title}</strong>
-                    {command.caption !== undefined ? <small>{command.caption}</small> : null}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <MacMenu
+      className={`mc-chooser-secondary${hasActiveCommand ? " is-selected" : ""}`}
+      items={secondaryMenuItems(group)}
+      label={group.label}
+      popover={{ className: "mc-chooser-secondary-menu", placement: "bottom end" }}
+      trigger={
+        <>
+          <SystemSymbol name="square.grid.2x2" />
+          <span>
+            <strong>{group.label}</strong>
+            {hasActiveCommand && group.activeCaption !== undefined ? <small>{group.activeCaption}</small> : group.caption !== undefined ? <small>{group.caption}</small> : null}
+          </span>
+          <SystemSymbol name="chevron.down" />
+        </>
+      }
+      triggerClassName="mc-chooser-secondary-trigger"
+      triggerLabel={group.label}
+    />
   );
 }
 

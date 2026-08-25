@@ -4,6 +4,12 @@
    inert stand-ins — layout is zero-sized in jsdom anyway, and the escape only
    needs to make querySelector-safe strings for the ids used in tests. */
 
+/* React Aria schedules selection and focus updates through React. Tell React
+   that Vitest's jsdom environment supports act() so those library-owned
+   updates are tracked by Testing Library instead of reported as false-positive
+   environment warnings. */
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 if (typeof globalThis.ResizeObserver === "undefined") {
   class ResizeObserverStub implements ResizeObserver {
     observe(): void {}

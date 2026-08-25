@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
+import {
+  MacNavigationSplitView,
+  MacSourceList,
+  type MacSourceListSection,
+} from "./navigation";
 import { SystemSymbol } from "./system-symbol";
 import { MacToolbar, ToolbarButton, ToolbarSearchBubble } from "./toolbar";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
@@ -96,6 +101,8 @@ export function ChatWindow({
   composer,
   search,
   sidebarLabel = "Conversations",
+  sidebarVisible,
+  onSidebarVisibleChange,
   toolbarExtras,
   emptyTranscript,
   label,
@@ -110,6 +117,9 @@ export function ChatWindow({
   readonly composer: ChatComposer;
   readonly search?: ChatSearch;
   readonly sidebarLabel?: string;
+  /** Controlled sidebar visibility. Omit to keep the default-visible internal state. */
+  readonly sidebarVisible?: boolean;
+  readonly onSidebarVisibleChange?: (visible: boolean) => void;
   readonly toolbarExtras?: ReactNode;
   readonly emptyTranscript?: ReactNode;
   readonly label?: string;
@@ -119,11 +129,23 @@ export function ChatWindow({
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 }) {
-  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
+  const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
   const [searchOpen, setSearchOpen] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const active = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const messageCount = active?.messages.length ?? 0;
+  const conversationSections: readonly MacSourceListSection[] = [
+    {
+      id: "conversations",
+      items: conversations.map((conversation) => ({
+        id: conversation.id,
+        label: conversation.title,
+        icon: conversation.icon,
+        badge: conversation.messages.at(-1)?.at,
+      })),
+    },
+  ];
 
   useEffect(() => {
     const scroller = transcriptRef.current;
@@ -135,9 +157,18 @@ export function ChatWindow({
     if (composer.value.trim()) composer.onSend();
   }
 
+  function setSidebarVisibility(visible: boolean) {
+    if (sidebarVisible === undefined) setUncontrolledSidebarVisible(visible);
+    onSidebarVisibleChange?.(visible);
+  }
+
+  function toggleSidebar() {
+    setSidebarVisibility(!isSidebarVisible);
+  }
+
   return (
     <WindowChrome
-      className={`mc-chat-window${sidebarHidden ? " mc-sidebar-hidden" : ""}`}
+      className={`mc-chat-window${isSidebarVisible ? "" : " mc-sidebar-hidden"}`}
       label={label ?? active?.title ?? "Chat"}
       frame={frame}
       defaultSize={chatDefaultSize}
@@ -145,94 +176,89 @@ export function ChatWindow({
       onMinimize={onMinimize}
       onZoom={onZoom}
     >
-      <aside className="mc-chat-sidebar" aria-label={sidebarLabel} aria-hidden={sidebarHidden || undefined}>
-        <div className="mc-chat-sidebar-top" data-window-drag-handle="">
-          <TrafficLights />
-        </div>
-        <nav>
-          {conversations.map((conversation) => {
-            const isActive = conversation.id === activeConversationId;
-            const lastAt = conversation.messages.at(-1)?.at;
-            return (
-              <button
-                type="button"
-                key={conversation.id}
-                className={`mc-chat-thread${isActive ? " mc-selected" : ""}`}
-                aria-current={isActive ? "true" : undefined}
-                onClick={() => onSelectConversation(conversation.id)}
-              >
-                {conversation.icon !== undefined ? (
-                  <span className="mc-chat-thread-icon" aria-hidden="true">{conversation.icon}</span>
-                ) : null}
-                <span>
-                  <strong>{conversation.title}</strong>
-                  {lastAt !== undefined ? <small>{lastAt}</small> : null}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-      <section className="mc-chat-main">
-        <MacToolbar className="mc-chat-toolbar">
-          <div className="mc-chat-toolbar-lead">
-            {sidebarHidden ? <TrafficLights /> : null}
-            <ToolbarButton
-              label={sidebarHidden ? "Show sidebar" : "Hide sidebar"}
-              pressed={!sidebarHidden}
-              onClick={() => setSidebarHidden((current) => !current)}
-            >
-              <SystemSymbol name="sidebar.left" />
-            </ToolbarButton>
-          </div>
-          <div className="mc-chat-title">
-            {active?.icon !== undefined ? <span className="mc-chat-title-icon" aria-hidden="true">{active.icon}</span> : null}
-            <strong>{active?.title}</strong>
-          </div>
-          <div className="mc-chat-toolbar-actions">
-            {search !== undefined ? (
-              <ToolbarSearchBubble
-                open={searchOpen}
-                value={search.value}
-                label="Search conversation"
-                placeholder="Search"
-                onOpenChange={(open) => {
-                  setSearchOpen(open);
-                  if (!open) search.onChange("");
-                }}
-                onChange={search.onChange}
-              />
-            ) : null}
-            {toolbarExtras}
-          </div>
-        </MacToolbar>
-        <div className="mc-chat-transcript" ref={transcriptRef} role="log" aria-label="Conversation">
-          {active !== null && active.messages.length > 0
-            ? active.messages.map((message) => <ChatMessageRow key={message.id} message={message} />)
-            : emptyTranscript}
-        </div>
-        <div className="mc-chat-composer-wrap">
-          <form className="mc-chat-composer" onSubmit={send}>
-            {composer.accessory !== undefined ? composer.accessory : <span className="mc-chat-composer-spacer" />}
-            <textarea
-              value={composer.value}
-              rows={1}
-              onChange={(event) => composer.onChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-              placeholder={composer.placeholder}
-              aria-label={composer.placeholder ?? "Message"}
+      <MacNavigationSplitView
+        className="mc-chat-split-view"
+        sidebarVisible={isSidebarVisible}
+        sidebarLabel={sidebarLabel}
+        sidebarSizing={{ minSize: 190, defaultSize: 246, maxSize: 320 }}
+        detailLabel="Chat"
+        sidebar={(
+          <div className="mc-chat-sidebar">
+            <div className="mc-chat-sidebar-top" data-window-drag-handle="">
+              <TrafficLights />
+            </div>
+            <MacSourceList
+              className="mc-chat-thread-list"
+              label={sidebarLabel}
+              sections={conversationSections}
+              selectedId={activeConversationId}
+              onSelectionChange={onSelectConversation}
             />
-            <button type="submit" className="mc-chat-send" disabled={!composer.value.trim()} aria-label="Send message">
-              <SystemSymbol name="arrow.up" />
-            </button>
-          </form>
-        </div>
-      </section>
+          </div>
+        )}
+        detail={(
+          <section className="mc-chat-main">
+            <MacToolbar className="mc-chat-toolbar">
+              <div className="mc-chat-toolbar-lead">
+                {!isSidebarVisible ? <TrafficLights /> : null}
+                <ToolbarButton
+                  label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"}
+                  pressed={isSidebarVisible}
+                  onClick={toggleSidebar}
+                >
+                  <SystemSymbol name="sidebar.left" />
+                </ToolbarButton>
+              </div>
+              <div className="mc-chat-title">
+                {active?.icon !== undefined ? <span className="mc-chat-title-icon" aria-hidden="true">{active.icon}</span> : null}
+                <strong>{active?.title}</strong>
+              </div>
+              <div className="mc-chat-toolbar-actions">
+                {search !== undefined ? (
+                  <ToolbarSearchBubble
+                    open={searchOpen}
+                    value={search.value}
+                    label="Search conversation"
+                    placeholder="Search"
+                    onOpenChange={(open) => {
+                      setSearchOpen(open);
+                      if (!open) search.onChange("");
+                    }}
+                    onChange={search.onChange}
+                  />
+                ) : null}
+                {toolbarExtras}
+              </div>
+            </MacToolbar>
+            <div className="mc-chat-transcript" ref={transcriptRef} role="log" aria-label="Conversation">
+              {active !== null && active.messages.length > 0
+                ? active.messages.map((message) => <ChatMessageRow key={message.id} message={message} />)
+                : emptyTranscript}
+            </div>
+            <div className="mc-chat-composer-wrap">
+              <form className="mc-chat-composer" onSubmit={send}>
+                {composer.accessory !== undefined ? composer.accessory : <span className="mc-chat-composer-spacer" />}
+                <textarea
+                  value={composer.value}
+                  rows={1}
+                  onChange={(event) => composer.onChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  placeholder={composer.placeholder}
+                  aria-label={composer.placeholder ?? "Message"}
+                />
+                <button type="submit" className="mc-chat-send" disabled={!composer.value.trim()} aria-label="Send message">
+                  <SystemSymbol name="arrow.up" />
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
+      />
     </WindowChrome>
   );
 }

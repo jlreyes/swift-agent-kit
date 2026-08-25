@@ -1,0 +1,234 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  MacInspector,
+  MacNavigationSplitView,
+  MacSourceList,
+  type MacSourceListSection,
+} from "../navigation.tsx";
+
+afterEach(cleanup);
+
+describe("MacNavigationSplitView", () => {
+  it("composes a resizable two-column sidebar and detail layout", () => {
+    const { container } = render(
+      <MacNavigationSplitView
+        id="library"
+        sidebar={<div>Library navigation</div>}
+        detail={<div>Selected component</div>}
+      />,
+    );
+
+    expect(screen.getByRole("complementary", { name: "Sidebar" }).textContent).toContain("Library navigation");
+    expect(screen.getByRole("region", { name: "Detail" }).textContent).toContain("Selected component");
+    expect(screen.queryByRole("region", { name: "Content" })).toBeNull();
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-panel]")).toHaveLength(2);
+    expect(screen.getByTestId("library-sidebar")).toBeTruthy();
+    expect(screen.getByTestId("library-detail")).toBeTruthy();
+  });
+
+  it("adds the optional middle navigation column and obeys controlled sidebar visibility", () => {
+    const { container, rerender } = render(
+      <MacNavigationSplitView
+        id="catalog"
+        sidebar={<div>Categories</div>}
+        content={<div>Components</div>}
+        detail={<div>Preview</div>}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Content" }).textContent).toContain("Components");
+    expect(container.querySelectorAll("[data-panel]")).toHaveLength(3);
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
+
+    rerender(
+      <MacNavigationSplitView
+        id="catalog"
+        sidebar={<div>Categories</div>}
+        sidebarVisible={false}
+        content={<div>Components</div>}
+        detail={<div>Preview</div>}
+      />,
+    );
+
+    expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
+    expect(container.querySelectorAll("[data-panel]")).toHaveLength(2);
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
+  });
+});
+
+const sourceSections: readonly MacSourceListSection[] = [
+  {
+    id: "library",
+    title: "Library",
+    collapsible: true,
+    items: [
+      { id: "all", label: "All Components" },
+      { id: "shared", label: "Shared" },
+    ],
+  },
+  {
+    id: "recent",
+    title: "Recent",
+    items: [{ id: "menus", label: "Menus" }],
+  },
+];
+
+function SourceListHarness({ onSelection }: { readonly onSelection: (id: string) => void }) {
+  const [selectedId, setSelectedId] = useState<string | null>("all");
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set(["library"]));
+
+  return (
+    <MacSourceList
+      label="Components"
+      sections={sourceSections}
+      selectedId={selectedId}
+      onSelectionChange={(id) => {
+        onSelection(id);
+        setSelectedId(id);
+      }}
+      expandedSectionIds={expandedIds}
+      onExpandedSectionIdsChange={setExpandedIds}
+    />
+  );
+}
+
+describe("MacSourceList", () => {
+  it("drives collection-level controlled selection with arrow navigation", () => {
+    const onSelection = vi.fn();
+    render(<SourceListHarness onSelection={onSelection} />);
+
+    const all = screen.getByRole("row", { name: "All Components" });
+    expect(all.getAttribute("aria-selected")).toBe("true");
+    act(() => all.focus());
+    fireEvent.keyDown(all, { key: "ArrowDown" });
+
+    const shared = screen.getByRole("row", { name: "Shared" });
+    expect(document.activeElement).toBe(shared);
+    expect(shared.getAttribute("aria-selected")).toBe("true");
+    expect(onSelection).toHaveBeenLastCalledWith("shared");
+  });
+
+  it("moves focus to the pointer-selected row", () => {
+    const onSelection = vi.fn();
+    render(<SourceListHarness onSelection={onSelection} />);
+    const all = screen.getByRole("row", { name: "All Components" });
+    const shared = screen.getByRole("row", { name: "Shared" });
+    act(() => all.focus());
+    expect(document.activeElement).toBe(all);
+
+    fireEvent.click(shared);
+
+    expect(shared.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(shared);
+    expect(onSelection).toHaveBeenLastCalledWith("shared");
+  });
+
+  it("uses item text values for source-list typeahead", () => {
+    const onSelection = vi.fn();
+    render(<SourceListHarness onSelection={onSelection} />);
+    const all = screen.getByRole("row", { name: "All Components" });
+    act(() => all.focus());
+
+    fireEvent.keyDown(all, { key: "s" });
+
+    expect(document.activeElement).toBe(screen.getByRole("row", { name: "Shared" }));
+    expect(onSelection).not.toHaveBeenCalled();
+  });
+
+  it("exposes controlled section disclosure through the tree pattern", () => {
+    render(<SourceListHarness onSelection={() => undefined} />);
+    const library = screen.getByRole("row", { name: /Library/ });
+    expect(library.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("row", { name: "Shared" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Collapse Library/ }));
+
+    expect(library.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("row", { name: "Shared" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Expand Library/ })).toBeTruthy();
+  });
+});
+
+describe("MacInspector", () => {
+  it("stays a separately controlled supplementary pane", () => {
+    const { rerender } = render(
+      <MacInspector label="Details Inspector" width={288}>
+        Metadata
+      </MacInspector>,
+    );
+    const inspector = screen.getByRole("complementary", { name: "Details Inspector" });
+    expect(inspector.textContent).toContain("Metadata");
+    expect(inspector.style.width).toBe("288px");
+
+    rerender(
+      <MacInspector label="Details Inspector" visible={false}>
+        Metadata
+      </MacInspector>,
+    );
+    expect(screen.queryByRole("complementary", { name: "Details Inspector" })).toBeNull();
+    expect(screen.queryByRole("separator", { name: "Resize Details Inspector" })).toBeNull();
+  });
+
+  it("resizes from its leading edge with a pointer and reports controlled width", () => {
+    function ControlledInspector() {
+      const [width, setWidth] = useState(260);
+      return (
+        <MacInspector label="Details Inspector" width={width} onWidthChange={setWidth}>
+          Metadata
+        </MacInspector>
+      );
+    }
+
+    render(<ControlledInspector />);
+    const separator = screen.getByRole("separator", { name: "Resize Details Inspector" });
+    const inspector = screen.getByRole("complementary", { name: "Details Inspector" });
+    expect(separator.getAttribute("aria-controls")).toBe(inspector.id);
+    expect(separator.getAttribute("aria-valuenow")).toBe("260");
+
+    // jsdom has no PointerEvent constructor. MouseEvent still carries the
+    // pointer coordinate contract when dispatched under pointer event names.
+    fireEvent(separator, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 500 }));
+    fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 460 }));
+    fireEvent(separator, new MouseEvent("pointerup", { bubbles: true, clientX: 460 }));
+
+    expect(inspector.style.width).toBe("300px");
+    expect(separator.getAttribute("aria-valuenow")).toBe("300");
+  });
+
+  it("supports clamped keyboard resizing in uncontrolled use", () => {
+    const onWidthChange = vi.fn();
+    render(
+      <MacInspector
+        label="Details Inspector"
+        defaultWidth={250}
+        minWidth={230}
+        maxWidth={270}
+        onWidthChange={onWidthChange}
+      >
+        Metadata
+      </MacInspector>,
+    );
+    const separator = screen.getByRole("separator", { name: "Resize Details Inspector" });
+    const inspector = screen.getByRole("complementary", { name: "Details Inspector" });
+
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(inspector.style.width).toBe("260px");
+    expect(onWidthChange).toHaveBeenLastCalledWith(260);
+
+    fireEvent.keyDown(separator, { key: "End" });
+    expect(inspector.style.width).toBe("270px");
+    expect(separator.getAttribute("aria-valuenow")).toBe("270");
+
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(inspector.style.width).toBe("270px");
+    expect(onWidthChange).toHaveBeenLastCalledWith(270);
+
+    fireEvent.keyDown(separator, { key: "Home" });
+    expect(inspector.style.width).toBe("230px");
+    expect(separator.getAttribute("aria-valuenow")).toBe("230");
+  });
+});

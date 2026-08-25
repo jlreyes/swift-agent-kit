@@ -2,6 +2,7 @@
 
 import { useRef, type ReactNode, type RefObject } from "react";
 
+import { MacButton } from "./controls";
 import { useModalFocusTrap } from "./modal-focus";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
@@ -162,12 +163,12 @@ export function SetupAssistant({
         </nav>
         <div className="mc-setup-content">{children}</div>
         <footer className="mc-setup-footer">
-          <button className="mc-button mc-text" type="button" onClick={onBack}>
+          <MacButton variant="borderless" onPress={onBack}>
             {backLabel}
-          </button>
-          <button className="mc-button mc-primary" type="button" disabled={continueDisabled} onClick={onContinue}>
+          </MacButton>
+          <MacButton variant="primary" disabled={continueDisabled} onPress={onContinue}>
             {continueLabel}
-          </button>
+          </MacButton>
         </footer>
       </div>
     </WindowChrome>

@@ -57,7 +57,23 @@ pnpm test                                          # typecheck + build + rendere
 
 After vendoring, smoke-check `http://localhost:<port>/showcase` once the
 prototype is served. It is the template's interactive mac-chrome coverage
-surface; `/example` remains the focused starter window.
+surface and canonical component catalog: it must dogfood the public
+navigation, collections, controls, menu/popover, Dock, and window primitives
+rather than a second private set. `/example` remains the focused starter
+window.
+
+When adding a product surface, compose from the vendored primitives before
+writing an ad-hoc equivalent. In particular, use `MacNavigationSplitView` for
+two-column sidebar/detail or three-column sidebar/content/detail navigation,
+then add `MacInspector` as a separate supplementary pane when appropriate.
+Use `MacSourceList`, `MacList`, `MacDisclosureGroup`, the `Mac*` controls and
+forms, and `MacContentUnavailable` for their matching patterns. A product
+surface owns its data and product composition; mac-chrome owns repeatable
+native anatomy, focus/keyboard behavior, and optical geometry.
+
+Dock entries must use `DockIcon`/`MacDockAppIcon`'s shared normalizer. Supply
+an `asset` for hydrated app artwork or a `symbol` for generated app artwork;
+do not nest a custom full-size icon tile or write per-app scale overrides.
 
 ## Fork an existing prototype
 

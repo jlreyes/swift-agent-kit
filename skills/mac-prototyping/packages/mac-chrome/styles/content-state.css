@@ -1,0 +1,51 @@
+/* Empty/error/no-results state for content panes. */
+
+.mc-content-unavailable {
+  min-width: 240px;
+  min-height: 180px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  text-align: center;
+}
+
+.mc-content-unavailable-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.mc-content-unavailable-icon svg {
+  width: 42px;
+  height: 42px;
+}
+
+.mc-content-unavailable h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 21px;
+}
+
+.mc-content-unavailable p {
+  max-width: 380px;
+  margin: 5px 0 0;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.mc-content-unavailable-actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

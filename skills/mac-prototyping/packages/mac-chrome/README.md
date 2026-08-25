@@ -1,19 +1,22 @@
 # mac-chrome — API reference
 
-macOS-window chrome for React prototypes: desktop shell, windows, toolbars,
-menus, and four product-window surfaces (Finder, Chooser, Setup Assistant,
-Chat). Signatures below are copied from source. Every component imports its
-own stylesheet, so importing a component is enough; `styles/index.css` remains
-as the one-shot import for consumers who prefer a single global stylesheet.
+macOS-window chrome and a small composition-first standard library for React
+prototypes. It provides desktop/window chrome, navigation, collections,
+forms/controls, commands, and four product-window recipes (Finder, Chooser,
+Setup Assistant, Chat). Signatures below are copied from source. Every
+component imports its own stylesheet, so importing a component is enough;
+`styles/index.css` remains as the one-shot import for consumers who prefer a
+single global stylesheet.
 Vendoring rules — the rsync and its excludes — live in the skill's
 `references/workflows.md`.
 
 Two runtime dependencies (exact-pinned here and in the template) supply
 behavior this package should not own: **react-aria-components** (menus,
-sidebar tree, toolbar — the ARIA keyboard/focus/dismissal semantics) and
-**react-resizable-panels** (the three-pane split with an ARIA window-splitter
-separator). The visual layer — classes, tokens, CSS anatomy — stays ours;
-the libraries are wired through their className/data-attribute APIs.
+source lists, lists, disclosures, and controls — their ARIA keyboard, focus,
+selection, and dismissal semantics) and **react-resizable-panels** (the
+navigation split's ARIA window-splitter separators). The visual layer —
+classes, tokens, CSS anatomy — stays ours; the libraries are wired through
+their className/data-attribute APIs.
 
 Each component names its SwiftUI/AppKit counterpart (**maps to:**). Build
 against the counterpart's anatomy; a component with **no native counterpart**
@@ -29,8 +32,8 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MenuBarExtra`, `useModalFocusTrap`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `WindowFrame`, `DockItem`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Values: `DesktopShell`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `Sheet`, `ChatWindow`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `WindowFrame`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog: it
 covers every runtime export against a working desktop shell. Use it to
@@ -43,6 +46,32 @@ legible over the wallpaper; do not layer custom blur or saturation recipes on
 top. Use `MacMenu` for command menus and `MacDetailsMenu` for anchored
 disclosures rather than a local overlay or `<details>` control: the shared
 primitives own focus, Escape/outside dismissal, and native-sized geometry.
+
+## Compose a surface
+
+Use the primitive that owns a native interaction contract rather than copying
+catalog markup or rebuilding its CSS in product code. `/showcase` is the
+canonical interactive catalog: it exercises these public primitives together
+inside a desktop shell. The finished `FinderWindow`, `ChooserWindow`,
+`SetupAssistant`, and `ChatWindow` are recipes layered above this foundation,
+not the only way to build an app.
+
+| Product need | Public primitive | Notes |
+| --- | --- | --- |
+| Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
+| Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
+| Sidebar source list | `MacSourceList` | Controlled selection and optional controlled collapsible sections. |
+| Selectable rows | `MacList` | Single selection, sections, row actions, and accessories. |
+| Expand/collapse detail | `MacDisclosureGroup` | Controlled expansion. |
+| Standard controls and structured settings | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
+| No-content state | `MacContentUnavailable` | Optional system-style icon, description, and actions. |
+| Dock artwork | `DockIcon` + `MacDockAppIcon` | One shared optical-size contract. |
+
+This is intentionally an 80/20 library, not a web reimplementation of all
+SwiftUI. Tables, outline views, grid collections, alerts, and full SwiftUI
+parity are deferred until a reusable need proves them out. Liquid Glass is not
+an offered material mode; use the existing opaque or near-opaque tokenized
+materials.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
@@ -88,10 +117,23 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 ### MacDock
 maps to: the system Dock (`NSDockTile` per app); no SwiftUI counterpart — system UI.
 `MacDock({ items, label = "Dock" }: { readonly items?: readonly DockItem[]; readonly label?: string })`
-`interface DockItem { readonly id: string; readonly label: string; readonly icon: ReactNode | string; readonly running?: boolean; readonly group?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
+`type DockIcon = { readonly kind: "asset"; readonly src: string } | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string }`
+`type DockIconSource = DockIcon | ReactNode | string`
+`interface DockItem { readonly id: string; readonly label: string; readonly icon: DockIconSource; readonly running?: boolean; readonly group?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
 When `items` is omitted, the Dock shows Finder, App Store, Google Chrome,
 Downloads, and Trash. The local icons hydrated into `public/mac-assets/` are
 private assets: they are ignored and must never be committed.
+
+### MacDockAppIcon
+maps to: an app's normalized `NSDockTile` artwork; no SwiftUI counterpart — system UI.
+`MacDockAppIcon({ icon, label }: MacDockAppIconProps)`
+`interface MacDockAppIconProps { readonly icon: DockIconSource; readonly label?: string }`
+This is the Dock's shared optical-size boundary. Prefer typed `DockIcon`:
+`asset` preserves a supplied app icon's intrinsic safe area; `symbol` draws a
+generated icon in the shared tile and glyph boxes. String and `ReactNode`
+inputs remain shorthand for assets and symbols. Do not wrap a local full-size
+tile in `MacDock` or compensate for one icon with local scale CSS — all app
+icons must enter through this normalizer.
 
 ### SystemSymbol
 maps to: SwiftUI `Image(systemName:)` (SF Symbols).
@@ -141,6 +183,14 @@ maps to: `NSMenu` / SwiftUI `Menu` — via react-aria `MenuTrigger`/`Menu`/`Menu
 `type MenuPopoverConfig = { readonly className?: string; readonly placement?: "bottom start" | "bottom end"; readonly offset?: number; readonly nonModal?: boolean }`
 `className` lands on the wrapper (`.mc-menu`). The popover itself is portalled and positioned by react-aria; `popover` carries the overlay knobs — the menu-bar dropdowns pass `{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 3, nonModal: true }` for the compact lead-aligned NSMenu skin and to keep other menu titles interactive. `shortcut` renders the native trailing shortcut text; `disabled` renders an unavailable row. Entries with `checked` render as `menuitemradio` inside a single-selection group.
 
+### MacPopover
+maps to: `NSPopover` / SwiftUI `.popover`.
+`MacPopover({ children, className = "", label, offset = 6, placement = "bottom end", trigger, triggerClassName = "" })`
+Use this for arbitrary labelled, anchored content that is not a command menu.
+It shares the focus-return, Escape, and outside-press dismissal machinery with
+the menu system. Use `MacMenu` for commands and `MacDetailsMenu` for the
+account-style summary trigger; do not create a local overlay.
+
 ### MacDetailsMenu
 maps to: `NSPopover` anchored to a control; SwiftUI `.popover`.
 `MacDetailsMenu({ children, className = "", label, summary }: { readonly children: ReactNode; readonly className?: string; readonly label: string; readonly summary: ReactNode })`
@@ -170,9 +220,67 @@ maps to: no native counterpart — AppKit's key-window/first-responder system pr
 `useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, initialFocusSelector = focusableSelector, onCancel }: { readonly dialogRef: RefObject<HTMLElement | null>; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly focusVersion?: string; readonly initialFocusSelector?: string; readonly onCancel: () => void })`
 Returns a keydown handler to attach to the dialog element.
 
+### MacNavigationSplitView
+maps to: SwiftUI `NavigationSplitView` / AppKit split view.
+`MacNavigationSplitView({ sidebar, content, detail, sidebarVisible = true, sidebarLabel = "Sidebar", contentLabel = "Content", detailLabel = "Detail", sidebarSizing, contentSizing, detailSizing, className = "", id }: MacNavigationSplitViewProps)`
+The required `sidebar` and `detail` create a two-column navigation split. Add
+`content` for a three-column sidebar/content/detail selection hierarchy. Each
+column accepts an optional min/default/max `MacNavigationColumnSizing` object;
+the built-in separators are keyboard-operable ARIA window splitters. Keep
+supplementary settings or metadata outside this hierarchy in `MacInspector`.
+
+### MacInspector
+maps to: SwiftUI `.inspector` / an AppKit inspector pane.
+`MacInspector({ children, className = "", label = "Inspector", visible = true, width, defaultWidth = 260, minWidth = 220, maxWidth = 360, onWidthChange }: MacInspectorProps)`
+A separate trailing supplementary pane with an accessible leading-edge
+separator: drag it, or focus it and use Left/Right (Home/End reaches the
+limits). Pass `width` with `onWidthChange` for controlled sizing, or omit
+`width` and optionally pass `defaultWidth` for internal sizing. It does not
+turn a two-column navigation split into a three-column navigation split and
+does not invent the toolbar toggle or persistence policy; the surface owner
+keeps visibility and any persisted width in agreement.
+
+### MacSourceList
+maps to: SwiftUI `List` with `.listStyle(.sidebar)` / Finder source list.
+`MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange, expandedSectionIds, onExpandedSectionIdsChange }: MacSourceListProps)`
+`MacSourceListItem` is an id, label, optional icon/badge, and optional
+indent. `MacSourceListSection` groups items under an optional title and can be
+collapsible. Selection is controlled; expansion is controlled when the
+expanded-id pair is supplied, otherwise sections begin expanded. The React
+Aria tree supplies roving focus, arrows, typeahead, selection, and disclosure
+semantics.
+
+### MacList
+maps to: SwiftUI `List` / `NSTableView`'s simple list usage.
+`MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange })`
+Rows may contain an icon, label, description, secondary text, accessory,
+disabled state, and action. Selection is single and controlled. This is a
+selectable list, not a table or outline view.
+
+### MacDisclosureGroup
+maps to: SwiftUI `DisclosureGroup` / `NSDisclosureButton`.
+`MacDisclosureGroup({ children, className = "", disabled = false, expanded, title, onExpandedChange })`
+Expansion is controlled and inherits React Aria's disclosure keyboard and
+accessibility semantics.
+
+### Controls, forms, and unavailable content
+maps to: SwiftUI `Button`, `TextField`, `Toggle`, `Picker` (segmented),
+`ControlGroup`, `Form`, `Section`, `LabeledContent`, and
+`ContentUnavailableView`.
+
+`MacButton` provides regular, primary, destructive, and borderless variants.
+`MacTextField` is a controlled field with optional visible label, description,
+and error. `MacToggle` is a controlled checkbox or switch. `MacSegmentedControl`
+is a controlled single-selection segmented choice. `MacControlGroup` gives
+adjacent controls one labelled group. `MacForm`, `MacFormSection`, and
+`MacLabeledContent` create the settings/form layout. `MacContentUnavailable`
+renders a labelled no-content state with optional icon, description, and
+actions. Use these instead of product-local imitations so the control has one
+focus, keyboard, and visual contract.
+
 ### FinderWindow
 maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspector` — the three-pane split is react-resizable-panels (`Group`/`Panel`/`Separator`, the ARIA window-splitter pattern), and the sidebar genuinely maps to `List(.sidebar)` via a react-aria `Tree` (an ARIA tree: treegrid rows with arrow-key navigation, typeahead, expand/collapse, and selection).
-`FinderWindow({ sidebar, sidebarHeader, entries, mode, onModeChange, search, selection, onOpen, onDrop, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom, iconColumns }: { readonly sidebar: readonly SidebarSection[]; readonly sidebarHeader?: ReactNode; readonly entries: readonly FinderEntry[]; readonly mode: FinderViewMode; readonly onModeChange: (mode: FinderViewMode) => void; readonly search: FinderSearch; readonly selection: FinderSelection; readonly onOpen: (entry: FinderEntry) => void; readonly onDrop?: (transfer: DataTransfer) => void; readonly preview?: (selection: FinderEntry | null) => ReactNode; readonly previewVisible?: boolean; readonly onPreviewVisibleChange?: (visible: boolean) => void; readonly statusBar?: ReactNode; readonly toolbarExtras?: ReactNode; readonly title?: string; readonly label?: string; readonly frame?: WindowFrame; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly iconColumns?: number })`
+`FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, onDrop, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom, iconColumns }: { readonly sidebar: readonly SidebarSection[]; readonly sidebarHeader?: ReactNode; readonly sidebarVisible?: boolean; readonly onSidebarVisibleChange?: (visible: boolean) => void; readonly entries: readonly FinderEntry[]; readonly mode: FinderViewMode; readonly onModeChange: (mode: FinderViewMode) => void; readonly search: FinderSearch; readonly selection: FinderSelection; readonly onOpen: (entry: FinderEntry) => void; readonly onDrop?: (transfer: DataTransfer) => void; readonly preview?: (selection: FinderEntry | null) => ReactNode; readonly previewVisible?: boolean; readonly onPreviewVisibleChange?: (visible: boolean) => void; readonly statusBar?: ReactNode; readonly toolbarExtras?: ReactNode; readonly title?: string; readonly label?: string; readonly frame?: WindowFrame; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly iconColumns?: number })`
 `type FinderEntry = { readonly id: string; readonly name: string; readonly kind: string; readonly icon: ReactNode; readonly modified?: string; readonly size?: string; readonly badge?: string; readonly draggable?: boolean }`
 `type SidebarItem = { readonly id: string; readonly icon?: ReactNode; readonly label: string; readonly badge?: ReactNode; readonly indent?: boolean; readonly selected?: boolean; readonly onSelect: () => void }`
 `type SidebarSection = { readonly id: string; readonly title?: string; readonly collapsible?: boolean; readonly count?: number; readonly selected?: boolean; readonly onTitleSelect?: () => void; readonly action?: ReactNode; readonly className?: string; readonly items: readonly SidebarItem[] }`
@@ -181,6 +289,7 @@ maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspecto
 `type FinderSearch = { readonly value: string; readonly onChange: (value: string) => void }`
 - Default geometry `940x580`, centered; override with `frame`.
 - The sidebar renders the macOS **source list** anatomy: full-height translucent material, quiet 11px section headers with a hover-revealed trailing disclosure chevron, 28px rows (accent-colored symbol + 13px label, 6px-radius tinted selection), sections separated by spacing — not dividers. Keyboard semantics (arrows, typeahead, collapse, selection-follows-focus) come from the react-aria Tree; the tree flattens rows in the DOM, so `SidebarSection.className` lands on the section's **lead row** (its header, or an untitled section's first item) — still the hook for product-layer placement (e.g. a bottom-anchored section via `margin-top: auto`) without reaching into chrome internals.
+- `sidebarVisible` and `onSidebarVisibleChange` are optional, backward-compatible props. The sidebar is default-visible and internally managed when they are omitted. Pass the pair when a View-menu command and the toolbar need one controlled source of truth. The toolbar toggle emits through the same setter; when the sidebar is hidden, the traffic lights move into the toolbar.
 - The preview pane is a collapsible panel clamped to 220–350px (default 270): drag or use the separator's arrow keys to resize; dragging below 150px (or the separator's Enter) collapses it, returning focus to the toolbar's Show/Hide Preview toggle. Visibility is default-visible and internal when `previewVisible` is omitted; pass `previewVisible` with `onPreviewVisibleChange` when a View-menu command and the toolbar need one controlled source of truth. The component does not persist visibility or pane width.
 - The default toolbar is the parity composition: left-aligned title in the leading area, then trailing `toolbarExtras`, the segmented icons/list view capsule, the search bubble, and (when `preview` is provided) the inspector toggle — zero consumer CSS required.
 - The content grid is one tab stop (roving tabindex on the selected entry).
@@ -224,7 +333,7 @@ maps to: SwiftUI `.sheet` / `NSWindow.beginSheet`.
 
 ### ChatWindow
 maps to: no direct counterpart — a Messages-style `NavigationSplitView` (sidebar + transcript + composer) built from parts; AppKit/SwiftUI ship no chat surface.
-`ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", toolbarExtras, emptyTranscript, label, frame, onClose, onMinimize, onZoom }: { readonly conversations: readonly Conversation[]; readonly activeConversationId: string; readonly onSelectConversation: (id: string) => void; readonly composer: ChatComposer; readonly search?: ChatSearch; readonly sidebarLabel?: string; readonly toolbarExtras?: ReactNode; readonly emptyTranscript?: ReactNode; readonly label?: string; readonly frame?: WindowFrame; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void })`
+`ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", sidebarVisible, onSidebarVisibleChange, toolbarExtras, emptyTranscript, label, frame, onClose, onMinimize, onZoom }: { readonly conversations: readonly Conversation[]; readonly activeConversationId: string; readonly onSelectConversation: (id: string) => void; readonly composer: ChatComposer; readonly search?: ChatSearch; readonly sidebarLabel?: string; readonly sidebarVisible?: boolean; readonly onSidebarVisibleChange?: (visible: boolean) => void; readonly toolbarExtras?: ReactNode; readonly emptyTranscript?: ReactNode; readonly label?: string; readonly frame?: WindowFrame; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void })`
 `type ChatRole = "owner" | "agent" | "system"`
 `type ChatAuthor = { readonly name: string; readonly icon?: ReactNode; readonly role: ChatRole }`
 `type ChatMessage = { readonly id: string; readonly author: ChatAuthor; readonly at: string; readonly body: ReactNode; readonly status?: string }`
@@ -232,3 +341,8 @@ maps to: no direct counterpart — a Messages-style `NavigationSplitView` (sideb
 `type ChatComposer = { readonly value: string; readonly onChange: (value: string) => void; readonly onSend: () => void; readonly placeholder?: string; readonly accessory?: ReactNode }`
 `type ChatSearch = { readonly value: string; readonly onChange: (value: string) => void }`
 Default geometry `760x540`, centered; override with `frame`.
+`sidebarVisible` and `onSidebarVisibleChange` are optional, backward-compatible
+props. The sidebar is default-visible and internally managed when they are
+omitted. Use the controlled pair when the app's View menu and the recipe's
+toolbar must target the same active-window state; the toolbar invokes the same
+setter.

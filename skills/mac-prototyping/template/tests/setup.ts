@@ -3,6 +3,8 @@
    react-aria builds selectors with CSS.escape. Both shims are inert
    stand-ins — layout is zero-sized in jsdom anyway. Harmless in stub mode. */
 
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 if (typeof globalThis.ResizeObserver === "undefined") {
   class ResizeObserverStub implements ResizeObserver {
     observe(): void {}

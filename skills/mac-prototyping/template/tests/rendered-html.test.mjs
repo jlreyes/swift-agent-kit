@@ -46,8 +46,9 @@ test("the example surface renders the mac shell", async () => {
 test("the showcase server-renders its catalog shell", async () => {
   const html = await render("/showcase").then((response) => response.text());
 
-  assert.match(html, /data-showcase-story="toolbar"/);
+  assert.match(html, /data-showcase-story="anatomy"/);
+  assert.match(html, /Mac Chrome component showcase/);
   assert.match(html, /aria-label="Showcase Dock"/);
   assert.match(html, /href="\/mac-chrome-showcase\.svg"/);
-  assert.match(html, /Window \+ Toolbar/);
+  assert.match(html, /Window &amp; Toolbar/);
 });

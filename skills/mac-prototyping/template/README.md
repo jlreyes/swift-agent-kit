@@ -35,7 +35,9 @@ The launcher at `/` links both starter routes:
 - `/showcase` is the interactive catalog and coverage surface for every
   mac-chrome runtime export. Use it to discover components and smoke-check a
   freshly vendored toolkit. It is also a running Dock app, so its desktop
-  identity is visible while exercising the shell.
+  identity is visible while exercising the shell. Its persistent catalog
+  layout dogfoods the public source list and navigation split view; it is not
+  a one-off demo layout.
 - `/example` is the deliberately small, coherent product-window starter.
   Build the product's first surface from it rather than treating the catalog
   as application UI.
@@ -48,6 +50,28 @@ The catalog exercises real shared chrome. Use `MacMenu` for command menus and
 bespoke popup to a toolbar. The toolkit defaults to restrained opaque or
 near-opaque materials, compact command menus, and readable status popovers —
 not a web approximation of Liquid Glass.
+
+## Compose with mac-chrome
+
+Build a product surface from public primitives before adding local components:
+
+- Use `MacNavigationSplitView` for sidebar/detail (two columns) or
+  sidebar/content/detail (three navigation columns). Use `MacInspector` as a
+  separate supplementary pane, not as the third navigation column.
+- Use `MacSourceList` for source-list sidebars, `MacList` for selectable
+  rows, and `MacDisclosureGroup` for controlled collapsed detail.
+- Use `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`,
+  `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, and
+  `MacContentUnavailable` instead of restyling raw controls and empty states.
+- Use a typed `DockIcon` with `MacDock` for app tiles. Asset icons preserve
+  their own safe area; generated symbol icons use the shared tile and glyph
+  boxes. Do not create a local full-size Dock icon tile or per-app scaling.
+
+`FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
+complete recipes layered above the primitives. Use them when their flow fits;
+otherwise compose the primitives for the product's own structure. Tables,
+outline views, grid collections, alerts, full SwiftUI parity, and Liquid Glass
+are intentionally not starter-library promises.
 
 ## Add a surface
 
@@ -67,7 +91,8 @@ not a web approximation of Liquid Glass.
 
    The sibling component (`files-surface.tsx` here) starts with
    `"use client"`, owns the state, and composes `DesktopShell` +
-   `WindowChrome` + `MacToolbar` + `MacDock` from `lib/mac-chrome` — follow
+   `WindowChrome` + `MacToolbar` + `MacDock` and the relevant shared layout,
+   collection, and control primitives from `lib/mac-chrome` — follow
    `app/example/`. Its `example-desktop.tsx` supplies `DesktopShell` a
    client-side `onMenuAction` target and shows temporary visible feedback for
    each command; replace that feedback with the product behavior.

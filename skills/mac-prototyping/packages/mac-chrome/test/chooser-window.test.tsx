@@ -1,0 +1,98 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { expect, it } from "vitest";
+
+import { ChooserWindow } from "../chooser-window.tsx";
+
+it("routes secondary chooser commands through the shared Mac menu system", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  let picked = "";
+
+  await act(async () => {
+    root.render(
+      <ChooserWindow
+        title="Create a project"
+        subtitle="Choose a starting point"
+        choices={[{ id: "starter", symbol: "doc.text.fill", title: "Starter", caption: "A standard project" }]}
+        selected="starter"
+        onSelect={() => {}}
+        secondaryGroup={{
+          label: "More Options",
+          caption: "Import or connect instead",
+          activeCaption: "Blank project selected",
+          sections: [
+            {
+              id: "templates",
+              label: "TEMPLATES",
+              commands: [
+                {
+                  id: "guided",
+                  symbol: "sparkles",
+                  title: "Guided Project",
+                  caption: "Start with helpful prompts.",
+                  checked: false,
+                  onSelect: () => { picked = "guided"; },
+                },
+                {
+                  id: "blank",
+                  symbol: "doc.text.fill",
+                  title: "Blank Project",
+                  caption: "Start from an empty project.",
+                  checked: true,
+                  onSelect: () => { picked = "blank"; },
+                },
+              ],
+            },
+            {
+              id: "import",
+              label: "IMPORT",
+              commands: [
+                {
+                  id: "file",
+                  symbol: "doc.badge.arrow.down",
+                  title: "Import File…",
+                  caption: "Open an existing document.",
+                  onSelect: () => { picked = "file"; },
+                },
+              ],
+            },
+          ],
+        }}
+        footer={<button type="button">Continue</button>}
+      />,
+    );
+  });
+
+  const trigger = container.querySelector<HTMLButtonElement>("button[aria-label='More Options']");
+  expect(trigger).toBeTruthy();
+  expect(trigger?.textContent).toContain("Blank project selected");
+  expect(container.querySelector(".mc-chooser-secondary.is-selected")).toBeTruthy();
+
+  await act(async () => trigger?.click());
+
+  const menu = document.querySelector<HTMLElement>("[role='menu'][aria-label='More Options']");
+  expect(menu).toBeTruthy();
+  expect(Array.from(menu?.querySelectorAll(".menu-section-label") ?? []).map((label) => label.textContent)).toEqual([
+    "TEMPLATES",
+    "IMPORT",
+  ]);
+  expect(menu?.querySelectorAll(".menu-separator")).toHaveLength(1);
+  expect(menu?.textContent).toContain("Start with helpful prompts.");
+  expect(menu?.querySelector("[data-key='chooser:templates:guided'] [data-system-symbol='sparkles']")).toBeTruthy();
+  expect(menu?.querySelector("[data-key='chooser:templates:blank']")?.getAttribute("role")).toBe("menuitemradio");
+  expect(menu?.querySelector("[data-key='chooser:templates:blank']")?.getAttribute("aria-checked")).toBe("true");
+
+  await act(async () => {
+    menu?.querySelector<HTMLElement>("[data-key='chooser:import:file']")?.click();
+  });
+  expect(picked).toBe("file");
+  expect(document.querySelector("[role='menu'][aria-label='More Options']")).toBeNull();
+  expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(trigger);
+
+  await act(async () => root.unmount());
+  container.remove();
+});

@@ -14,7 +14,7 @@ match?"
 
 Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 [Menu bar](#menu-bar) ·
-[Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
+[Composition](#composition--split-view-semantics) · [Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
 [Preview/inspector](#preview--inspector) · [Grid & empty states](#grid--empty-states) ·
 [Creation windows](#creation-window-precedents) · [Keyboard & a11y](#keyboard--accessibility) ·
 [Animation](#animation--transition-discipline) · [Content semantics](#content-semantics)
@@ -72,6 +72,32 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   placement defect — verify with live geometry at normal and small viewports,
   never from the code.
 
+## Composition & split-view semantics
+
+(Precedent: SwiftUI `NavigationSplitView`, `List`, `DisclosureGroup`, `Form`,
+and `.inspector`.)
+
+- Start with the matching shared mac-chrome primitive. A local source-list,
+  selectable list, disclosure, standard control, form row, empty state, menu,
+  or Dock tile is a P1 when the library already owns that native pattern.
+  Product composition may arrange primitives and supply content; it must not
+  duplicate their focus, keyboard, selection, dismissal, or optical-size
+  contracts.
+- A navigation split has two columns (sidebar + detail) or three navigation
+  columns (sidebar + content + detail). The middle column earns itself by
+  representing a real selection hierarchy; it is not a convenient place for
+  metadata or settings.
+- An inspector is a separate supplementary trailing pane. Do not call a
+  sidebar + detail + inspector layout a three-column navigation split, and do
+  not make an inspector stand in for the content column.
+- Inspect a responsive split live: columns respect reasonable min/max widths,
+  dividers are visibly resizable and keyboard-operable, and small viewports
+  retain an intelligible hierarchy rather than compressing all columns into
+  unreadable strips.
+- Product UI must not silently import a showcase-local component or duplicate
+  showcase styling. `/showcase` is evidence that public primitives compose;
+  it is not a private component source.
+
 ## Menu bar
 
 - By default, `DesktopShell` supplies Apple and app menus plus functional
@@ -100,11 +126,20 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   and Trash, using ignored private hydrated assets when available.
 - A showcase is an app in this desktop: give it a distinct, running Dock item
   in addition to the default system set.
+- Audit Dock icons as one optical system, not just equal CSS dimensions. Each
+  item enters through `MacDockAppIcon`: hydrated asset art retains its safe
+  area, while generated art uses the shared tile/glyph geometry. A nested
+  custom 50px tile, per-icon `transform: scale`, or one icon that is visibly
+  larger than its neighbors is P1.
 
 ## Control roles & emphasis
 
 - Exactly one emphasized (default) button per surface — the primary action;
   Back/secondary actions are regular weight. (HIG button roles.)
+- Standard buttons, fields, toggles, segmented choices, control groups, form
+  rows, and unavailable-content states use their shared primitives. Styling a
+  raw browser input until it looks close is insufficient when it drops the
+  shared accessible name, disabled, validation, focus, or keyboard contract.
 - Choices that are not navigation are not tabs: auth methods, options, and
   modes present as one preferred path plus subordinate alternates, never as
   `aria-pressed` tab rows.
@@ -129,6 +164,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   selection state.
 - Prefer a flat list with per-item badges over introduced grouping levels.
 - Clicking an item navigates; disclosure is the secondary affordance.
+- A reusable sidebar is `MacSourceList`, not a hand-built column of buttons.
+  Audit arrow navigation, typeahead, selection, and controlled collapsible
+  sections in addition to its source-list anatomy.
 
 ## Preview / inspector
 
@@ -145,6 +183,10 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   with a columns override as a follow-up — so don't flag that unreachable half
   as a prototype defect.)
 - Disclosure chevrons appear only where a real expand/collapse exists.
+- `MacInspector` is supplementary content owned by the enclosing surface.
+  Its visibility, width, toolbar/View-menu command, and persistence policy
+  must agree where the product exposes them; the primitive does not invent
+  those policies automatically.
 
 ## Grid & empty states
 
@@ -152,6 +194,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   size, dashed boundary, drag-active highlight, understated copy. An action
   tile must never be visually louder than real content.
 - Drop targets are generously sized (~150px+, not a thin strip).
+- A simple unavailable-content state uses `MacContentUnavailable`; do not
+  create a competing oversized landing-page hero inside a list/detail pane.
 
 ## Creation-window precedents
 

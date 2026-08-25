@@ -1,6 +1,6 @@
 ---
 name: mac-prototyping
-description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, draggable windows, dock, restrained native-material toolbars, Finder/chooser/setup-assistant/chat surfaces, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
+description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — desktop shell, Dock, navigation split views, source lists, lists, forms, controls, menus, window recipes, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
 metadata:
   author: jlreyes
 ---
@@ -50,6 +50,54 @@ discovering components or auditing mac-chrome: it is the interactive coverage
 surface for every runtime export. Keep `/example` as the small, coherent
 starter surface for product work. The template launcher links both routes.
 
+## Compose from the standard library
+
+`mac-chrome` is a composition-first, 80/20 library, not only a collection of
+finished demo windows. Start product surfaces with its primitives, then use
+the finished windows as recipes when their interaction model fits. The
+canonical public contracts are in `packages/mac-chrome/README.md`; do not
+copy a showcase layout or private component into product code.
+
+| Need | Use | Native precedent |
+| --- | --- | --- |
+| Desktop stage, app menus, status items | `DesktopShell` | menu bar + desktop |
+| App launchers | `MacDock` + typed `DockIcon` / `MacDockAppIcon` | Dock tile |
+| Two- or three-column navigation | `MacNavigationSplitView` | `NavigationSplitView` |
+| Supplementary metadata or controls | `MacInspector` beside the split view | inspector / preview pane |
+| Sectioned sidebar navigation | `MacSourceList` | `List(.sidebar)` / source list |
+| Selectable rows | `MacList` | `List` |
+| Collapsible grouped detail | `MacDisclosureGroup` | `DisclosureGroup` |
+| Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
+| No-content state | `MacContentUnavailable` | `ContentUnavailableView` |
+| Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
+| A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
+
+`MacNavigationSplitView` has either two columns (sidebar + detail) or three
+navigation columns (sidebar + content + detail). Its optional middle column
+represents a selection hierarchy. `MacInspector` is deliberately a separate,
+supplementary trailing pane; do not treat it as the third navigation column.
+
+The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
+asset artwork retains its own safe area, while generated symbol artwork is
+drawn in the shared tile and glyph boxes. Do not create a local 50px tile,
+wrap it in a Dock item, or tune one app icon with ad-hoc scale CSS — that
+breaks the shared optical-size contract.
+
+The library deliberately does not promise full SwiftUI parity. Tables,
+outline views, grid collections, alerts, and other specialized patterns stay
+out until there is a demonstrated product need. Liquid Glass is explicitly
+not a default capability. Use the restrained material tokens rather than
+attempting to simulate a system compositor.
+
+### Promote a pattern deliberately
+
+Promote repeated product UI into `mac-chrome` only when it has a real native
+counterpart and a reusable contract: documented accessibility and keyboard
+behavior, responsive behavior, focused tests, and a working `/showcase`
+example. Prefer evidence from two independent consumers before promotion. A
+one-off product layout remains product code; a close-but-not-identical native
+pattern is a design question, not an excuse for another local component.
+
 ## Invariants
 
 These exist because their violations are exactly what made past prototypes
@@ -91,6 +139,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small
   viewports.
+- **Compose before styling.** Use the shared navigation, source-list, list,
+  disclosure, form, control, menu, and content-state primitives before
+  writing a local layout or control. Product CSS may arrange a surface around
+  those primitives; it must not reimplement their selection, focus,
+  keyboard, or optical-geometry contracts.
 - If a house TypeScript-standards skill is loaded in this environment, it
   governs prototype code too; this skill adds prototyping-specific rules,
   it does not waive house ones.

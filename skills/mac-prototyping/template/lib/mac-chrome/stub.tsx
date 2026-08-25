@@ -6,7 +6,7 @@
 // names, and default window geometry mirror the real package so pages written
 // against the stub keep working after vendoring. Full drag, focus, overlay,
 // and keyboard behavior exists only in the real package.
-import { useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type Ref, type RefObject } from "react";
+import { useId, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
 
@@ -83,7 +83,7 @@ export function MacMenu({ className = "", items, label, trigger, triggerClassNam
         ) : item.kind === "section" ? (
           <strong key={item.id} className="menu-section-label">{item.label}</strong>
         ) : (
-          <button key={item.id} type="button" role="menuitem" disabled={item.disabled} onClick={item.onSelect}>
+          <button key={item.id} type="button" role={item.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={item.checked} disabled={item.disabled} onClick={item.onSelect}>
             <span aria-hidden="true">{item.icon ?? (item.checked ? "✓" : null)}</span>
             <span>{item.label}</span>
             {item.shortcut !== undefined ? <kbd>{item.shortcut}</kbd> : item.trailingIcon}
@@ -114,6 +114,24 @@ export function MacDetailsMenu({ children, className = "", label, summary }: {
       </button>
       {open ? <div className="mc-details-menu-popover"><div className="mc-popover-dialog">{children}</div></div> : null}
     </div>
+  );
+}
+
+export function MacPopover({ children, className = "", label, trigger, triggerClassName = "" }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly label: string;
+  readonly offset?: number;
+  readonly placement?: "bottom start" | "bottom end";
+  readonly trigger: ReactNode;
+  readonly triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="mc-popover-stub">
+      <button type="button" className={`mc-popover-trigger ${triggerClassName}`.trim()} aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)}>{trigger}</button>
+      {open ? <aside className={`mc-popover-surface ${className}`.trim()} aria-label={label}><div className="mc-popover-dialog">{children}</div></aside> : null}
+    </span>
   );
 }
 
@@ -218,19 +236,18 @@ export function DesktopShell({
   );
 }
 
-export function TrafficLights({ disabled = false }: {
+export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }: {
   readonly disabled?: boolean;
   readonly onClose?: () => void;
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 } = {}) {
-  return (
-    <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">
-      <span className="traffic-close" />
-      <span className="traffic-minimize" />
-      <span className="traffic-zoom" />
-    </div>
-  );
+  function control(kind: "close" | "minimize" | "zoom", label: string, action: (() => void) | undefined) {
+    return disabled || action === undefined
+      ? <span className={`traffic-${kind}`} />
+      : <button type="button" className={`traffic-${kind}`} aria-label={label} onClick={action} />;
+  }
+  return <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">{control("close", "Close window", onClose)}{control("minimize", "Minimize window", onMinimize)}{control("zoom", "Zoom window", onZoom)}</div>;
 }
 
 export function WindowChrome({
@@ -356,11 +373,41 @@ export function ToolbarSearchBubble({ label = "Search", open, placeholder = "Sea
   );
 }
 
+export type DockIcon =
+  | { readonly kind: "asset"; readonly src: string }
+  | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string };
+
+export type DockIconSource = DockIcon | ReactNode | string;
+
+export interface MacDockAppIconProps {
+  readonly icon: DockIconSource;
+  readonly label?: string;
+}
+
+function stubDockIcon(icon: DockIconSource): DockIcon {
+  if (typeof icon === "string") return { kind: "asset", src: icon };
+  if (typeof icon === "object" && icon !== null && "kind" in icon) return icon as DockIcon;
+  return { kind: "symbol", symbol: icon };
+}
+
+export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
+  const normalized = stubDockIcon(icon);
+  return (
+    <span className={`p0-app-icon p0-app-icon--${normalized.kind === "asset" ? "asset" : "tile"}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <span
+        className="p0-app-icon-artwork"
+        style={normalized.kind === "symbol" ? { backgroundColor: normalized.background, color: normalized.foreground } : undefined}
+      >
+        {normalized.kind === "asset" ? <img className="p0-app-icon-image" src={normalized.src} alt="" draggable={false} /> : <span className="p0-app-icon-glyph">{normalized.symbol}</span>}
+      </span>
+    </span>
+  );
+}
+
 export interface DockItem {
   readonly id: string;
   readonly label: string;
-  /** Image URL, or a ReactNode (e.g. a SystemSymbol). */
-  readonly icon: ReactNode | string;
+  readonly icon: DockIconSource;
   readonly running?: boolean;
   /** Adjacent items with different group values get a divider between them. */
   readonly group?: string;
@@ -394,9 +441,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
               aria-label={item.label}
               onClick={item.onActivate}
             >
-              {typeof item.icon === "string"
-                ? <img src={item.icon} alt="" draggable={false} />
-                : <span className="p0-dock-icon" aria-hidden="true">{item.icon}</span>}
+              <MacDockAppIcon icon={item.icon} />
               <span className="p0-dock-running-dot" aria-hidden="true" />
             </button>
           </span>
@@ -421,6 +466,312 @@ export function MenuBarExtra({ badge, children, icon, label }: {
       <aside className="menu-popover mc-menubar-popover" aria-label={label}>{children}</aside>
     </details>
   );
+}
+
+/* ----- Reusable navigation and collection primitives ----- */
+
+export type MacNavigationColumnSizing = {
+  readonly minSize?: number | string;
+  readonly defaultSize?: number | string;
+  readonly maxSize?: number | string;
+};
+
+export type MacNavigationSplitViewProps = {
+  readonly sidebar: ReactNode;
+  readonly content?: ReactNode;
+  readonly detail: ReactNode;
+  readonly sidebarVisible?: boolean;
+  readonly sidebarLabel?: string;
+  readonly contentLabel?: string;
+  readonly detailLabel?: string;
+  readonly sidebarSizing?: MacNavigationColumnSizing;
+  readonly contentSizing?: MacNavigationColumnSizing;
+  readonly detailSizing?: MacNavigationColumnSizing;
+  readonly className?: string;
+  readonly id?: string;
+};
+
+export function MacNavigationSplitView({
+  sidebar,
+  content,
+  detail,
+  sidebarVisible = true,
+  sidebarLabel = "Sidebar",
+  contentLabel = "Content",
+  detailLabel = "Detail",
+  className = "",
+}: MacNavigationSplitViewProps) {
+  return (
+    <div className={`mc-navigation-split-view ${className}`.trim()}>
+      {sidebarVisible ? <><aside className="mc-navigation-column mc-navigation-sidebar" aria-label={sidebarLabel}>{sidebar}</aside><span className="mc-navigation-separator" /></> : null}
+      {content !== undefined ? <><section className="mc-navigation-column mc-navigation-content" aria-label={contentLabel}>{content}</section><span className="mc-navigation-separator" /></> : null}
+      <section className="mc-navigation-column mc-navigation-detail" aria-label={detailLabel}>{detail}</section>
+    </div>
+  );
+}
+
+export type MacInspectorProps = {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly label?: string;
+  readonly visible?: boolean;
+  readonly width?: number | string;
+  readonly defaultWidth?: number;
+  readonly minWidth?: number;
+  readonly maxWidth?: number;
+  readonly onWidthChange?: (width: number) => void;
+};
+
+export function MacInspector({ children, className = "", label = "Inspector", visible = true, width, defaultWidth = 260, minWidth = 220, maxWidth = 360, onWidthChange }: MacInspectorProps) {
+  const minimum = Math.min(minWidth, maxWidth);
+  const maximum = Math.max(minWidth, maxWidth);
+  const clamp = (next: number) => Math.min(Math.max(next, minimum), maximum);
+  const [internalWidth, setInternalWidth] = useState(() => clamp(defaultWidth));
+  const renderedWidth = width ?? internalWidth;
+  const currentWidth = typeof renderedWidth === "number" ? clamp(renderedWidth) : internalWidth;
+  const drag = useRef<{ readonly startX: number; readonly startWidth: number } | null>(null);
+  const inspectorId = `mc-inspector-${useId().replaceAll(":", "")}`;
+
+  function resize(next: number) {
+    const resized = clamp(next);
+    if (width === undefined) setInternalWidth(resized);
+    onWidthChange?.(resized);
+  }
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    drag.current = { startX: event.clientX, startWidth: currentWidth };
+    event.preventDefault();
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (drag.current === null) return;
+    resize(drag.current.startWidth + drag.current.startX - event.clientX);
+  }
+
+  function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const next = event.key === "ArrowLeft" ? currentWidth + 10 : event.key === "ArrowRight" ? currentWidth - 10 : event.key === "Home" ? minimum : event.key === "End" ? maximum : undefined;
+    if (next === undefined) return;
+    event.preventDefault();
+    resize(next);
+  }
+
+  if (!visible) return null;
+  return <><div role="separator" aria-controls={inspectorId} aria-label={`Resize ${label}`} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={currentWidth} className="mc-navigation-separator mc-inspector-separator" tabIndex={0} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} /><aside id={inspectorId} className={`mc-inspector ${className}`.trim()} aria-label={label} style={{ width: cssLength(renderedWidth), minWidth: cssLength(minimum), maxWidth: cssLength(maximum) }}>{children}</aside></>;
+}
+
+export type MacSourceListItem = {
+  readonly id: string;
+  readonly icon?: ReactNode;
+  readonly label: string;
+  readonly badge?: ReactNode;
+  readonly indent?: boolean;
+};
+
+export type MacSourceListSection = {
+  readonly id: string;
+  readonly title?: string;
+  readonly collapsible?: boolean;
+  readonly count?: number;
+  readonly action?: ReactNode;
+  readonly className?: string;
+  readonly items: readonly MacSourceListItem[];
+};
+
+export type MacSourceListProps = {
+  readonly sections: readonly MacSourceListSection[];
+  readonly label?: string;
+  readonly className?: string;
+  readonly selectedId: string | null;
+  readonly onSelectionChange: (id: string) => void;
+  readonly expandedSectionIds?: ReadonlySet<string>;
+  readonly onExpandedSectionIdsChange?: (ids: ReadonlySet<string>) => void;
+};
+
+export function MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange }: MacSourceListProps) {
+  return (
+    <nav role="tree" aria-label={label} className={`mc-sidebar-tree ${className}`.trim()}>
+      {sections.map((section) => (
+        <section key={section.id} className={`mc-sidebar-section ${section.className ?? ""}`.trim()}>
+          {section.title !== undefined ? <strong className="mc-sidebar-section-label">{section.title}{section.count !== undefined ? <small>{section.count}</small> : null}</strong> : null}
+          {section.items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="treeitem"
+              aria-selected={selectedId === item.id}
+              className={`mc-sidebar-item${selectedId === item.id ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
+              onClick={() => onSelectionChange(item.id)}
+            >
+              {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
+              <span className="mc-sidebar-item-label">{item.label}</span>
+              {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
+            </button>
+          ))}
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+export type MacListRow = {
+  readonly id: string;
+  readonly label: ReactNode;
+  readonly textValue?: string;
+  readonly icon?: ReactNode;
+  readonly description?: ReactNode;
+  readonly secondary?: ReactNode;
+  readonly accessory?: ReactNode;
+  readonly disabled?: boolean;
+  readonly onAction?: () => void;
+};
+
+export type MacListSection = {
+  readonly id: string;
+  readonly title?: ReactNode;
+  readonly items: readonly MacListRow[];
+};
+
+export function MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange }: {
+  readonly ariaLabel: string;
+  readonly className?: string;
+  readonly emptyState?: ReactNode;
+  readonly selectedId: string | null;
+  readonly sections: readonly MacListSection[];
+  readonly onSelectionChange: (id: string | null) => void;
+}) {
+  const rows = sections.flatMap((section) => section.items);
+  if (rows.length === 0) return <div className={`mc-list ${className}`.trim()} aria-label={ariaLabel}><div className="mc-list-empty">{emptyState}</div></div>;
+  return (
+    <div role="listbox" aria-label={ariaLabel} className={`mc-list ${className}`.trim()}>
+      {sections.map((section) => (
+        <section key={section.id} className="mc-list-section">
+          {section.title !== undefined ? <strong className="mc-list-section-title">{section.title}</strong> : null}
+          {section.items.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              role="option"
+              aria-selected={row.id === selectedId}
+              className="mc-list-row"
+              disabled={row.disabled}
+              onClick={() => { onSelectionChange(row.id); row.onAction?.(); }}
+            >
+              {row.icon !== undefined ? <span className="mc-list-row-icon" aria-hidden="true">{row.icon}</span> : null}
+              <span className="mc-list-row-copy"><span className="mc-list-row-label">{row.label}</span>{row.description !== undefined ? <small>{row.description}</small> : null}</span>
+              {row.secondary !== undefined ? <span className="mc-list-row-secondary">{row.secondary}</span> : null}
+              {row.accessory !== undefined ? <span className="mc-list-row-accessory">{row.accessory}</span> : null}
+            </button>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+export function MacDisclosureGroup({ children, className = "", disabled = false, expanded, title, onExpandedChange }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly expanded: boolean;
+  readonly title: ReactNode;
+  readonly onExpandedChange: (expanded: boolean) => void;
+}) {
+  return (
+    <section className={`mc-disclosure ${className}`.trim()} data-expanded={expanded ? "" : undefined}>
+      <h3 className="mc-disclosure-heading"><button type="button" className="mc-disclosure-trigger" disabled={disabled} aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><span className="mc-disclosure-chevron" aria-hidden="true" /><span>{title}</span></button></h3>
+      {expanded ? <div className="mc-disclosure-panel">{children}</div> : null}
+    </section>
+  );
+}
+
+/* ----- Reusable controls and content states ----- */
+
+export type MacButtonVariant = "regular" | "primary" | "destructive" | "borderless";
+
+export function MacButton({ ariaLabel, children, className = "", disabled = false, ref, type = "button", variant = "regular", onPress }: {
+  readonly ariaLabel?: string;
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly ref?: Ref<HTMLButtonElement>;
+  readonly type?: "button" | "submit" | "reset";
+  readonly variant?: MacButtonVariant;
+  readonly onPress?: () => void;
+}) {
+  return <button ref={ref} type={type} aria-label={ariaLabel} className={`mc-button mc-button-${variant} ${className}`.trim()} disabled={disabled} onClick={onPress}>{children}</button>;
+}
+
+export function MacTextField({ ariaLabel, autoComplete, className = "", description, disabled = false, errorMessage, invalid = false, label, name, placeholder, readOnly = false, type = "text", value, onChange }: {
+  readonly ariaLabel?: string;
+  readonly autoComplete?: string;
+  readonly className?: string;
+  readonly description?: ReactNode;
+  readonly disabled?: boolean;
+  readonly errorMessage?: ReactNode;
+  readonly invalid?: boolean;
+  readonly label?: ReactNode;
+  readonly name?: string;
+  readonly placeholder?: string;
+  readonly readOnly?: boolean;
+  readonly type?: "email" | "password" | "search" | "text" | "url";
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}) {
+  return (
+    <label className={`mc-text-field ${className}`.trim()}>
+      {label !== undefined ? <span className="mc-field-label">{label}</span> : null}
+      <input className="mc-field-input" aria-label={label === undefined ? ariaLabel : undefined} autoComplete={autoComplete} disabled={disabled} aria-invalid={invalid} name={name} placeholder={placeholder} readOnly={readOnly} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      {description !== undefined ? <small className="mc-field-description">{description}</small> : null}
+      {errorMessage !== undefined ? <small className="mc-field-error">{errorMessage}</small> : null}
+    </label>
+  );
+}
+
+export type MacToggleStyle = "checkbox" | "switch";
+
+export function MacToggle({ children, className = "", disabled = false, selected, style = "checkbox", onChange }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly selected: boolean;
+  readonly style?: MacToggleStyle;
+  readonly onChange: (selected: boolean) => void;
+}) {
+  return <label className={`mc-toggle mc-toggle-${style} ${className}`.trim()}><input type="checkbox" role={style === "switch" ? "switch" : undefined} disabled={disabled} checked={selected} onChange={(event) => onChange(event.target.checked)} /><span className={style === "switch" ? "mc-switch-track" : "mc-checkbox-box"} aria-hidden="true" />{children}</label>;
+}
+
+export type MacSegment = { readonly id: string; readonly label: ReactNode; readonly icon?: ReactNode; readonly disabled?: boolean };
+
+export function MacSegmentedControl({ ariaLabel, className = "", disabled = false, options, value, onChange }: {
+  readonly ariaLabel: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly options: readonly MacSegment[];
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}) {
+  return <div className={`mc-segmented-control ${className}`.trim()} role="radiogroup" aria-label={ariaLabel}>{options.map((option) => <button key={option.id} type="button" role="radio" aria-checked={value === option.id} className="mc-segmented-option" disabled={disabled || option.disabled} data-selected={value === option.id ? "" : undefined} onClick={() => onChange(option.id)}>{option.icon}<span>{option.label}</span></button>)}</div>;
+}
+
+export function MacControlGroup({ ariaLabel, children, className = "" }: { readonly ariaLabel: string; readonly children: ReactNode; readonly className?: string }) {
+  return <div className={`mc-control-group ${className}`.trim()} role="group" aria-label={ariaLabel}>{children}</div>;
+}
+
+export function MacForm({ ariaLabel, children, className = "", onSubmit }: { readonly ariaLabel?: string; readonly children: ReactNode; readonly className?: string; readonly onSubmit?: FormEventHandler<HTMLFormElement> }) {
+  return <form className={`mc-form ${className}`.trim()} aria-label={ariaLabel} onSubmit={onSubmit}>{children}</form>;
+}
+
+export function MacFormSection({ children, className = "", description, disabled = false, title }: { readonly children: ReactNode; readonly className?: string; readonly description?: ReactNode; readonly disabled?: boolean; readonly title?: ReactNode }) {
+  return <fieldset className={`mc-form-section ${className}`.trim()} disabled={disabled}>{title !== undefined ? <legend>{title}</legend> : null}{description !== undefined ? <p className="mc-form-section-description">{description}</p> : null}<div className="mc-form-section-content">{children}</div></fieldset>;
+}
+
+export function MacLabeledContent({ children, className = "", description, label }: { readonly children: ReactNode; readonly className?: string; readonly description?: ReactNode; readonly label: ReactNode }) {
+  return <div className={`mc-labeled-content ${className}`.trim()}><div className="mc-labeled-content-label"><span>{label}</span>{description !== undefined ? <small>{description}</small> : null}</div><div className="mc-labeled-content-value">{children}</div></div>;
+}
+
+export function MacContentUnavailable({ actions, className = "", description, icon, title }: { readonly actions?: ReactNode; readonly className?: string; readonly description?: ReactNode; readonly icon?: ReactNode; readonly title: ReactNode }) {
+  return <section className={`mc-content-unavailable ${className}`.trim()}>{icon !== undefined ? <span className="mc-content-unavailable-icon" aria-hidden="true">{icon}</span> : null}<h2>{title}</h2>{description !== undefined ? <p>{description}</p> : null}{actions !== undefined ? <div className="mc-content-unavailable-actions">{actions}</div> : null}</section>;
 }
 
 export type FinderViewMode = "icons" | "list";
@@ -472,9 +823,11 @@ export type FinderSearch = {
 // Static Finder shell mirroring the real package's rendered structure (window
 // label, sidebar header/sections, listbox/option roles, mc-finder-* classes).
 // Callback props are accepted for API parity but never wired — server-safe.
-export function FinderWindow({ sidebar, sidebarHeader, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame }: {
+export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose }: {
   readonly sidebar: readonly SidebarSection[];
   readonly sidebarHeader?: ReactNode;
+  readonly sidebarVisible?: boolean;
+  readonly onSidebarVisibleChange?: (visible: boolean) => void;
   readonly entries: readonly FinderEntry[];
   readonly mode: FinderViewMode;
   readonly onModeChange: (mode: FinderViewMode) => void;
@@ -495,11 +848,17 @@ export function FinderWindow({ sidebar, sidebarHeader, entries, mode, onModeChan
   readonly onZoom?: () => void;
   readonly iconColumns?: number;
 }) {
+  const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
+  const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
+  function setSidebarVisibility(visible: boolean) {
+    if (sidebarVisible === undefined) setUncontrolledSidebarVisible(visible);
+    onSidebarVisibleChange?.(visible);
+  }
   return (
-    <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize}>
-      <aside className="mc-finder-sidebar">
+    <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose}>
+      {isSidebarVisible ? <aside className="mc-finder-sidebar">
         <div className="mc-finder-sidebar-top" data-window-drag-handle="">
-          <TrafficLights />
+          <TrafficLights onClose={onClose} />
         </div>
         {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
         <nav aria-label="Sidebar">
@@ -521,9 +880,15 @@ export function FinderWindow({ sidebar, sidebarHeader, entries, mode, onModeChan
             </section>
           ))}
         </nav>
-      </aside>
+      </aside> : null}
       <main className="mc-finder-main">
         <MacToolbar
+          leading={
+            <>
+              {!isSidebarVisible ? <TrafficLights onClose={onClose} /> : null}
+              <ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton>
+            </>
+          }
           title={title}
           trailing={
             <>
@@ -780,13 +1145,15 @@ export type Conversation = { readonly id: string; readonly title: string; readon
 export type ChatComposer = { readonly value: string; readonly onChange: (value: string) => void; readonly onSend: () => void; readonly placeholder?: string; readonly accessory?: ReactNode };
 export type ChatSearch = { readonly value: string; readonly onChange: (value: string) => void };
 
-export function ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", toolbarExtras, emptyTranscript, label, frame }: {
+export function ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", sidebarVisible, onSidebarVisibleChange, toolbarExtras, emptyTranscript, label, frame, onClose }: {
   readonly conversations: readonly Conversation[];
   readonly activeConversationId: string;
   readonly onSelectConversation: (id: string) => void;
   readonly composer: ChatComposer;
   readonly search?: ChatSearch;
   readonly sidebarLabel?: string;
+  readonly sidebarVisible?: boolean;
+  readonly onSidebarVisibleChange?: (visible: boolean) => void;
   readonly toolbarExtras?: ReactNode;
   readonly emptyTranscript?: ReactNode;
   readonly label?: string;
@@ -795,12 +1162,18 @@ export function ChatWindow({ conversations, activeConversationId, onSelectConver
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 }) {
+  const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
+  const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
+  function setSidebarVisibility(visible: boolean) {
+    if (sidebarVisible === undefined) setUncontrolledSidebarVisible(visible);
+    onSidebarVisibleChange?.(visible);
+  }
   const active = conversations.find((conversation) => conversation.id === activeConversationId);
   return (
-    <WindowChrome className="mc-chat-window" label={label ?? active?.title ?? "Chat"} frame={frame}>
-      <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside>
+    <WindowChrome className="mc-chat-window" label={label ?? active?.title ?? "Chat"} frame={frame} onClose={onClose}>
+      {isSidebarVisible ? <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights onClose={onClose} /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside> : null}
       <section className="mc-chat-main">
-        <MacToolbar title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
+        <MacToolbar leading={<>{!isSidebarVisible ? <TrafficLights onClose={onClose} /> : null}<ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton></>} title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
         <div className="mc-chat-transcript" role="log" aria-label="Conversation">{active?.messages.length ? active.messages.map((message) => <article key={message.id} className={`mc-chat-message mc-${message.author.role}`}>{message.author.icon}<strong>{message.author.name}</strong><p>{message.body}</p><small>{message.at}</small></article>) : emptyTranscript}</div>
         <form className="mc-chat-composer" onSubmit={(event) => { event.preventDefault(); if (composer.value.trim()) composer.onSend(); }}>{composer.accessory}<textarea aria-label={composer.placeholder ?? "Message"} value={composer.value} placeholder={composer.placeholder} onChange={(event) => composer.onChange(event.target.value)} /><button type="submit" disabled={!composer.value.trim()} aria-label="Send message"><SystemSymbol name="arrow.up" /></button></form>
       </section>

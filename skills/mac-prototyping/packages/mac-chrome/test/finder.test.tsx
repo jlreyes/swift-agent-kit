@@ -83,6 +83,42 @@ function ControlledPreviewHarness({ onChange }: { readonly onChange: (visible: b
   );
 }
 
+function ControlledSidebarHarness({ onChange }: { readonly onChange: (visible: boolean) => void }) {
+  const [visible, setVisible] = useState(true);
+
+  function handleVisibleChange(nextVisible: boolean) {
+    onChange(nextVisible);
+    setVisible(nextVisible);
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setVisible((current) => !current)}>
+        Toggle Sidebar from View menu
+      </button>
+      <FinderWindow
+        title="Vault"
+        sidebar={[
+          {
+            id: "favorites",
+            title: "Favorites",
+            items: [{ id: "all", label: "All Files", selected: true, onSelect: () => undefined }],
+          },
+        ]}
+        sidebarVisible={visible}
+        onSidebarVisibleChange={handleVisibleChange}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: "e1", onSelect: () => undefined }}
+        onOpen={() => undefined}
+        iconColumns={3}
+      />
+    </>
+  );
+}
+
 function selectedOption(): HTMLElement | undefined {
   return screen.getAllByRole("option").find((option) => option.getAttribute("aria-selected") === "true");
 }
@@ -233,6 +269,41 @@ describe("FinderWindow toolbar", () => {
     expect(screen.queryByRole("complementary", { name: "Preview" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Show Preview" }));
     expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
+  });
+
+  it("keeps sidebar visibility internally when it is uncontrolled", () => {
+    render(<Harness />);
+    expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Hide sidebar" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getAllByLabelText("Window controls")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
+
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show sidebar" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getAllByLabelText("Window controls")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
+    expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
+    expect(screen.getAllByLabelText("Window controls")).toHaveLength(1);
+  });
+
+  it("shares controlled sidebar visibility between external commands and the toolbar", () => {
+    const onChange = vi.fn();
+    render(<ControlledSidebarHarness onChange={onChange} />);
+    expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar from View menu" }));
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show sidebar" }).getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Sidebar from View menu" }));
+    expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Hide sidebar" }).getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("navigation", { name: "Sidebar" })).toBeNull();
   });
 
   it("shares controlled preview visibility between external commands and the toolbar", () => {

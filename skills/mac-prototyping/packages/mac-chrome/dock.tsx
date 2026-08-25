@@ -1,15 +1,93 @@
 "use client";
 
-import type { DragEvent as ReactDragEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent as ReactDragEvent, ReactNode } from "react";
 
 import "./styles/tokens.css";
 import "./styles/dock.css";
 
+/** Canonical Dock icon input: either prepared artwork or a generated tile. */
+export type DockIcon =
+  | {
+      readonly kind: "asset";
+      readonly src: string;
+    }
+  | {
+      readonly kind: "symbol";
+      readonly symbol: ReactNode;
+      readonly background?: string;
+      readonly foreground?: string;
+    };
+
+/** String and ReactNode inputs remain supported as asset/symbol shorthand. */
+export type DockIconSource = DockIcon | ReactNode | string;
+
+const appIconGeometry = {
+  canvas: 50,
+  tile: 42,
+  glyph: 26,
+} as const;
+
+export interface MacDockAppIconProps {
+  readonly icon: DockIconSource;
+  /** Supply only when the icon is not labelled by surrounding UI. */
+  readonly label?: string;
+}
+
+function isDockIcon(icon: DockIconSource): icon is DockIcon {
+  if (typeof icon !== "object" || icon === null || !("kind" in icon)) return false;
+  if (icon.kind === "asset") return "src" in icon && typeof icon.src === "string";
+  return icon.kind === "symbol" && "symbol" in icon;
+}
+
+/**
+ * A normalized 50px app-icon canvas. Asset artwork keeps its intrinsic safe
+ * area; generated icons use a 42px tile and a 26px glyph box.
+ */
+export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
+  const normalizedIcon: DockIcon = typeof icon === "string"
+    ? { kind: "asset", src: icon }
+    : isDockIcon(icon)
+      ? icon
+      : { kind: "symbol", symbol: icon };
+  const variant = normalizedIcon.kind === "asset" ? "asset" : "tile";
+  const tileStyle: CSSProperties = normalizedIcon.kind === "symbol"
+    ? {
+        width: appIconGeometry.tile,
+        height: appIconGeometry.tile,
+        backgroundColor: normalizedIcon.background,
+        color: normalizedIcon.foreground,
+      }
+    : { width: appIconGeometry.canvas, height: appIconGeometry.canvas };
+
+  return (
+    <span
+      className={`p0-app-icon p0-app-icon--${variant}`}
+      style={{ width: appIconGeometry.canvas, height: appIconGeometry.canvas }}
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
+      <span className="p0-app-icon-artwork" style={tileStyle}>
+        {normalizedIcon.kind === "asset"
+          ? <img className="p0-app-icon-image" src={normalizedIcon.src} alt="" draggable={false} />
+          : (
+              <span
+                className="p0-app-icon-glyph"
+                style={{ width: appIconGeometry.glyph, height: appIconGeometry.glyph }}
+              >
+                {normalizedIcon.symbol}
+              </span>
+            )}
+      </span>
+    </span>
+  );
+}
+
 export interface DockItem {
   readonly id: string;
   readonly label: string;
-  /** Image URL, or a ReactNode (e.g. a SystemSymbol). */
-  readonly icon: ReactNode | string;
+  /** Prefer a typed DockIcon; URL and ReactNode shorthands remain supported. */
+  readonly icon: DockIconSource;
   readonly running?: boolean;
   /** Adjacent items with different group values get a divider between them. */
   readonly group?: string;
@@ -44,6 +122,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
               className={`p0-dock-item${item.running ? " is-running" : ""}${draggable ? " can-drag" : ""}`}
               type="button"
               aria-label={item.label}
+              data-hover-effect="lift"
               draggable={draggable}
               onClick={item.onActivate}
               onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
@@ -54,9 +133,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                 event.dataTransfer.effectAllowed = "copy";
               }}
             >
-              {typeof item.icon === "string"
-                ? <img src={item.icon} alt="" draggable={false} />
-                : <span className="p0-dock-icon" aria-hidden="true">{item.icon}</span>}
+              <MacDockAppIcon icon={item.icon} />
               <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
               <span className="p0-dock-running-dot" aria-hidden="true" />
             </button>

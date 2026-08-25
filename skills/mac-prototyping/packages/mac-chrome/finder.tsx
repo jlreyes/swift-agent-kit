@@ -9,10 +9,13 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { Button, Tree, TreeItem, TreeItemContent, type Key, type Selection } from "react-aria-components";
 import { Group, Panel, Separator, type PanelSize } from "react-resizable-panels";
 
 import { useModalFocusTrap } from "./modal-focus";
+import {
+  MacSourceList,
+  type MacSourceListSection,
+} from "./navigation.tsx";
 import { SystemSymbol } from "./system-symbol";
 import { MacToolbar, ToolbarButton, ToolbarCapsule, ToolbarSearchBubble } from "./toolbar";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
@@ -69,6 +72,26 @@ export type FinderSearch = {
   readonly value: string;
   readonly onChange: (value: string) => void;
 };
+
+/* Finder's callback-per-row compatibility model adapts into MacSourceList's
+   collection-level controlled selection. Prefix both kinds so consumer ids
+   can safely overlap between sections and items. */
+function finderSidebarSectionId(id: string): string {
+  return `finder-section:${id}`;
+}
+
+function finderSidebarItemId(sectionId: string, itemId: string): string {
+  return `finder-item:${sectionId}:${itemId}`;
+}
+
+function selectedFinderSidebarId(sections: readonly SidebarSection[]): string | null {
+  for (const section of sections) {
+    if (section.title !== undefined && section.selected) return finderSidebarSectionId(section.id);
+    const selectedItem = section.items.find((item) => item.selected);
+    if (selectedItem !== undefined) return finderSidebarItemId(section.id, selectedItem.id);
+  }
+  return null;
+}
 
 const sidebarWidth = 224;
 const contentMinWidth = 210;
@@ -158,144 +181,11 @@ export function QuickLook({
   );
 }
 
-/* Keys inside the sidebar tree: consumer section/item ids share one keyspace,
-   so each kind gets a prefix. */
-function sectionKey(id: string): string {
-  return `section:${id}`;
-}
-
-function itemKey(id: string): string {
-  return `item:${id}`;
-}
-
-/* Source list (SwiftUI List(.sidebar) inside NavigationSplitView) on a
-   react-aria Tree: arrow-key navigation, typeahead, expand/collapse, and
-   selection semantics come from the library; the anatomy — quiet headers with
-   hover-revealed trailing chevrons, 28px rows, spacing between sections, never
-   dividers — stays on the mc-sidebar-* classes. Titled sections are styled
-   top-level rows; collapsible ones parent their item rows (react-aria flattens
-   rows in the DOM), non-collapsible ones are followed by flat item rows so no
-   collapse affordance exists at all. */
-function FinderSidebarTree({ sections }: { readonly sections: readonly SidebarSection[] }) {
-  // Everything starts expanded, matching the old per-section default.
-  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
-
-  const collapsibleIds = sections
-    .filter((section) => section.title !== undefined && (section.collapsible ?? false))
-    .map((section) => section.id);
-  const expandedKeys = collapsibleIds.filter((id) => !collapsedIds.has(id)).map(sectionKey);
-
-  const selectedKeys: Key[] = [];
-  for (const section of sections) {
-    if (section.title !== undefined && section.selected) selectedKeys.push(sectionKey(section.id));
-    for (const item of section.items) {
-      if (item.selected) selectedKeys.push(itemKey(item.id));
-    }
-  }
-
-  function handleSelectionChange(selection: Selection) {
-    if (selection === "all") return;
-    const key = [...selection][0];
-    for (const section of sections) {
-      if (key === sectionKey(section.id)) {
-        section.onTitleSelect?.();
-        return;
-      }
-      for (const item of section.items) {
-        if (key === itemKey(item.id)) {
-          item.onSelect();
-          return;
-        }
-      }
-    }
-  }
-
-  function handleExpandedChange(keys: Set<Key>) {
-    // Controlled expansion: only collapsible sections may toggle, so keyboard
-    // collapse on a non-collapsible parent can never take.
-    setCollapsedIds(new Set(collapsibleIds.filter((id) => !keys.has(sectionKey(id)))));
-  }
-
-  function itemRows(section: SidebarSection): readonly ReactNode[] {
-    return section.items.map((item, index) => {
-      // An untitled section has no header row; its lead row carries the
-      // section identity (mc-sidebar-section spacing + the consumer class).
-      const leadClass =
-        section.title === undefined && index === 0
-          ? `mc-sidebar-section${section.className !== undefined ? ` ${section.className}` : ""} `
-          : "";
-      return (
-        <TreeItem
-          key={item.id}
-          id={itemKey(item.id)}
-          textValue={item.label}
-          className={`${leadClass}mc-sidebar-item${item.selected ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
-        >
-          <TreeItemContent>
-            {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
-            <span className="mc-sidebar-item-label">{item.label}</span>
-            {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
-          </TreeItemContent>
-        </TreeItem>
-      );
-    });
-  }
-
-  return (
-    <Tree
-      aria-label="Sidebar"
-      className="mc-sidebar-tree"
-      selectionMode="single"
-      selectionBehavior="replace"
-      disallowEmptySelection
-      selectedKeys={selectedKeys}
-      onSelectionChange={handleSelectionChange}
-      expandedKeys={expandedKeys}
-      onExpandedChange={handleExpandedChange}
-    >
-      {sections.flatMap((section) => {
-        if (section.title === undefined) return itemRows(section);
-        const title = section.title;
-        const collapsible = section.collapsible ?? false;
-        const expanded = !collapsedIds.has(section.id);
-        const extraClass = section.className !== undefined ? ` ${section.className}` : "";
-        const header = (
-          <TreeItem
-            key={`section-${section.id}`}
-            id={sectionKey(section.id)}
-            textValue={title}
-            className={`mc-sidebar-section mc-sidebar-section-header${section.selected ? " mc-selected" : ""}${extraClass}`}
-          >
-            <TreeItemContent>
-              <span className="mc-sidebar-section-label">
-                <strong>{title}</strong>
-                {section.count !== undefined ? <small>{section.count}</small> : null}
-              </span>
-              {section.action}
-              {collapsible ? (
-                <Button
-                  slot="chevron"
-                  className="mc-sidebar-disclosure-button"
-                  aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
-                >
-                  <span className={`mc-sidebar-disclosure${expanded ? " mc-open" : ""}`}>
-                    <SystemSymbol name="chevron.right" />
-                  </span>
-                </Button>
-              ) : null}
-            </TreeItemContent>
-            {collapsible ? itemRows(section) : null}
-          </TreeItem>
-        );
-        return collapsible ? [header] : [header, ...itemRows(section)];
-      })}
-    </Tree>
-  );
-}
-
 export function FinderWindow({
   sidebar,
   sidebarHeader,
+  sidebarVisible,
+  onSidebarVisibleChange,
   entries,
   mode,
   onModeChange,
@@ -319,6 +209,9 @@ export function FinderWindow({
   readonly sidebar: readonly SidebarSection[];
   // Rendered flat at the top of the sidebar column, above all sections.
   readonly sidebarHeader?: ReactNode;
+  /** Controlled sidebar visibility. Omit to keep the default-visible internal state. */
+  readonly sidebarVisible?: boolean;
+  readonly onSidebarVisibleChange?: (visible: boolean) => void;
   readonly entries: readonly FinderEntry[];
   readonly mode: FinderViewMode;
   readonly onModeChange: (mode: FinderViewMode) => void;
@@ -344,6 +237,8 @@ export function FinderWindow({
   readonly iconColumns?: number;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
+  const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
   const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
   const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
   // Bumped on every re-show so the remounted preview panel gets a fresh id —
@@ -361,6 +256,22 @@ export function FinderWindow({
   const selectedEntry = entries.find((entry) => entry.id === selection.selectedId) ?? null;
   const quickLookEntry = quickLookId === null ? null : entries.find((entry) => entry.id === quickLookId) ?? null;
   const previewOpen = preview !== undefined && isPreviewVisible;
+  const sourceListSections: readonly MacSourceListSection[] = sidebar.map((section) => ({
+    id: finderSidebarSectionId(section.id),
+    title: section.title,
+    collapsible: section.collapsible,
+    count: section.count,
+    action: section.action,
+    className: section.className,
+    items: section.items.map((item) => ({
+      id: finderSidebarItemId(section.id, item.id),
+      icon: item.icon,
+      label: item.label,
+      badge: item.badge,
+      indent: item.indent,
+    })),
+  }));
+  const sourceListSelectedId = selectedFinderSidebarId(sidebar);
   // Roving tabindex: the grid is one tab stop (the selected entry, else the
   // first); arrow keys rove within it.
   const tabStopId = selectedEntry !== null ? selectedEntry.id : entries[0]?.id;
@@ -456,6 +367,15 @@ export function FinderWindow({
     onPreviewVisibleChange?.(visible);
   }
 
+  function setSidebarVisibility(visible: boolean) {
+    if (sidebarVisible === undefined) setUncontrolledSidebarVisible(visible);
+    onSidebarVisibleChange?.(visible);
+  }
+
+  function toggleSidebar() {
+    setSidebarVisibility(!isSidebarVisible);
+  }
+
   function togglePreview() {
     setPreviewVisibility(!isPreviewVisible);
   }
@@ -495,6 +415,21 @@ export function FinderWindow({
     onDrop(event.dataTransfer);
   }
 
+  function handleSourceListSelection(id: string) {
+    for (const section of sidebar) {
+      if (id === finderSidebarSectionId(section.id)) {
+        section.onTitleSelect?.();
+        return;
+      }
+      for (const item of section.items) {
+        if (id === finderSidebarItemId(section.id, item.id)) {
+          item.onSelect();
+          return;
+        }
+      }
+    }
+  }
+
   return (
     <WindowChrome
       className="mc-finder-window"
@@ -509,23 +444,41 @@ export function FinderWindow({
           fixed sidebar, flexible content, clamped collapsible preview with an
           ARIA window-splitter separator. Nothing persists. */}
       <Group className="mc-finder-split">
-        <Panel id="sidebar" disabled defaultSize={sidebarWidth} groupResizeBehavior="preserve-pixel-size" style={paneStyle}>
-          <aside className="mc-finder-sidebar">
-            <div className="mc-finder-sidebar-top" data-window-drag-handle="">
-              <TrafficLights />
-            </div>
-            {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
-            <nav aria-label="Sidebar">
-              <FinderSidebarTree sections={sidebar} />
-            </nav>
-          </aside>
-        </Panel>
+        {isSidebarVisible ? (
+          <Panel id="sidebar" disabled defaultSize={sidebarWidth} groupResizeBehavior="preserve-pixel-size" style={paneStyle}>
+            <aside className="mc-finder-sidebar">
+              <div className="mc-finder-sidebar-top" data-window-drag-handle="">
+                <TrafficLights />
+              </div>
+              {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
+              <nav aria-label="Sidebar">
+                <MacSourceList
+                  sections={sourceListSections}
+                  selectedId={sourceListSelectedId}
+                  onSelectionChange={handleSourceListSelection}
+                />
+              </nav>
+            </aside>
+          </Panel>
+        ) : null}
         <Panel id="content" minSize={contentMinWidth} style={paneStyle}>
           <main className="mc-finder-main">
             {/* macOS 27 Finder anatomy: title left-aligned in the leading area,
                 capsule controls trailing. Slot mode = the parity look for free. */}
             <MacToolbar
               className="mc-finder-toolbar"
+              leading={(
+                <>
+                  {!isSidebarVisible ? <TrafficLights /> : null}
+                  <ToolbarButton
+                    label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"}
+                    pressed={isSidebarVisible}
+                    onClick={toggleSidebar}
+                  >
+                    <SystemSymbol name="sidebar.left" />
+                  </ToolbarButton>
+                </>
+              )}
               title={title}
               trailing={
                 <>

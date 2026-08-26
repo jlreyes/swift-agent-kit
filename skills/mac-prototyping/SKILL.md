@@ -206,8 +206,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   general dialog API.
 - **One disclosure contract.** Use `MacDisclosureGroup` for grouped detail and
   `MacSourceList` for navigable sidebar sections. The shared indicator is a
-  `SystemSymbol`; source-list section headers are structural, never selection
-  destinations. Do not draw chevrons in CSS or animate a reveal by scaling it.
+  `SystemSymbol`; source-list section headers are structural by default. A
+  titled section may opt into a controlled selection destination with
+  `selectable: true` and `selectedSectionId` / `onSectionSelectionChange`;
+  its disclosure chevron remains a separate action. Do not draw chevrons in
+  CSS or animate a reveal by scaling it.
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small

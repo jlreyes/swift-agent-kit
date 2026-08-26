@@ -131,7 +131,7 @@
 
 .p0-window-thumbnail {
   width: 48px;
-  max-height: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -145,9 +145,11 @@
 }
 
 .p0-window-thumbnail > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .p0-window-thumbnail-fallback {

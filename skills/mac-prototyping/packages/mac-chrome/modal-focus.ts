@@ -4,13 +4,20 @@ import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, us
 
 const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-function activeModalDialogs() {
-  return [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+function activeModalDialogs(ownerElement?: HTMLElement) {
+  const candidates = ownerElement === undefined
+    ? [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+    : [...ownerElement.children]
+        .filter((child): child is HTMLElement => (
+          child instanceof HTMLElement && child.classList.contains("mc-window-modal-layer")
+        ))
+        .flatMap((layer) => [...layer.querySelectorAll<HTMLElement>('[aria-modal="true"]')]);
+  return candidates
     .filter((dialog) => dialog.closest('[inert], [aria-hidden="true"]') === null);
 }
 
-function focusTargetOrActiveModal(target: HTMLElement | null) {
-  const activeDialogs = activeModalDialogs();
+function focusTargetOrActiveModal(target: HTMLElement | null, ownerElement?: HTMLElement) {
+  const activeDialogs = activeModalDialogs(ownerElement);
   if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
     target.focus();
     return;
@@ -28,12 +35,15 @@ export function useModalFocusTrap({
   fallbackFocusRef,
   focusVersion,
   initialFocusSelector = focusableSelector,
+  ownerElement,
   onCancel,
 }: {
   readonly dialogRef: RefObject<HTMLElement | null>;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly focusVersion?: string;
   readonly initialFocusSelector?: string;
+  /** Limits stacked-modal focus ownership to one window or desktop canvas. */
+  readonly ownerElement?: HTMLElement;
   readonly onCancel: () => void;
 }) {
   const openerRef = useRef<HTMLElement | null>(null);
@@ -49,9 +59,9 @@ export function useModalFocusTrap({
       const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
       // Closing a lower layer must not return focus into its underlay while a
       // newer modal remains active. In that case the active modal owns focus.
-      window.requestAnimationFrame(() => focusTargetOrActiveModal(target));
+      window.requestAnimationFrame(() => focusTargetOrActiveModal(target, ownerElement));
     };
-  }, [fallbackFocusRef]);
+  }, [fallbackFocusRef, ownerElement]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {

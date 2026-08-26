@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FinderWindow, finderKeyTarget, type FinderEntry, type FinderViewMode } from "../finder";
@@ -121,6 +121,13 @@ function ControlledSidebarHarness({ onChange }: { readonly onChange: (visible: b
 
 function selectedOption(): HTMLElement | undefined {
   return screen.getAllByRole("option").find((option) => option.getAttribute("aria-selected") === "true");
+}
+
+function PreviewMountProbe({ onMount }: { readonly onMount: () => void }) {
+  useEffect(() => {
+    onMount();
+  }, [onMount]);
+  return <span>Preview state</span>;
 }
 
 function pressOnGrid(key: string, init: Record<string, unknown> = {}) {
@@ -350,6 +357,31 @@ describe("FinderWindow toolbar", () => {
     expect(screen.getByRole("complementary", { name: "Preview" })).toBeDefined();
   });
 
+  it("mounts preview children once per uncontrolled re-show", () => {
+    const onMount = vi.fn();
+    render(
+      <FinderWindow
+        title="Vault"
+        sidebar={[]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: "e1", onSelect: () => undefined }}
+        onOpen={() => undefined}
+        preview={() => <PreviewMountProbe onMount={onMount} />}
+        iconColumns={3}
+      />,
+    );
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show Preview" }));
+
+    expect(screen.getByText("Preview state")).toBeDefined();
+    expect(onMount).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps sidebar visibility internally when it is uncontrolled", () => {
     render(<Harness />);
     expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
@@ -365,6 +397,21 @@ describe("FinderWindow toolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
     expect(screen.getByRole("navigation", { name: "Sidebar" })).toBeDefined();
     expect(screen.getAllByLabelText("Window controls")).toHaveLength(1);
+  });
+
+  it("preserves collapsed source-list sections across uncontrolled sidebar hide/show", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: /Collapse Favorites/ }));
+    expect(screen.queryByRole("row", { name: "All Files" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
+
+    const header = screen.getByRole("row", { name: /Favorites/ });
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("row", { name: "All Files" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Expand Favorites/ }));
+    expect(screen.getByRole("row", { name: "All Files" })).toBeDefined();
   });
 
   it("shares controlled sidebar visibility between external commands and the toolbar", () => {

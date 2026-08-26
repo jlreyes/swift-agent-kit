@@ -99,6 +99,7 @@
    geometry per surface, centered), mirroring the real package. */
 .mac-window {
   position: absolute;
+  box-sizing: border-box;
   max-width: calc(100% - 24px);
   max-height: calc(100% - 88px);
   overflow: hidden;
@@ -108,6 +109,17 @@
   box-shadow:
     0 34px 80px rgba(10, 15, 24, 0.28),
     0 4px 18px rgba(10, 15, 24, 0.17);
+}
+
+/* WindowChrome's stub writes the authored size into its default centering
+   expression. When max-width caps an oversized window, center from the
+   resulting border box so the stale inline width cannot pull it offscreen.
+   Explicit frame.left placements remain untouched. */
+.mac-window[style*="left:calc(50%"],
+.mac-window[style*="left: calc(50%"] {
+  right: 12px;
+  left: 12px !important;
+  margin-inline: auto;
 }
 
 .traffic-lights {
@@ -281,7 +293,7 @@
 
 .p0-window-thumbnail {
   width: 48px;
-  max-height: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -292,9 +304,11 @@
 }
 
 .p0-window-thumbnail > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .p0-window-thumbnail-fallback {
@@ -466,6 +480,7 @@
 }
 
 .mc-alert {
+  box-sizing: border-box;
   width: min(390px, calc(100% - 24px));
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);

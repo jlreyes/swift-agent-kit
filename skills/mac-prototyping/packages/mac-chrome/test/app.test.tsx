@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toPng } from "html-to-image";
-import { act } from "react";
+import { act, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -79,6 +79,67 @@ function managedDockButton(name: string) {
   return within(screen.getByRole("navigation", { name: "Managed Dock" })).getByRole("button", { name });
 }
 
+function RegistrationOwnershipHarness() {
+  const [duplicateVisible, setDuplicateVisible] = useState(true);
+  const [ephemeralVisible, setEphemeralVisible] = useState(true);
+  const manifestApp = {
+    id: "manifest",
+    name: "Manifest",
+    icon: { kind: "symbol" as const, symbol: <SystemSymbol name="laptopcomputer" /> },
+  };
+  return (
+    <MacWindowManager initialApps={[manifestApp]}>
+      <RegistrationOwnershipContents
+        duplicateVisible={duplicateVisible}
+        ephemeralVisible={ephemeralVisible}
+        manifestApp={manifestApp}
+        onHideDuplicate={() => setDuplicateVisible(false)}
+        onHideEphemeral={() => setEphemeralVisible(false)}
+      />
+    </MacWindowManager>
+  );
+}
+
+function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, manifestApp, onHideDuplicate, onHideEphemeral }: {
+  readonly duplicateVisible: boolean;
+  readonly ephemeralVisible: boolean;
+  readonly manifestApp: {
+    readonly id: string;
+    readonly name: string;
+    readonly icon: { readonly kind: "symbol"; readonly symbol: ReactNode };
+  };
+  readonly onHideDuplicate: () => void;
+  readonly onHideEphemeral: () => void;
+}) {
+  const manager = useMacWindowManager();
+  return (
+    <>
+      <output aria-label="Registry">
+        {manager.apps.map((app) => app.id).join(",")}|{manager.windows.map((window) => window.id).join(",")}
+      </output>
+      <button type="button" onClick={onHideDuplicate}>Hide duplicate</button>
+      <button type="button" onClick={onHideEphemeral}>Hide ephemeral</button>
+      <MacApp {...manifestApp}>
+        <WindowChrome label="Manifest primary" windowId="manifest:main"><span /></WindowChrome>
+      </MacApp>
+      {duplicateVisible ? (
+        <MacApp {...manifestApp}>
+          <WindowChrome label="Manifest duplicate" windowId="manifest:main"><span /></WindowChrome>
+        </MacApp>
+      ) : null}
+      {ephemeralVisible ? (
+        <MacApp
+          id="ephemeral"
+          name="Ephemeral"
+          icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+        >
+          <WindowChrome label="Ephemeral window" windowId="ephemeral:main"><span /></WindowChrome>
+        </MacApp>
+      ) : null}
+    </>
+  );
+}
+
 describe("Mac app and window management", () => {
   it("server-renders the immutable app manifest before registration effects run", () => {
     const html = renderToStaticMarkup(
@@ -99,6 +160,21 @@ describe("Mac app and window management", () => {
     expect(container.querySelector("[aria-label='Showcase'] [data-system-symbol='laptopcomputer']")).toBeTruthy();
     expect(container.querySelector("[aria-label='Notes'] [data-system-symbol='doc.text.fill']")).toBeTruthy();
     expect(container.querySelector("[aria-label='Activity']")).toBeNull();
+  });
+
+  it("releases only the unmounted app and window registrations", async () => {
+    render(<RegistrationOwnershipHarness />);
+    await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe(
+      "manifest,ephemeral|manifest:main,ephemeral:main",
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide duplicate" }));
+    await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe(
+      "manifest,ephemeral|manifest:main,ephemeral:main",
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide ephemeral" }));
+    await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe("manifest|manifest:main"));
   });
 
   it("launches apps from the Dock and makes pointer- or focus-activated windows key", async () => {

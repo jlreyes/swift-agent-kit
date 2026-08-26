@@ -71,11 +71,21 @@ function reconcileModalStack(stack: ModalOwnerStack) {
     if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
   }
   if (stack.owner.scope === "desktop" && stack.owner.element !== document.body) {
-    // Body-level portal roots are part of a desktop modal's underlay. The
-    // element containing the faux desktop also contains every owned layer and
-    // must stay live so the top layer is not made inert through an ancestor.
+    // Keep the ancestor branch containing the portalled modal interactive,
+    // while suppressing every sibling alongside that branch. This reaches
+    // application chrome beside a nested desktop-canvas without making the
+    // application root itself inert.
+    let branch: HTMLElement = stack.owner.element;
+    while (branch.parentElement !== null && branch.parentElement !== document.body) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling instanceof HTMLElement && sibling !== branch) desired.add(sibling);
+      }
+      branch = branch.parentElement;
+    }
+
+    // Body-level portal roots are also part of a desktop modal's underlay.
     for (const child of document.body.children) {
-      if (!(child instanceof HTMLElement) || child.contains(stack.owner.element)) continue;
+      if (!(child instanceof HTMLElement) || child === branch || child.contains(stack.owner.element)) continue;
       desired.add(child);
     }
   }
@@ -110,7 +120,7 @@ function registerModalLayer(owner: ModalOwner, layer: HTMLDivElement) {
     stack = { layers: [], owner, suppressed: new Set(), ownerObserver, bodyObserver };
     modalOwnerStacks.set(owner.element, stack);
     ownerObserver.observe(owner.element, { childList: true });
-    bodyObserver?.observe(document.body, { childList: true });
+    bodyObserver?.observe(document.body, { childList: true, subtree: true });
   }
   stack.layers.push(layer);
   reconcileModalStack(stack);
@@ -206,6 +216,7 @@ function ModalLayer({
     dialogRef,
     fallbackFocusRef,
     ...(initialFocusSelector === undefined ? {} : { initialFocusSelector }),
+    ownerElement: owner.element,
     onCancel: onCancel ?? (() => {}),
   });
 
@@ -216,8 +227,8 @@ function ModalLayer({
   }, [owner]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") !== null;
+    const target = event.target instanceof Element ? event.target : null;
+    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") instanceof HTMLElement;
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
       onDefault();

@@ -67,6 +67,9 @@ type AppRecord = {
   readonly icon: DockIconSource;
   readonly dockGroup: "apps" | "places";
   readonly presentation: MacAppPresentation;
+  /** Boot-manifest records outlive mounted component registrations. */
+  readonly fromManifest: boolean;
+  readonly registrationCount: number;
   readonly registrationOrder: number;
   readonly running: boolean;
 };
@@ -75,6 +78,7 @@ type WindowRecord = {
   readonly id: string;
   readonly appId: string;
   readonly label: string;
+  readonly registrationCount: number;
   readonly registrationOrder: number;
   readonly stackOrder: number;
   readonly state: MacWindowState;
@@ -137,6 +141,8 @@ function initialStateFor(apps: readonly MacAppDefinition[]): ManagerState {
       icon: app.icon,
       dockGroup: app.dockGroup ?? "apps",
       presentation: app.presentation ?? "windowed",
+      fromManifest: true,
+      registrationCount: 0,
       registrationOrder: index + 1,
       running: app.defaultRunning ?? true,
     })),
@@ -215,10 +221,18 @@ export function MacWindowManager({ children, initialApps = [] }: {
     setState((current) => {
       const existing = current.apps.find((app) => app.id === registration.id);
       if (existing !== undefined) {
-        if (existing.name === registration.name && existing.dockGroup === registration.dockGroup && existing.presentation === registration.presentation) return current;
         return {
           ...current,
-          apps: current.apps.map((app) => app.id === registration.id ? { ...app, name: registration.name, dockGroup: registration.dockGroup, presentation: registration.presentation } : app),
+          apps: current.apps.map((app) => app.id === registration.id
+            ? {
+                ...app,
+                name: registration.name,
+                icon: registration.icon,
+                dockGroup: registration.dockGroup,
+                presentation: registration.presentation,
+                registrationCount: app.registrationCount + 1,
+              }
+            : app),
         };
       }
       return {
@@ -229,6 +243,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
           icon: registration.icon,
           dockGroup: registration.dockGroup,
           presentation: registration.presentation,
+          fromManifest: false,
+          registrationCount: 1,
           registrationOrder: current.nextRegistrationOrder,
           running: registration.defaultRunning,
         }],
@@ -239,22 +255,41 @@ export function MacWindowManager({ children, initialApps = [] }: {
 
   const unregisterApp = useCallback((appId: string) => {
     invalidateAllThumbnailCaptures();
-    setState((current) => ({
-      ...current,
-      apps: current.apps.filter((app) => app.id !== appId),
-      windows: current.windows.filter((window) => window.appId !== appId),
-    }));
+    setState((current) => {
+      const existing = current.apps.find((app) => app.id === appId);
+      if (existing === undefined || existing.registrationCount === 0) return current;
+      const registrationCount = existing.registrationCount - 1;
+      if (existing.fromManifest || registrationCount > 0) {
+        return {
+          ...current,
+          apps: current.apps.map((app) => app.id === appId ? { ...app, registrationCount } : app),
+        };
+      }
+      return {
+        ...current,
+        apps: current.apps.filter((app) => app.id !== appId),
+        windows: current.windows.filter((window) => window.appId !== appId),
+      };
+    });
   }, [invalidateAllThumbnailCaptures]);
 
   const registerWindow = useCallback((registration: WindowRegistration) => {
     setState((current) => {
-      if (current.windows.some((window) => window.id === registration.id)) return current;
+      if (current.windows.some((window) => window.id === registration.id)) {
+        return {
+          ...current,
+          windows: current.windows.map((window) => window.id === registration.id
+            ? { ...window, label: registration.label, registrationCount: window.registrationCount + 1 }
+            : window),
+        };
+      }
       return {
         ...current,
         windows: [...current.windows, {
           id: registration.id,
           appId: registration.appId,
           label: registration.label,
+          registrationCount: 1,
           registrationOrder: current.nextRegistrationOrder,
           stackOrder: registration.defaultOpen ? current.nextStackOrder : 0,
           state: registration.defaultOpen ? "open" : "closed",
@@ -268,10 +303,22 @@ export function MacWindowManager({ children, initialApps = [] }: {
 
   const unregisterWindow = useCallback((windowId: string) => {
     invalidateWindowThumbnailCapture(windowId);
-    setState((current) => ({
-      ...current,
-      windows: current.windows.filter((window) => window.id !== windowId),
-    }));
+    setState((current) => {
+      const existing = current.windows.find((window) => window.id === windowId);
+      if (existing === undefined) return current;
+      if (existing.registrationCount > 1) {
+        return {
+          ...current,
+          windows: current.windows.map((window) => window.id === windowId
+            ? { ...window, registrationCount: window.registrationCount - 1 }
+            : window),
+        };
+      }
+      return {
+        ...current,
+        windows: current.windows.filter((window) => window.id !== windowId),
+      };
+    });
   }, [invalidateWindowThumbnailCapture]);
 
   const updateWindowLabel = useCallback((windowId: string, label: string) => {

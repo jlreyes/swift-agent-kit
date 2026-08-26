@@ -150,7 +150,124 @@ function StackedModalHarness() {
   );
 }
 
+function EnterTargetHarness() {
+  const [defaultCount, setDefaultCount] = useState(0);
+  return (
+    <section className="mac-window" aria-label="Enter target window">
+      <output data-testid="default-count">{defaultCount}</output>
+      <MacWindowModalHost
+        ariaLabel="Enter target dialog"
+        className="enter-target-dialog"
+        kind="sheet"
+        onCancel={() => {}}
+        onDefault={() => setDefaultCount((current) => current + 1)}
+        open
+        role="dialog"
+      >
+        <svg data-testid="bare-svg" aria-label="Decorative target"><circle /></svg>
+        <button type="button">
+          Button target
+          <svg data-testid="button-svg"><circle /></svg>
+        </button>
+      </MacWindowModalHost>
+    </section>
+  );
+}
+
+function NestedDesktopAlertHarness() {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <div data-testid="application-root">
+        <aside data-testid="application-sibling" aria-hidden="false">Application navigation</aside>
+        <div className="desktop-canvas"><div>Desktop content</div></div>
+      </div>
+      <MacAlert
+        actions={[{ id: "close", label: "Close", isDefault: true }]}
+        message="Everything beside the nested desktop is underlay."
+        onClose={() => setOpen(false)}
+        open={open}
+        presentationScope="desktop"
+        title="Nested desktop alert"
+      />
+    </>
+  );
+}
+
+function IndependentWindowModalsHarness() {
+  const [firstOpen, setFirstOpen] = useState(true);
+  const firstFallbackRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <section className="mac-window" aria-label="First owner">
+        <button ref={firstFallbackRef} type="button">First fallback</button>
+        <MacWindowModalHost
+          ariaLabel="First dialog"
+          className="first-dialog"
+          fallbackFocusRef={firstFallbackRef}
+          kind="sheet"
+          onCancel={() => setFirstOpen(false)}
+          open={firstOpen}
+          role="dialog"
+        >
+          <button type="button" onClick={() => setFirstOpen(false)}>Close first dialog</button>
+        </MacWindowModalHost>
+      </section>
+      <section className="mac-window" aria-label="Second owner">
+        <button type="button">Second fallback</button>
+        <MacWindowModalHost
+          ariaLabel="Second dialog"
+          className="second-dialog"
+          kind="sheet"
+          onCancel={() => {}}
+          open
+          role="dialog"
+        >
+          <button type="button">Second dialog action</button>
+        </MacWindowModalHost>
+      </section>
+    </>
+  );
+}
+
 describe("native presentation primitives", () => {
+  it("runs a default action from a bare SVG target but not an SVG inside an HTML control", async () => {
+    render(<EnterTargetHarness />);
+    await screen.findByRole("dialog", { name: "Enter target dialog" });
+
+    fireEvent.keyDown(screen.getByTestId("bare-svg"), { key: "Enter" });
+    expect(screen.getByTestId("default-count").textContent).toBe("1");
+
+    fireEvent.keyDown(screen.getByTestId("button-svg"), { key: "Enter" });
+    expect(screen.getByTestId("default-count").textContent).toBe("1");
+  });
+
+  it("suppresses siblings beside a nested desktop canvas and restores their state", async () => {
+    render(<NestedDesktopAlertHarness />);
+    const sibling = screen.getByTestId("application-sibling");
+    await screen.findByRole("alertdialog", { name: "Nested desktop alert" });
+    await waitFor(() => {
+      expect(sibling.hasAttribute("inert")).toBe(true);
+      expect(sibling.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "Nested desktop alert" })).toBeNull());
+    expect(sibling.hasAttribute("inert")).toBe(false);
+    expect(sibling.getAttribute("aria-hidden")).toBe("false");
+  });
+
+  it("restores focus within one modal owner instead of targeting another owner's dialog", async () => {
+    render(<IndependentWindowModalsHarness />);
+    await screen.findByRole("dialog", { name: "First dialog" });
+    await screen.findByRole("dialog", { name: "Second dialog" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close first dialog" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "First dialog" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "First fallback" })));
+    expect(screen.getByRole("dialog", { name: "Second dialog" })).toBeTruthy();
+  });
+
   it("focuses the dialog itself when a modal has no focusable descendants", async () => {
     render(<EmptyModalHarness />);
     const dialog = await screen.findByRole("dialog", { name: "No controls" });

@@ -15,8 +15,25 @@ type CompatibleWindow = Window & {
   [compatibilityMarker]?: boolean;
 };
 
+function isResizablePanel(element: Element): boolean {
+  return element instanceof HTMLElement &&
+    element.dataset.panel === "true" &&
+    element.id !== "" &&
+    element.dataset.testid === element.id;
+}
+
 function isPanelGroupEntry(entry: ResizeObserverEntry): boolean {
-  return entry.target instanceof Element && entry.target.matches("[data-group]");
+  const target = entry.target;
+  if (!(target instanceof HTMLElement) ||
+    target.dataset.group !== "true" ||
+    target.id === "" ||
+    target.dataset.testid !== target.id) {
+    return false;
+  }
+  /* These attributes and the direct panel child are emitted together by
+     react-resizable-panels Group/Panel. A generic application `data-group`
+     marker must never change ResizeObserver scheduling process-wide. */
+  return [...target.children].some(isResizablePanel);
 }
 
 export function createPanelSafeResizeObserver(NativeResizeObserver: ResizeObserverConstructor): ResizeObserverConstructor {

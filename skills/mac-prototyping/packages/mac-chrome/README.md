@@ -61,7 +61,7 @@ not the only way to build an app.
 | Windowed or menu-bar app identity and lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | `presentation="windowed"` gets Dock/window lifecycle; `presentation="menuBar"` composes a status item without a Dock tile. |
 | Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
 | Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
-| Sidebar source list | `MacSourceList` | Controlled selection and optional controlled collapsible sections. |
+| Sidebar source list | `MacSourceList` | Controlled row selection, optional selectable titled sections, and controlled collapsible sections. |
 | Selectable rows | `MacList` | Single selection, sections, row actions, and accessories. |
 | Expand/collapse detail | `MacDisclosureGroup` | Controlled expansion. |
 | Standard controls and structured settings | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
@@ -336,11 +336,13 @@ its controlled selection uses `selectedSectionId` / `onSectionSelectionChange`.
 Disclosure remains a separate chevron action and does not select the section.
 `MacSourceListItem` is an id, label, optional icon/badge, and optional
 indent. `MacSourceListSection` groups items under an optional title and can be
-collapsible. Selection is controlled; expansion is controlled when the
+collapsible. Row selection is controlled; expansion is controlled when the
 expanded-id pair is supplied, otherwise sections begin expanded. The React
 Aria tree supplies roving focus, arrows, typeahead, selection, and disclosure
-semantics. Its section headers are structural, not selectable destinations;
-the shared `SystemSymbol` indicator only represents a real collapse action.
+semantics. By default, section headers are structural. A titled section with
+`selectable: true` is an explicit controlled destination through
+`selectedSectionId` / `onSectionSelectionChange`; the shared `SystemSymbol`
+indicator only represents a real collapse action.
 
 ### MacList
 maps to: SwiftUI `List` / `NSTableView`'s simple list usage.

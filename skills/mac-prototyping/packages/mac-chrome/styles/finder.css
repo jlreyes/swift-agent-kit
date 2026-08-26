@@ -263,6 +263,7 @@
 }
 
 .mc-preview-resize-handle:hover::after,
+.mc-preview-resize-handle[data-separator="focus"]::after,
 .mc-preview-resize-handle:focus-visible::after,
 .mc-preview-resize-handle[data-separator="active"]::after {
   width: 2px;

@@ -8,6 +8,8 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import {
   Button,
+  Dialog,
+  DialogTrigger,
   Header,
   Menu,
   MenuItem,
@@ -236,24 +238,22 @@ export function MacDetailsMenu({ children, className = "", label, summary }: {
   readonly label: string;
   readonly summary: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className={`mc-details-menu ${className}`.trim()}>
-      <button
-        type="button"
-        className="mc-details-menu-trigger"
-        aria-label={label}
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+      <MacPopover
+        className="mc-details-menu-popover"
+        contentInset="compact"
+        label={label}
+        trigger={summary}
+        triggerClassName="mc-details-menu-trigger"
       >
-        {summary}
-      </button>
-      {open ? <div className="mc-details-menu-popover"><div className="mc-popover-dialog">{children}</div></div> : null}
+        {children}
+      </MacPopover>
     </div>
   );
 }
 
-export function MacPopover({ children, className = "", contentInset = "regular", isOpen, label, layout = "content", onOpenChange, trigger, triggerClassName = "", triggerRef }: {
+export function MacPopover({ children, className = "", contentInset = "regular", isOpen, label, layout = "content", offset = 6, onOpenChange, placement = "bottom end", trigger, triggerClassName = "", triggerRef }: {
   readonly children: ReactNode;
   readonly className?: string;
   readonly contentInset?: MacPopoverContentInset;
@@ -267,17 +267,14 @@ export function MacPopover({ children, className = "", contentInset = "regular",
   readonly triggerClassName?: string;
   readonly triggerRef?: Ref<HTMLButtonElement>;
 }) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = isOpen ?? uncontrolledOpen;
-  function setOpen(nextOpen: boolean) {
-    if (isOpen === undefined) setUncontrolledOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  }
+  const controlledState = isOpen === undefined ? {} : { isOpen };
   return (
-    <span className="mc-popover-stub">
-      <button ref={triggerRef} type="button" className={`mc-popover-trigger ${triggerClassName}`.trim()} aria-label={label} aria-expanded={open} onClick={() => setOpen(!open)}>{trigger}</button>
-      {open ? <aside className={`mc-popover-surface ${className}`.trim()} data-popover-layout={layout} aria-label={label}><div className="mc-popover-dialog" data-content-inset={contentInset}>{children}</div></aside> : null}
-    </span>
+    <DialogTrigger {...controlledState} onOpenChange={onOpenChange}>
+      <Button ref={triggerRef} aria-label={label} className={`mc-popover-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+      <Popover className={`mc-popover-surface ${className}`.trim()} data-popover-layout={layout} placement={placement} offset={offset}>
+        <Dialog aria-label={label} className="mc-popover-dialog" data-content-inset={contentInset}>{children}</Dialog>
+      </Popover>
+    </DialogTrigger>
   );
 }
 
@@ -481,6 +478,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
   readonly initialApps?: readonly MacAppDefinition[];
 }) {
   const initialAppsRef = useRef(initialApps);
+  const appRegistrationCountsRef = useRef(new Map(initialAppsRef.current.map((app) => [app.id, 1])));
+  const windowRegistrationCountsRef = useRef(new Map<string, number>());
   const [state, setState] = useState<StubManagerState>(() => ({
     apps: initialAppsRef.current.map((app, index) => ({
       id: app.id,
@@ -511,21 +510,48 @@ export function MacWindowManager({ children, initialApps = [] }: {
     return true;
   }, []);
   const registerApp = useCallback((app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => {
-    setState((current) => current.apps.some((candidate) => candidate.id === app.id) ? current : {
-      ...current,
-      apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder }],
-      nextOrder: current.nextOrder + 1,
+    appRegistrationCountsRef.current.set(app.id, (appRegistrationCountsRef.current.get(app.id) ?? 0) + 1);
+    setState((current) => {
+      const existing = current.apps.find((candidate) => candidate.id === app.id);
+      if (existing !== undefined) {
+        if (existing.name === app.name && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) return current;
+        return { ...current, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
+      }
+      return {
+        ...current,
+        apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder }],
+        nextOrder: current.nextOrder + 1,
+      };
     });
   }, []);
-  const unregisterApp = useCallback((appId: string) => setState((current) => ({ ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) })), []);
+  const unregisterApp = useCallback((appId: string) => {
+    const registrations = appRegistrationCountsRef.current.get(appId) ?? 0;
+    if (registrations > 1) {
+      appRegistrationCountsRef.current.set(appId, registrations - 1);
+      return;
+    }
+    if (registrations === 0) return;
+    appRegistrationCountsRef.current.delete(appId);
+    setState((current) => ({ ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) }));
+  }, []);
   const registerWindow = useCallback((window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => {
+    windowRegistrationCountsRef.current.set(window.id, (windowRegistrationCountsRef.current.get(window.id) ?? 0) + 1);
     setState((current) => current.windows.some((candidate) => candidate.id === window.id) ? current : {
       ...current,
       windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0 }],
       nextOrder: window.defaultOpen ? current.nextOrder + 1 : current.nextOrder,
     });
   }, []);
-  const unregisterWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.filter((window) => window.id !== windowId) })), []);
+  const unregisterWindow = useCallback((windowId: string) => {
+    const registrations = windowRegistrationCountsRef.current.get(windowId) ?? 0;
+    if (registrations > 1) {
+      windowRegistrationCountsRef.current.set(windowId, registrations - 1);
+      return;
+    }
+    if (registrations === 0) return;
+    windowRegistrationCountsRef.current.delete(windowId);
+    setState((current) => ({ ...current, windows: current.windows.filter((window) => window.id !== windowId) }));
+  }, []);
   const activateWindow = useCallback((windowId: string) => setState((current) => {
     const target = current.windows.find((window) => window.id === windowId);
     if (target === undefined) return current;
@@ -686,7 +712,7 @@ export function WindowChrome({
         onFocusCapture={() => {
           if (resolvedWindowId !== null && manager?.consumeKeyboardWindowFocusIntent()) manager.activateWindow(resolvedWindowId);
         }}
-        style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex, viewTransitionName: resolvedWindowId === null ? undefined : `mc-window-${resolvedWindowId.replaceAll(":", "-3a-")}` }}
+        style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex ?? style?.zIndex, viewTransitionName: resolvedWindowId === null ? undefined : `mc-window-${resolvedWindowId.replaceAll(":", "-3a-")}` }}
       >
         {children}
         {resizable ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} />) : null}
@@ -841,11 +867,11 @@ export interface DockItem {
 }
 
 export const defaultDockItems: readonly DockItem[] = [
-  { id: "finder", label: "Finder", icon: "/mac-assets/dock/finder.png", running: true, group: "apps" },
-  { id: "app-store", label: "App Store", icon: "/mac-assets/dock/app-store.png", group: "apps" },
-  { id: "chrome", label: "Google Chrome", icon: "/mac-assets/dock/chrome.png", group: "apps" },
-  { id: "downloads", label: "Downloads", icon: "/mac-assets/dock/downloads.png", group: "places" },
-  { id: "trash", label: "Trash", icon: "/mac-assets/dock/trash.png", group: "places" },
+  { id: "finder", label: "Finder", icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" }, running: true, group: "apps" },
+  { id: "app-store", label: "App Store", icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" }, group: "apps" },
+  { id: "chrome", label: "Google Chrome", icon: { kind: "symbol", symbol: <SystemSymbol name="globe" />, background: "#4385f5" }, group: "apps" },
+  { id: "downloads", label: "Downloads", icon: { kind: "symbol", symbol: <SystemSymbol name="folder.fill" />, background: "#58baf5" }, group: "places" },
+  { id: "trash", label: "Trash", icon: { kind: "symbol", symbol: <SystemSymbol name="trash.fill" />, background: "#8e969e" }, group: "places" },
 ];
 
 export function MacDock({ items = defaultDockItems, label = "Dock" }: {

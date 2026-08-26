@@ -132,8 +132,10 @@ and `.inspector`.)
 - A disclosure uses `MacDisclosureGroup` or the controlled section affordance
   in `MacSourceList`. Its indicator is the shared `SystemSymbol`, not a CSS
   border chevron; its panel opens without a reveal-scale effect. A source-list
-  section header is structural and collapsible only when it has items—it is
-  never a selected navigation destination.
+  section header is structural by default and collapsible only when it has
+  items. A titled section becomes a controlled selection destination only
+  with `selectable: true` and `selectedSectionId` /
+  `onSectionSelectionChange`; its disclosure remains separate.
 
 ## Menu bar
 

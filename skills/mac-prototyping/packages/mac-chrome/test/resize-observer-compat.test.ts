@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
+import { cleanup, render } from "@testing-library/react";
+import { createElement } from "react";
+import { Group, Panel } from "react-resizable-panels";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createPanelSafeResizeObserver } from "../resize-observer-compat.ts";
 
 afterEach(() => {
+  cleanup();
   vi.useRealTimers();
 });
 
@@ -30,14 +34,33 @@ function harness() {
   return { CompatibleResizeObserver, disconnect, nativeCallback: (entries: ResizeObserverEntry[]) => nativeCallback(entries, {} as ResizeObserver), observe, unobserve };
 }
 
+function panelGroup() {
+  const group = document.createElement("div");
+  group.dataset.group = "true";
+  group.dataset.testid = "test-group";
+  group.id = "test-group";
+  const panel = document.createElement("div");
+  panel.dataset.panel = "true";
+  panel.dataset.testid = "test-panel";
+  panel.id = "test-panel";
+  group.append(panel);
+  return group;
+}
+
 describe("panel ResizeObserver compatibility", () => {
   it("defers and coalesces resizable-panel group delivery into the next task", () => {
     vi.useFakeTimers();
     const { CompatibleResizeObserver, nativeCallback } = harness();
     const callback = vi.fn();
     const observer = new CompatibleResizeObserver(callback);
-    const group = document.createElement("div");
-    group.dataset.group = "";
+    const { container } = render(createElement(
+      Group,
+      { id: "actual-group", orientation: "horizontal" },
+      createElement(Panel, { id: "actual-panel" }, "Panel"),
+    ));
+    const group = container.querySelector<HTMLElement>("[data-group]");
+    expect(group).not.toBeNull();
+    if (group === null) return;
 
     nativeCallback([entry(group)]);
     nativeCallback([entry(group)]);
@@ -59,14 +82,31 @@ describe("panel ResizeObserver compatibility", () => {
     expect(callback).toHaveBeenCalledWith([entry(canvas)], observer);
   });
 
+  it("keeps unrelated data-group observers synchronous", () => {
+    const { CompatibleResizeObserver, nativeCallback } = harness();
+    const callback = vi.fn();
+    const observer = new CompatibleResizeObserver(callback);
+    const applicationGroup = document.createElement("section");
+    applicationGroup.dataset.group = "true";
+    applicationGroup.dataset.testid = "application-group";
+    applicationGroup.id = "application-group";
+    const applicationPanel = document.createElement("div");
+    applicationPanel.dataset.panel = "true";
+    applicationGroup.append(applicationPanel);
+
+    nativeCallback([entry(applicationGroup)]);
+    nativeCallback([entry(applicationGroup)]);
+    expect(callback).toHaveBeenCalledTimes(2);
+    expect(callback).toHaveBeenLastCalledWith([entry(applicationGroup)], observer);
+  });
+
   it("delivers ordinary targets immediately when a batch also contains a panel group", () => {
     vi.useFakeTimers();
     const { CompatibleResizeObserver, nativeCallback } = harness();
     const callback = vi.fn();
     const observer = new CompatibleResizeObserver(callback);
     const canvas = document.createElement("main");
-    const group = document.createElement("div");
-    group.dataset.group = "";
+    const group = panelGroup();
 
     nativeCallback([entry(canvas), entry(group)]);
     expect(callback).toHaveBeenCalledOnce();
@@ -82,10 +122,12 @@ describe("panel ResizeObserver compatibility", () => {
     const { CompatibleResizeObserver, disconnect, nativeCallback, unobserve } = harness();
     const callback = vi.fn();
     const observer = new CompatibleResizeObserver(callback);
-    const first = document.createElement("div");
-    const second = document.createElement("div");
-    first.dataset.group = "";
-    second.dataset.group = "";
+    const first = panelGroup();
+    first.id = "first-group";
+    first.dataset.testid = first.id;
+    const second = panelGroup();
+    second.id = "second-group";
+    second.dataset.testid = second.id;
 
     nativeCallback([entry(first), entry(second)]);
     observer.unobserve(first);

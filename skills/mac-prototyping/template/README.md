@@ -89,8 +89,10 @@ Build a product surface from public primitives before adding local components:
   separate supplementary pane, not as the third navigation column.
 - Use `MacSourceList` for source-list sidebars, `MacList` for selectable
   rows, and `MacDisclosureGroup` for controlled collapsed detail. Source-list
-  section headers are structural, not navigation destinations; both disclosure
-  surfaces use the shared SF Symbol indicator.
+  section headers are structural by default. A titled section may opt into a
+  controlled navigation destination with `selectable: true` and
+  `selectedSectionId` / `onSectionSelectionChange`; both disclosure surfaces
+  use the shared SF Symbol indicator.
 - Use `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`,
   `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, and
   `MacContentUnavailable` instead of restyling raw controls and empty states.

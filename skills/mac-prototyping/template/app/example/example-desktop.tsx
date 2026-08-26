@@ -9,6 +9,7 @@ import {
   MacApp,
   MacAppDock,
   MacWindowManager,
+  type MacAppDefinition,
   type MenuBarMenu,
   type MenuCommand,
 } from "../../lib/mac-chrome/index.ts";
@@ -23,9 +24,17 @@ const fileMenu: MenuBarMenu = {
   ],
 };
 
+const exampleApp = {
+  id: "finder",
+  name: "Finder",
+  icon: { kind: "asset", src: "/mac-assets/dock/finder.png" },
+} as const satisfies MacAppDefinition;
+
+const exampleAppManifest: readonly MacAppDefinition[] = [exampleApp];
+
 export function ExampleDesktop({ children }: { readonly children: ReactNode }) {
   return (
-    <MacWindowManager>
+    <MacWindowManager initialApps={exampleAppManifest}>
       <ManagedExampleDesktop>{children}</ManagedExampleDesktop>
     </MacWindowManager>
   );
@@ -44,7 +53,7 @@ function ManagedExampleDesktop({ children }: { readonly children: ReactNode }) {
       menuItems={[fileMenu, "Edit", "View", "Window", "Help"]}
       onMenuAction={setLastCommand}
     >
-      <MacApp id="finder" name="Finder" icon={{ kind: "asset", src: "/mac-assets/dock/finder.png" }}>
+      <MacApp {...exampleApp}>
         {children}
       </MacApp>
       <MacAppDock label="Mac Dock" extraItems={defaultDockItems} />

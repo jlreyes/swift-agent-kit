@@ -10,16 +10,21 @@ import {
   ChatWindow,
   ChooserWindow,
   createStoredIdList,
+  defaultDockItems,
   DesktopShell,
   finderKeyTarget,
   FinderWindow,
+  MacApp,
   MacDock,
   MacInspector,
   MacMenu,
   MacNavigationSplitView,
+  MacPopover,
   MacSheet,
   MacSourceList,
   SetupAssistant,
+  useMacWindowManager,
+  MacWindowManager,
   WindowChrome,
 } from "../lib/mac-chrome/index.ts";
 
@@ -83,6 +88,24 @@ describe("template stub public behavior", () => {
     expect(item.getAttribute("href")).toBe("/guide");
     expect(item.getAttribute("target")).toBe("_blank");
     expect(item.getAttribute("aria-checked")).toBe("true");
+  });
+
+  test("MacPopover uses anchored placement, configured offset, and outside dismissal", async () => {
+    const user = userEvent.setup();
+    render(
+      <MacPopover className="positioned-popover" label="Help" layout="status" offset={19} placement="bottom start" trigger="Show help">
+        Popover content
+      </MacPopover>,
+    );
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    const dialog = await screen.findByRole("dialog", { name: "Help" });
+    const surface = dialog.closest<HTMLElement>(".mc-popover-surface");
+    expect(surface?.classList.contains("positioned-popover")).toBe(true);
+    expect(surface?.dataset.popoverLayout).toBe("status");
+    expect(surface?.dataset.placement).toBe("bottom");
+    expect(surface?.style.top).toBe("19px");
+    await user.click(document.body);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull());
   });
 
   test("navigation split sizing is resizable and SourceList expansion is controlled", async () => {
@@ -191,6 +214,50 @@ describe("template stub public behavior", () => {
     expect(setData).toHaveBeenCalledWith("text/plain", "Document");
     expect(setData).toHaveBeenCalledWith("application/x-id", "doc");
     expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+
+  test("default Dock icons are bundled symbol tiles rather than missing asset URLs", () => {
+    expect(defaultDockItems.every((item) => typeof item.icon === "object" && item.icon !== null && "kind" in item.icon && item.icon.kind === "symbol")).toBe(true);
+    const { container } = render(<MacDock />);
+    expect(container.querySelectorAll(".p0-app-icon-glyph .mc-system-symbol")).toHaveLength(defaultDockItems.length);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  test("registration cleanup preserves manifest apps and duplicate managed windows", async () => {
+    const app = { id: "manifest", name: "Manifest App", icon: <span>Icon</span> } as const;
+    function RegistryProbe() {
+      const manager = useMacWindowManager();
+      return <output data-testid="registry">{`${manager.apps.map((candidate) => candidate.id).join(",")}|${manager.windows.map((window) => window.id).join(",")}`}</output>;
+    }
+    function Harness() {
+      const [showApp, setShowApp] = useState(true);
+      const [showFirstWindow, setShowFirstWindow] = useState(true);
+      return (
+        <MacWindowManager initialApps={[app]}>
+          <button type="button" onClick={() => setShowApp(false)}>Remove conditional app</button>
+          {showApp ? <MacApp {...app}><span /></MacApp> : null}
+          <MacApp {...app}>
+            <button type="button" onClick={() => setShowFirstWindow(false)}>Remove first duplicate window</button>
+            {showFirstWindow ? <WindowChrome label="First duplicate" windowId="duplicate"><span /></WindowChrome> : null}
+            <WindowChrome label="Second duplicate" windowId="duplicate"><span /></WindowChrome>
+          </MacApp>
+          <RegistryProbe />
+        </MacWindowManager>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("registry").textContent).toBe("manifest|duplicate"));
+    await user.click(screen.getByRole("button", { name: "Remove conditional app" }));
+    expect(screen.getByTestId("registry").textContent).toBe("manifest|duplicate");
+    await user.click(screen.getByRole("button", { name: "Remove first duplicate window" }));
+    expect(screen.getByTestId("registry").textContent).toBe("manifest|duplicate");
+  });
+
+  test("unmanaged WindowChrome preserves a caller z-index", () => {
+    render(<WindowChrome label="Floating utility" style={{ zIndex: 77 }}>Utility</WindowChrome>);
+    expect(screen.getByRole("region", { name: "Floating utility" }).style.zIndex).toBe("77");
   });
 
   test("window recipes forward all lifecycle callbacks", async () => {

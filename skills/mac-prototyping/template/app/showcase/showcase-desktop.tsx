@@ -46,6 +46,7 @@ import {
   TrafficLights,
   useMacWindowManager,
   WindowChrome,
+  type ChatComposer,
   type ChatMessage,
   type ChooserChoice,
   type FinderEntry,
@@ -241,6 +242,12 @@ const recentChoiceIds = createStoredIdList("mac-chrome-showcase-recent-choices",
 );
 
 const catalogMinimumSize: WindowSize = { width: 680, height: 480 };
+const preferenceDefaults = {
+  analytics: false,
+  density: "comfortable",
+  name: "Mac Chrome",
+  updates: true,
+} as const;
 
 function StoryPreview({ detail, symbol, title }: {
   readonly detail: string;
@@ -437,11 +444,18 @@ function CollectionsStory() {
 }
 
 function ControlsStory() {
-  const [name, setName] = useState("Mac Chrome");
-  const [updates, setUpdates] = useState(true);
-  const [analytics, setAnalytics] = useState(false);
-  const [density, setDensity] = useState("comfortable");
+  const [name, setName] = useState<string>(preferenceDefaults.name);
+  const [updates, setUpdates] = useState<boolean>(preferenceDefaults.updates);
+  const [analytics, setAnalytics] = useState<boolean>(preferenceDefaults.analytics);
+  const [density, setDensity] = useState<string>(preferenceDefaults.density);
   const [status, setStatus] = useState("No changes yet");
+  function restoreDefaults() {
+    setName(preferenceDefaults.name);
+    setDensity(preferenceDefaults.density);
+    setUpdates(preferenceDefaults.updates);
+    setAnalytics(preferenceDefaults.analytics);
+    setStatus("Defaults restored");
+  }
   return (
     <div className="showcase-story-scroll">
       <StoryHeader title="Controls and forms" description="Form rows align labels and values while the controls keep compact Mac geometry and native web semantics." />
@@ -454,7 +468,7 @@ function ControlsStory() {
         </MacFormSection>
         <div className="showcase-form-actions">
           <MacControlGroup ariaLabel="Preference actions">
-            <MacButton onPress={() => setStatus("Defaults restored")}>Restore Defaults</MacButton>
+            <MacButton onPress={restoreDefaults}>Restore Defaults</MacButton>
             <MacButton type="submit" variant="primary">Save</MacButton>
           </MacControlGroup>
           <output aria-live="polite">{status}</output>
@@ -857,34 +871,48 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
     const matchingMessages = titleMatches ? conversation.messages : conversation.messages.filter((message) => typeof message.body === "string" && message.body.toLowerCase().includes(normalizedQuery));
     return matchingMessages.length === 0 ? [] : [{ ...conversation, messages: matchingMessages }];
   });
-  const visibleActiveConversationId = visibleConversations.some((conversation) => conversation.id === activeConversationId) ? activeConversationId : visibleConversations[0]?.id ?? activeConversationId;
+  const visibleActiveConversationId = visibleConversations.some((conversation) => conversation.id === activeConversationId)
+    ? activeConversationId
+    : visibleConversations[0]?.id ?? null;
+  const hasVisibleConversation = visibleActiveConversationId !== null;
+  const chatComposer: ChatComposer = {
+    value: hasVisibleConversation ? composerValue : "",
+    onChange: hasVisibleConversation ? setComposerValue : () => undefined,
+    placeholder: hasVisibleConversation ? "Message" : "No conversation selected",
+    accessory: hasVisibleConversation ? (
+      <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}>
+        <SystemSymbol name="folder.badge.plus" />
+      </ToolbarButton>
+    ) : undefined,
+    onSend: () => {
+      const body = composerValue.trim();
+      if (!body || visibleActiveConversationId === null) return;
+      setSentMessages((current) => {
+        const conversationMessages = current[visibleActiveConversationId] ?? [];
+        return {
+          ...current,
+          [visibleActiveConversationId]: [
+            ...conversationMessages,
+            { id: `sent-${visibleActiveConversationId}-${conversationMessages.length}`, author: owner, at: "Now", body, status: "Sent" },
+          ],
+        };
+      });
+      setComposerValue("");
+    },
+  };
   return (
     <ChatWindow
       label="Chat showcase"
       frame={{ top: 65, left: "max(12px, calc(50% - 390px))", width: "min(780px, calc(100% - 24px))", height: "min(550px, calc(100% - 155px))" }}
       conversations={visibleConversations}
-      activeConversationId={visibleActiveConversationId}
+      activeConversationId={visibleActiveConversationId ?? ""}
       onSelectConversation={setActiveConversationId}
       search={{ value: query, onChange: setQuery }}
       sidebarVisible={sidebarVisible}
       onSidebarVisibleChange={onSidebarVisibleChange}
       toolbarExtras={<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu>}
       emptyTranscript={<MacContentUnavailable title="No matching conversations" description="Try a different search." />}
-      composer={{ value: composerValue, onChange: setComposerValue, placeholder: "Message", accessory: <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>, onSend: () => {
-        const body = composerValue.trim();
-        if (!body) return;
-        setSentMessages((current) => {
-          const conversationMessages = current[visibleActiveConversationId] ?? [];
-          return {
-            ...current,
-            [visibleActiveConversationId]: [
-              ...conversationMessages,
-              { id: `sent-${visibleActiveConversationId}-${conversationMessages.length}`, author: owner, at: "Now", body, status: "Sent" },
-            ],
-          };
-        });
-        setComposerValue("");
-      } }}
+      composer={chatComposer}
       onClose={onClose}
     />
   );

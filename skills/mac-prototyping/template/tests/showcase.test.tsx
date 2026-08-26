@@ -291,9 +291,25 @@ test("the controls story exercises the reusable form system", async () => {
   const name = within(form).getByRole("textbox", { name: "Workspace name" });
   fireEvent.change(name, { target: { value: "Prototype Kit" } });
   expect((name as HTMLInputElement).value).toBe("Prototype Kit");
-  expect(within(form).getByRole("radiogroup", { name: "Interface density" })).toBeDefined();
-  expect(within(form).getByRole("checkbox", { name: "Install automatically" })).toBeDefined();
-  expect(within(form).getByRole("switch", { name: "Share diagnostics" })).toBeDefined();
+  const density = within(form).getByRole("radiogroup", { name: "Interface density" });
+  const compact = within(density).getByRole("radio", { name: "Compact" });
+  const comfortable = within(density).getByRole("radio", { name: "Comfortable" });
+  const updates = within(form).getByRole("checkbox", { name: "Install automatically" });
+  const analytics = within(form).getByRole("switch", { name: "Share diagnostics" });
+  await user.click(compact);
+  await user.click(updates);
+  await user.click(analytics);
+  expect(compact.getAttribute("aria-checked")).toBe("true");
+  expect((updates as HTMLInputElement).checked).toBe(false);
+  expect((analytics as HTMLInputElement).checked).toBe(true);
+
+  await user.click(within(form).getByRole("button", { name: "Restore Defaults" }));
+  expect((name as HTMLInputElement).value).toBe("Mac Chrome");
+  expect(comfortable.getAttribute("aria-checked")).toBe("true");
+  expect((updates as HTMLInputElement).checked).toBe(true);
+  expect((analytics as HTMLInputElement).checked).toBe(false);
+  expect(within(form).getByText("Defaults restored")).toBeDefined();
+
   await user.click(within(form).getByRole("button", { name: "Save" }));
   expect(within(form).getByText("Preferences saved")).toBeDefined();
 });
@@ -459,6 +475,33 @@ test("Chat sends new messages to the active conversation", async () => {
   await user.click(within(threadList).getByText("Research"));
   transcript = within(chat).getByRole("log", { name: "Conversation" });
   expect(within(transcript).getByText("Research follow-up")).toBeDefined();
+});
+
+test("Chat does not send a draft to a hidden conversation when search has no results", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await openRecipe(user, "Chat");
+  const chat = screen.getByRole("region", { name: "Chat showcase" });
+  const composer = within(chat).getByRole("textbox", { name: "Message" });
+  fireEvent.change(composer, { target: { value: "Unrouted draft" } });
+
+  await user.click(within(chat).getByRole("button", { name: "Search conversation" }));
+  const search = within(chat).getByRole("textbox", { name: "Search conversation" });
+  fireEvent.change(search, { target: { value: "no conversation matches this" } });
+  expect(within(chat).getByText("No matching conversations")).toBeDefined();
+
+  const guardedComposer = within(chat).getByRole("textbox", { name: "No conversation selected" });
+  expect((guardedComposer as HTMLTextAreaElement).value).toBe("");
+  const send = within(chat).getByRole("button", { name: "Send message" }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  const composerForm = guardedComposer.closest("form");
+  if (composerForm === null) throw new Error("Chat composer form was not rendered");
+  fireEvent.submit(composerForm);
+
+  fireEvent.change(search, { target: { value: "" } });
+  const transcript = within(chat).getByRole("log", { name: "Conversation" });
+  expect(within(transcript).queryByText("Unrouted draft")).toBeNull();
 });
 
 test("full compositions open in their own window instead of nesting in the catalog", async () => {

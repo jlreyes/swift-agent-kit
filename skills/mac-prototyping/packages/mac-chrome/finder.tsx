@@ -265,6 +265,12 @@ export function FinderWindow({
   // the panel group must not restore the collapsed layout it hid at.
   const [previewGeneration, setPreviewGeneration] = useState(0);
   const previousPreviewVisible = useRef(isPreviewVisible);
+  // MacSourceList is conditionally unmounted with the sidebar panel. Keep its
+  // collapsed-section state at the Finder recipe boundary so hide/show does
+  // not silently reset every disclosure to expanded.
+  const [collapsedSourceListSectionIds, setCollapsedSourceListSectionIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [quickLookId, setQuickLookId] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -292,6 +298,12 @@ export function FinderWindow({
       indent: item.indent,
     })),
   }));
+  const collapsibleSourceListSectionIds = sourceListSections
+    .filter((section) => section.title !== undefined && section.collapsible === true)
+    .map((section) => section.id);
+  const expandedSourceListSectionIds = new Set(
+    collapsibleSourceListSectionIds.filter((id) => !collapsedSourceListSectionIds.has(id)),
+  );
   const sourceListSelectedSectionId = selectedFinderSidebarSectionId(sidebar);
   const sourceListSelectedItemId = selectedFinderSidebarItemId(sidebar);
   // Roving tabindex: the grid is one tab stop (the selected entry, else the
@@ -324,10 +336,10 @@ export function FinderWindow({
     // toolbar callback. Give that externally driven re-show the same fresh
     // panel identity as the built-in toggle so a collapsed width is not
     // restored by react-resizable-panels.
-    if (isPreviewVisible && !wasVisible) {
+    if (previewVisible !== undefined && isPreviewVisible && !wasVisible) {
       setPreviewGeneration((generation) => generation + 1);
     }
-  }, [isPreviewVisible]);
+  }, [isPreviewVisible, previewVisible]);
 
   function columnsForNavigation(): number {
     if (mode === "list") return 1;
@@ -385,7 +397,15 @@ export function FinderWindow({
   }
 
   function setPreviewVisibility(visible: boolean) {
-    if (previewVisible === undefined) setUncontrolledPreviewVisible(visible);
+    if (previewVisible === undefined) {
+      // Choose the fresh panel identity before rendering an uncontrolled
+      // re-show. Incrementing in the post-render sync would mount preview
+      // children once under the stale id and immediately mount them again.
+      if (visible && !isPreviewVisible) {
+        setPreviewGeneration((generation) => generation + 1);
+      }
+      setUncontrolledPreviewVisible(visible);
+    }
     onPreviewVisibleChange?.(visible);
   }
 
@@ -452,6 +472,12 @@ export function FinderWindow({
     }
   }
 
+  function handleSourceListExpandedChange(expandedIds: ReadonlySet<string>) {
+    setCollapsedSourceListSectionIds(
+      new Set(collapsibleSourceListSectionIds.filter((id) => !expandedIds.has(id))),
+    );
+  }
+
   return (
     <WindowChrome
       className="mc-finder-window"
@@ -481,6 +507,8 @@ export function FinderWindow({
                   onSelectionChange={handleSourceListSelection}
                   selectedSectionId={sourceListSelectedSectionId}
                   onSectionSelectionChange={handleSourceListSelection}
+                  expandedSectionIds={expandedSourceListSectionIds}
+                  onExpandedSectionIdsChange={handleSourceListExpandedChange}
                 />
               </nav>
             </aside>

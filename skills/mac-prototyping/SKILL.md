@@ -46,6 +46,11 @@ per simulated application, their windows (`FinderWindow`, `ChooserWindow`,
 `WindowChrome`+`MacToolbar`, …), and one `MacAppDock`. Product state and
 fixtures live outside `lib/mac-chrome/`.
 
+For a managed app, define its identity and Dock metadata once as an immutable
+`MacAppDefinition`. Pass the definitions to `MacWindowManager` through
+`initialApps` and spread the same definition into each `MacApp`, so SSR already
+contains the final app identities and Dock entries before registration effects.
+
 Every new prototype includes two starter routes. Open `/showcase` first when
 discovering components or auditing mac-chrome: it is the interactive coverage
 surface for every runtime export. Keep `/example` as the small, coherent
@@ -80,6 +85,9 @@ copy a showcase layout or private component into product code.
 navigation columns (sidebar + content + detail). Its optional middle column
 represents a selection hierarchy. `MacInspector` is deliberately a separate,
 supplementary trailing pane; do not treat it as the third navigation column.
+The shared split view normalizes its panel defaults for SSR; use this primitive
+rather than assembling local panel layouts, so hydration does not shift its
+children.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;
@@ -114,9 +122,11 @@ modal host clean up background isolation and restore status-trigger focus.
 
 The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
 asset artwork retains its own safe area, while generated symbol artwork is
-drawn in `MacDockAppIcon`'s shared 50/42/26px canvas/tile/glyph boundary.
-Do not create a local 50px tile, wrap it in a Dock item, or tune one app icon
-with ad-hoc scale CSS — that breaks the shared optical-size contract.
+drawn in `MacDockAppIcon`'s shared 50px canvas and 42px tile. Generated
+symbols use a centered 34×30px glyph frame at `SystemSymbol` size 20; SVG
+artwork uses its own selector and stays at most 26×26px. Do not create a local
+50px tile, wrap it in a Dock item, or tune one app icon with ad-hoc scale CSS
+— that breaks the shared optical-size contract.
 
 The library deliberately does not promise full SwiftUI parity. Tables,
 outline views, grid collections, and other specialized patterns stay
@@ -148,12 +158,15 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   typed `symbolist` private-use codepoints and the macOS system SF font at
   render time. The template's `SFSymbol` is a deprecated compatibility alias;
   new chrome code imports `SystemSymbol`. Do not draw or ship bespoke SVG
-  approximations of SF Symbols. `SystemSymbol` measures each
-  `symbolist`/system-SF glyph's rendered content bounds and uniformly maps it
-  into its assigned square optical frame: private-use glyph advance widths
-  vary, so `font-size` is not the visible geometry. Never add per-icon CSS
-  transforms or offsets. This path intentionally depends on a Mac client
-  resolving the installed system font. Third-party brand marks (Drive,
+  approximations of SF Symbols. `SystemSymbol` renders its glyph directly
+  with intrinsic variable-width font metrics: it does no runtime measurement,
+  observation, scaling, translation, or per-symbol offset. Parent components
+  own fixed, stable icon slots and center the intrinsic glyph with Grid or
+  Flex. Size font glyphs and SVG artwork in separate selectors because a
+  `font-size` is not a square SVG box; choose optical font size by component
+  role, never by symbol name. Do not add per-icon CSS transforms or offsets.
+  This path intentionally depends on a Mac client resolving the installed
+  system font. Third-party brand marks (Drive,
   Notion, GitHub…):
   `simple-icons` via the `BrandIcon` wrapper — committable. Verify the slug
   exists — `BrandIcon` warns in dev on unknown slugs; brands missing from
@@ -169,9 +182,10 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **No Unicode stand-ins for system glyphs** (`▦ ☷ ⌕` etc.) — SVG or
   symbolist only.
 - **Generated Dock ink stays contained.** `MacDockAppIcon` remains the shared
-  50/42/26px canvas/tile/glyph boundary; its clipping is only a safety net,
-  not layout. Do not rely on clipping or per-icon adjustments to contain a
-  generated symbol.
+  50px canvas, 42px tile, and 34×30px glyph-frame boundary; generated
+  `SystemSymbol`s use size 20 and SVG artwork stays at most 26×26px.
+  `overflow: hidden` is only a safety boundary, not the sizing mechanism. Do
+  not rely on clipping or per-icon adjustments to contain a generated symbol.
 - **Fidelity before effect.** Default chrome to restrained opaque or
   near-opaque system materials with a hairline and a subtle system-like
   shadow. Do not emulate Liquid Glass or introduce custom
@@ -204,7 +218,10 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,
   minimized-window thumbnails, and Dock restoration must all resolve through
-  that registry.
+  that registry. Define each managed app's immutable `MacAppDefinition` once;
+  pass the manifest as `initialApps` to `MacWindowManager` and the same
+  definitions to `MacApp` so first-render app identity and Dock geometry do
+  not shift after effects run.
 - **Compose before styling.** Use the shared navigation, source-list, list,
   disclosure, form, control, menu, and content-state primitives before
   writing a local layout or control. Product CSS may arrange a surface around
@@ -220,10 +237,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    screenshot or click the changed flow at the served URL. Automate
    multi-path checks (Playwright/console) instead of hand-stepping. For
    component discovery or a broad chrome audit, begin at `/showcase` before
-   checking the product surface. Audit live geometry: every visible
-   `SystemSymbol`'s content bounds must remain inside its assigned frame,
-   including wide symbols such as `laptopcomputer` and `person.2.fill`, and
-   after dynamic mount.
+   checking the product surface. Audit symbol geometry immediately on first
+   render, after the page settles, and after repeated reloads: it must not
+   change. Include wide symbols such as `laptopcomputer` and `person.2.fill`.
+   First-render HTML/CSS must already contain the final sizing; do not use
+   post-render measurement, `ResizeObserver`, transform correction, or
+   icon-specific translate/scale hacks.
 2. Deploy/serve first and share the URL; reviews run after, not before.
 3. For direction decisions, new surfaces, or a final pass, convene the
    `mac-design-audit` agent with exactly: the pattern rubric, the diff or

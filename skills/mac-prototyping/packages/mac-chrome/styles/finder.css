@@ -319,9 +319,12 @@
   color: var(--text-soft);
 }
 
-.mc-quicklook-panel > header button :is(svg, .mc-system-symbol) {
+.mc-quicklook-panel > header button svg {
   width: 10px;
   height: 10px;
+}
+
+.mc-quicklook-panel > header button .mc-system-symbol {
   font-size: 10px;
 }
 

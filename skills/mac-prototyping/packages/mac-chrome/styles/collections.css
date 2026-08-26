@@ -68,10 +68,13 @@
   color: var(--accent);
 }
 
-.mc-list-row-icon :is(svg, .mc-system-symbol) {
+.mc-list-row-icon svg {
   width: 18px;
   height: 18px;
-  font-size: 18px;
+}
+
+.mc-list-row-icon .mc-system-symbol {
+  font-size: 14px;
 }
 
 .mc-list-row-copy {

@@ -14,6 +14,16 @@ import {
 export type MacWindowState = "open" | "minimized" | "closed";
 export type MacAppPresentation = "windowed" | "menuBar";
 
+/** Static app metadata used to render the app registry on the first frame. */
+export interface MacAppDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: DockIconSource;
+  readonly dockGroup?: "apps" | "places";
+  readonly defaultRunning?: boolean;
+  readonly presentation?: MacAppPresentation;
+}
+
 export interface MacManagedApp {
   readonly id: string;
   readonly name: string;
@@ -119,6 +129,23 @@ const initialState: ManagerState = {
   nextStackOrder: 1,
 };
 
+function initialStateFor(apps: readonly MacAppDefinition[]): ManagerState {
+  return {
+    apps: apps.map((app, index) => ({
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      dockGroup: app.dockGroup ?? "apps",
+      presentation: app.presentation ?? "windowed",
+      registrationOrder: index + 1,
+      running: app.defaultRunning ?? true,
+    })),
+    windows: [],
+    nextRegistrationOrder: apps.length + 1,
+    nextStackOrder: 1,
+  };
+}
+
 function appIsRunning(state: ManagerState, appId: string) {
   return state.apps.find((app) => app.id === appId)?.running === true;
 }
@@ -130,8 +157,15 @@ function visibleWindows(state: ManagerState) {
     .sort((left, right) => left.stackOrder - right.stackOrder);
 }
 
-export function MacWindowManager({ children }: { readonly children: ReactNode }) {
-  const [state, setState] = useState<ManagerState>(initialState);
+export function MacWindowManager({ children, initialApps = [] }: {
+  readonly children: ReactNode;
+  /** Immutable boot manifest: keeps app identity and Dock geometry SSR-stable. */
+  readonly initialApps?: readonly MacAppDefinition[];
+}) {
+  const initialAppsRef = useRef(initialApps);
+  const [state, setState] = useState<ManagerState>(() => initialAppsRef.current.length === 0
+    ? initialState
+    : initialStateFor(initialAppsRef.current));
   const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
   const minimizingWindowIdsRef = useRef(new Set<string>());
 
@@ -418,15 +452,8 @@ export function useOptionalMacWindowManager() {
   return useContext(MacWindowManagerContext);
 }
 
-export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: {
+export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: MacAppDefinition & {
   readonly children: ReactNode;
-  readonly defaultRunning?: boolean;
-  readonly dockGroup?: "apps" | "places";
-  readonly icon: DockIconSource;
-  readonly id: string;
-  readonly name: string;
-  /** Windowed apps appear in the Dock; menu-bar apps compose MenuBarExtra only. */
-  readonly presentation?: MacAppPresentation;
 }) {
   const manager = useMacWindowManager();
   const initialRegistration = useRef<AppRegistration>({ id, name, icon, dockGroup, defaultRunning, presentation });

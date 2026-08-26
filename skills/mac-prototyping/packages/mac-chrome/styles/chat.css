@@ -283,9 +283,12 @@
   background: var(--accent);
 }
 
-.mc-chat-send :is(svg, .mc-system-symbol) {
+.mc-chat-send svg {
   width: 13px;
   height: 13px;
+}
+
+.mc-chat-send .mc-system-symbol {
   font-size: 13px;
 }
 

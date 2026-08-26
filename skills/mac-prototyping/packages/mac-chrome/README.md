@@ -33,7 +33,7 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 ## Exports (`index.ts`)
 
 Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog: it
 covers every runtime export against a working desktop shell. Use it to
@@ -106,10 +106,16 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 
 ### MacWindowManager, MacApp, and MacAppDock
 maps to: `NSApplication` plus SwiftUI `App`/`WindowGroup` scene ownership and the system Dock.
-`MacWindowManager({ children }: { readonly children: ReactNode })`
+`MacWindowManager({ children, initialApps }: { readonly children: ReactNode; readonly initialApps?: readonly MacAppDefinition[] })`
 `MacApp({ id, name, icon, defaultRunning = true, dockGroup = "apps", presentation = "windowed", children }: { readonly id: string; readonly name: string; readonly icon: DockIconSource; readonly defaultRunning?: boolean; readonly dockGroup?: "apps" | "places"; readonly presentation?: "windowed" | "menuBar"; readonly children: ReactNode })`
 `MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: { readonly extraItems?: readonly DockItem[]; readonly label?: string; readonly onAppActivate?: (appId: string) => void })`
 `useMacWindowManager(): MacWindowManagerValue`
+
+`initialApps` is an immutable boot manifest for managed app identity and Dock
+entries. Define each `MacAppDefinition` once, pass the full manifest to
+`MacWindowManager`, and spread the same definition into its `MacApp`. This
+prepopulates SSR with the final app identities and Dock entries so they do not
+appear or shift after `MacApp` registration effects.
 
 `MacWindowManager` is the canonical desktop lifecycle owner. A managed
 `WindowChrome` registers with its nearest `MacApp`; pointer presses raise it,
@@ -177,11 +183,13 @@ maps to: an app's normalized `NSDockTile` artwork; no SwiftUI counterpart — sy
 `interface MacDockAppIconProps { readonly icon: DockIconSource; readonly label?: string }`
 This is the Dock's shared optical-size boundary. Prefer typed `DockIcon`:
 `asset` preserves a supplied app icon's intrinsic safe area; `symbol` draws a
-generated icon in its 50px canvas, 42px tile, and 26px glyph boundary. String
-and `ReactNode` inputs remain shorthand for assets and symbols. Do not wrap a
-local full-size tile in `MacDock`, compensate for one icon with local scale or
-offset CSS, or let generated ink escape the boundary. Clipping is only a
-safety net; all app icons must enter through this normalizer.
+generated icon in its 50px canvas and 42px tile. A generated `SystemSymbol`
+uses size 20 in a centered 34×30px glyph frame; SVG artwork uses a separate
+selector and stays at most 26×26px. String and `ReactNode` inputs remain
+shorthand for assets and symbols. Do not wrap a local full-size tile in
+`MacDock`, compensate for one icon with local scale or offset CSS, or let
+generated ink escape the boundary. `overflow: hidden` is only a safety
+boundary; all app icons must enter through this normalizer.
 
 ### SystemSymbol
 maps to: SwiftUI `Image(systemName:)` (SF Symbols).
@@ -190,15 +198,19 @@ maps to: SwiftUI `Image(systemName:)` (SF Symbols).
 renders the corresponding private-use codepoint using the macOS system SF
 font; it ships no Apple font or exported symbol artwork. It is therefore
 faithful on a Mac client and should receive an explicit fallback only when a
-non-Mac client is in scope. The component measures each `symbolist`/system-SF
-glyph's rendered text/content bounds and uniformly scales/translates it into
-its assigned square optical frame; private-use glyph advance width and
-`font-size` do not describe the visible geometry. Do not supply per-symbol
-CSS transforms or offsets, and do not substitute bespoke SVG approximations.
-In a live audit,
-every visible symbol's content bounds must remain in its assigned frame,
-including wide symbols such as `laptopcomputer` and `person.2.fill`, after
-initial and dynamic mount. The template retains
+non-Mac client is in scope. It renders the glyph directly with intrinsic
+variable-width font metrics. It does no runtime measurement, observation,
+scaling, translation, or per-symbol offset. Parent components provide fixed,
+stable icon slots and center glyphs with Grid or Flex. Size font glyphs and
+SVG artwork in separate selectors because a `font-size` is not a square SVG
+box; choose optical font size by component role, never by symbol name. Do not
+supply per-symbol CSS transforms or offsets, and do not substitute bespoke SVG
+approximations. In a live audit, compare every visible symbol's geometry
+immediately after render, after it settles, and across repeated reloads; it
+must not change. Include wide symbols such as `laptopcomputer` and
+`person.2.fill`. First-render HTML/CSS must already contain the final sizing:
+do not add post-render symbol measurement, `ResizeObserver`, transform
+correction, or icon-specific translate/scale hacks. The template retains
 `components/SFSymbol.tsx` as a deprecated compatibility alias; package
 consumers import `SystemSymbol`.
 
@@ -296,6 +308,9 @@ The required `sidebar` and `detail` create a two-column navigation split. Add
 column accepts an optional min/default/max `MacNavigationColumnSizing` object;
 the built-in separators are keyboard-operable ARIA window splitters. Keep
 supplementary settings or metadata outside this hierarchy in `MacInspector`.
+The primitive derives a normalized `defaultLayout` from those panel defaults
+for SSR, so hydration starts with final proportions instead of replacing raw
+pixel flex-bases. Use `MacNavigationSplitView`, not a local panel layout.
 
 ### MacInspector
 maps to: SwiftUI `.inspector` / an AppKit inspector pane.

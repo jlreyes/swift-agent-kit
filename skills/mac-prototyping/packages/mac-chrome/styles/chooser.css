@@ -126,11 +126,15 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-.mc-chooser-choice > :is(svg, .mc-system-symbol) {
+.mc-chooser-choice > svg {
   width: 27px;
   height: 27px;
   color: var(--text-soft);
-  font-size: 27px;
+}
+
+.mc-chooser-choice > .mc-system-symbol {
+  color: var(--text-soft);
+  font-size: 22px;
 }
 
 .mc-chooser-choice-copy {
@@ -188,16 +192,24 @@
   background: rgba(255, 255, 255, 0.78);
 }
 
-.mc-chooser-secondary-trigger > :is(svg, .mc-system-symbol) {
+.mc-chooser-secondary-trigger > svg {
   width: 19px;
   height: 19px;
   color: var(--text-soft);
-  font-size: 19px;
 }
 
-.mc-chooser-secondary-trigger > :is(svg, .mc-system-symbol):last-child {
+.mc-chooser-secondary-trigger > .mc-system-symbol {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.mc-chooser-secondary-trigger > svg:last-child {
   width: 11px;
   height: 11px;
+  color: var(--text-faint);
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol:last-child {
   color: var(--text-faint);
   font-size: 11px;
 }

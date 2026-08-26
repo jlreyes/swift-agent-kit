@@ -6,7 +6,7 @@
 // names, and default window geometry mirror the real package so pages written
 // against the stub keep working after vendoring. Full drag, focus, overlay,
 // and keyboard behavior exists only in the real package.
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import { getSymbol, type SymbolName } from "symbolist";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
@@ -259,6 +259,14 @@ export function DesktopShell({
 
 export type MacWindowState = "open" | "minimized" | "closed";
 export type MacAppPresentation = "windowed" | "menuBar";
+export interface MacAppDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: DockIconSource;
+  readonly dockGroup?: "apps" | "places";
+  readonly defaultRunning?: boolean;
+  readonly presentation?: MacAppPresentation;
+}
 export interface MacWindowThumbnail {
   readonly src?: string;
   readonly width: number;
@@ -321,8 +329,24 @@ type StubAppContextValue = { readonly id: string; readonly defaultRunning: boole
 const StubManagerContext = createContext<StubManagerContextValue | null>(null);
 const StubAppContext = createContext<StubAppContextValue | null>(null);
 
-export function MacWindowManager({ children }: { readonly children: ReactNode }) {
-  const [state, setState] = useState<StubManagerState>({ apps: [], windows: [], nextOrder: 1 });
+export function MacWindowManager({ children, initialApps = [] }: {
+  readonly children: ReactNode;
+  readonly initialApps?: readonly MacAppDefinition[];
+}) {
+  const initialAppsRef = useRef(initialApps);
+  const [state, setState] = useState<StubManagerState>(() => ({
+    apps: initialAppsRef.current.map((app, index) => ({
+      id: app.id,
+      name: app.name,
+      icon: app.icon,
+      dockGroup: app.dockGroup ?? "apps",
+      presentation: app.presentation ?? "windowed",
+      running: app.defaultRunning ?? true,
+      order: index + 1,
+    })),
+    windows: [],
+    nextOrder: initialAppsRef.current.length + 1,
+  }));
   const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
   useEffect(() => {
     function recordKeyboardInteraction() { interactionModalityRef.current = "keyboard"; }
@@ -421,14 +445,8 @@ export function useMacWindowManager() {
   return manager;
 }
 
-export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: {
+export function MacApp({ children, defaultRunning = true, dockGroup = "apps", icon, id, name, presentation = "windowed" }: MacAppDefinition & {
   readonly children: ReactNode;
-  readonly defaultRunning?: boolean;
-  readonly dockGroup?: "apps" | "places";
-  readonly icon: DockIconSource;
-  readonly id: string;
-  readonly name: string;
-  readonly presentation?: MacAppPresentation;
 }) {
   const manager = useMacWindowManager();
   const initial = useRef({ id, name, icon, dockGroup, defaultRunning, presentation });
@@ -1643,45 +1661,7 @@ export function SystemSymbol({ className = "", name, size }: {
   readonly name: SystemSymbolName;
   readonly size?: number;
 }) {
-  const frameRef = useRef<HTMLSpanElement>(null);
-  const glyphRef = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    const frame = frameRef.current;
-    const glyph = glyphRef.current;
-    if (frame === null || glyph === null) return;
-    let disposed = false;
-    const fit = () => {
-      if (disposed) return;
-      glyph.style.removeProperty("--mc-symbol-fit-scale");
-      glyph.style.removeProperty("--mc-symbol-fit-x");
-      glyph.style.removeProperty("--mc-symbol-fit-y");
-      const frameBounds = frame.getBoundingClientRect();
-      if (frameBounds.width <= 0 || frameBounds.height <= 0) return;
-      const range = document.createRange();
-      range.selectNodeContents(glyph);
-      if (typeof range.getBoundingClientRect !== "function") return;
-      const contentBounds = range.getBoundingClientRect();
-      if (contentBounds.width <= 0 || contentBounds.height <= 0) return;
-      const glyphBounds = glyph.getBoundingClientRect();
-      const scale = Math.min(1, frameBounds.width / contentBounds.width, frameBounds.height / contentBounds.height);
-      const targetLeft = frameBounds.left + (frameBounds.width - contentBounds.width * scale) / 2;
-      const targetTop = frameBounds.top + (frameBounds.height - contentBounds.height * scale) / 2;
-      glyph.style.setProperty("--mc-symbol-fit-scale", `${scale}`);
-      glyph.style.setProperty("--mc-symbol-fit-x", `${targetLeft - glyphBounds.left - (contentBounds.left - glyphBounds.left) * scale}px`);
-      glyph.style.setProperty("--mc-symbol-fit-y", `${targetTop - glyphBounds.top - (contentBounds.top - glyphBounds.top) * scale}px`);
-    };
-    fit();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
-    observer?.observe(frame);
-    void document.fonts?.ready.then(fit);
-    return () => {
-      disposed = true;
-      observer?.disconnect();
-    };
-  }, [name, size]);
   return (
-    <span ref={frameRef} aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>
-      <span className="mc-system-symbol-glyph" ref={glyphRef}>{getSymbol(name) ?? ""}</span>
-    </span>
+    <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>{getSymbol(name) ?? ""}</span>
   );
 }

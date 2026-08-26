@@ -41,8 +41,8 @@ it("normalizes asset and generated app icons onto the same canvas", async () => 
   expect(tile?.style.height).toBe("50px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.width).toBe("42px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.height).toBe("42px");
-  expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.width).toBe("26px");
-  expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.height).toBe("26px");
+  expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.width).toBe("34px");
+  expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.height).toBe("30px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.backgroundColor).toBe("rgb(18, 52, 86)");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.color).toBe("rgb(254, 220, 186)");
 

@@ -240,8 +240,8 @@
 }
 
 .p0-app-icon-glyph {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 30px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -249,18 +249,18 @@
 }
 
 .p0-app-icon-glyph > * {
-  max-width: 26px;
-  max-height: 26px;
-}
-
-.p0-app-icon-glyph > :is(svg, .mc-system-symbol) {
-  width: 26px;
-  height: 26px;
-  font-size: 26px;
+  max-width: 34px;
+  max-height: 30px;
 }
 
 .p0-app-icon-glyph > svg {
+  width: 26px;
+  height: 26px;
   display: block;
+}
+
+.p0-app-icon-glyph > .mc-system-symbol {
+  font-size: 20px;
 }
 
 .p0-dock-running-dot {
@@ -314,12 +314,8 @@
 }
 
 .mc-system-symbol {
-  position: relative;
-  width: 1em;
-  height: 1em;
-  display: inline-grid;
+  display: inline-block;
   flex: 0 0 auto;
-  place-items: center;
   font-family: var(--font-sf-symbols, "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif);
   font-size: 1em;
   font-style: normal;
@@ -328,15 +324,6 @@
   text-align: center;
   text-rendering: optimizeLegibility;
   vertical-align: -0.125em;
-  white-space: nowrap;
-}
-
-.mc-system-symbol-glyph {
-  display: inline-block;
-  font: inherit;
-  line-height: 1;
-  transform: translate3d(var(--mc-symbol-fit-x, 0), var(--mc-symbol-fit-y, 0), 0) scale(var(--mc-symbol-fit-scale, 1));
-  transform-origin: 0 0;
   white-space: nowrap;
 }
 

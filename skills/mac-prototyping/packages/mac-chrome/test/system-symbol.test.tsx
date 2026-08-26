@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { getSymbol } from "symbolist";
 
-import { calculateSystemSymbolFit, SystemSymbol, type SystemSymbolName } from "../system-symbol.tsx";
+import { SystemSymbol, type SystemSymbolName } from "../system-symbol.tsx";
 import { ToolbarGlyph, type ToolbarGlyphName } from "../toolbar.tsx";
 
 afterEach(cleanup);
@@ -17,24 +18,19 @@ describe("SystemSymbol", () => {
     expect(symbol?.classList.contains("mc-system-symbol")).toBe(true);
     expect(symbol?.classList.contains("sample")).toBe(true);
     expect(symbol?.textContent).toBe(getSymbol("folder"));
-    expect(symbol?.querySelector(".mc-system-symbol-glyph")?.textContent).toBe(getSymbol("folder"));
+    expect(symbol?.childElementCount).toBe(0);
     expect(symbol?.style.fontSize).toBe("18px");
     expect(symbol?.getAttribute("aria-hidden")).toBe("true");
     expect(symbol?.querySelector("svg")).toBeNull();
   });
 
-  it("scales and centers wide or off-baseline glyph ink inside its assigned frame", () => {
-    const fit = calculateSystemSymbolFit(
-      { left: 100, top: 50, width: 26, height: 26 },
-      { left: 91.5, top: 50, width: 43, height: 26 },
-      { left: 91.5, top: 47, width: 43, height: 31.5 },
-    );
+  it("ships final glyph metrics in the initial HTML without a hydration correction", () => {
+    const html = renderToStaticMarkup(<SystemSymbol name="person.2.fill" size={20} />);
 
-    expect(fit.scale).toBeCloseTo(26 / 43);
-    const fittedLeft = 91.5 + (91.5 - 91.5) * fit.scale + fit.translateX;
-    const fittedTop = 50 + (47 - 50) * fit.scale + fit.translateY;
-    expect(fittedLeft).toBeCloseTo(100);
-    expect(fittedTop).toBeCloseTo(50 + (26 - 31.5 * fit.scale) / 2);
+    expect(html).toContain('data-system-symbol="person.2.fill"');
+    expect(html).toContain('style="font-size:20px"');
+    expect(html).not.toContain("mc-system-symbol-glyph");
+    expect(html).not.toContain("--mc-symbol-fit");
   });
 
   it("maps every toolbar role to the corresponding native symbol name", () => {

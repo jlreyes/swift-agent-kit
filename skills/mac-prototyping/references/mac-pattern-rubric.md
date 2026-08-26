@@ -126,6 +126,9 @@ and `.inspector`.)
   dividers are visibly resizable and keyboard-operable, and small viewports
   retain an intelligible hierarchy rather than compressing all columns into
   unreadable strips.
+- `MacNavigationSplitView` owns SSR normalization of panel defaults. Use the
+  primitive rather than a local panel layout; split children must not move when
+  hydration replaces raw pixel flex-bases with normalized proportions.
 - Product UI must not silently import a showcase-local component or duplicate
   showcase styling. `/showcase` is evidence that public primitives compose;
   it is not a private component source.
@@ -170,16 +173,23 @@ and `.inspector`.)
   in addition to the default system set.
 - Audit Dock icons as one optical system, not just equal CSS dimensions. Each
   item enters through `MacDockAppIcon`: hydrated asset art retains its safe
-  area, while generated art uses the shared 50/42/26px canvas/tile/glyph
-  geometry. `SystemSymbol` measures rendered glyph/content bounds and maps
-  them into its frame; never assume `font-size` equals visible geometry or
-  correct one glyph with an offset or transform. A nested custom 50px tile,
-  per-icon transform or offset, uncontained generated Dock ink, or one icon
-  that is visibly larger
-  than its neighbors is P1. Audit live bounds for every visible
-  `SystemSymbol` after dynamic mount, including wide glyphs such as
-  `laptopcomputer` and `person.2.fill`; clipping may be a safety net, never
-  the means of containment.
+  area, while generated art uses a 50px canvas and 42px tile. Generated
+  `SystemSymbol`s use size 20 in a centered 34×30px glyph frame; SVG artwork
+  has its own selector and stays at most 26×26px. `SystemSymbol` renders its
+  intrinsic variable-width glyph directly. Its parent owns a fixed, stable
+  slot and centers it with Grid or Flex; optical font size is chosen by
+  component role, never symbol name. A nested custom 50px tile, per-icon
+  transform or offset, post-render symbol measurement, `ResizeObserver`, or
+  icon-specific translate/scale correction is P1. Audit every visible
+  `SystemSymbol` immediately after render, after it settles, and across
+  repeated reloads: geometry must not change. Include wide glyphs such as
+  `laptopcomputer` and `person.2.fill`. `overflow: hidden` may be a safety
+  boundary, never the means of sizing or containment; first-render HTML/CSS
+  must already contain the final geometry.
+- Managed app identity and Dock entries must also be final on SSR. Define each
+  immutable `MacAppDefinition` once, pass the manifest as `initialApps` to
+  `MacWindowManager`, and spread the same definitions into `MacApp`. An app
+  tile that appears or shifts only after registration effects is P1.
 
 ## Control roles & emphasis
 

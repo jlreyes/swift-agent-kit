@@ -25,7 +25,8 @@ export type DockIconSource = DockIcon | ReactNode | string;
 const appIconGeometry = {
   canvas: 50,
   tile: 42,
-  glyph: 26,
+  glyphFrameWidth: 34,
+  glyphFrameHeight: 30,
 } as const;
 
 export interface MacDockAppIconProps {
@@ -42,7 +43,7 @@ function isDockIcon(icon: DockIconSource): icon is DockIcon {
 
 /**
  * A normalized 50px app-icon canvas. Asset artwork keeps its intrinsic safe
- * area; generated icons use a 42px tile and a 26px glyph box.
+ * area; generated icons use a 42px tile and a stable 34×30px glyph frame.
  */
 export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
   const normalizedIcon: DockIcon = typeof icon === "string"
@@ -74,7 +75,10 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
           : (
               <span
                 className="p0-app-icon-glyph"
-                style={{ width: appIconGeometry.glyph, height: appIconGeometry.glyph }}
+                style={{
+                  width: appIconGeometry.glyphFrameWidth,
+                  height: appIconGeometry.glyphFrameHeight,
+                }}
               >
                 {normalizedIcon.symbol}
               </span>

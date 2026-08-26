@@ -251,17 +251,24 @@
   background: var(--selection-tint);
 }
 
-.showcase-library-items :is(svg, .mc-system-symbol) {
+.showcase-library-items svg {
   width: 38px;
   height: 38px;
   color: #4e82b4;
-  font-size: 38px;
 }
 
-.showcase-library-items.is-list :is(svg, .mc-system-symbol) {
+.showcase-library-items .mc-system-symbol {
+  color: #4e82b4;
+  font-size: 23px;
+}
+
+.showcase-library-items.is-list svg {
   width: 21px;
   height: 21px;
-  font-size: 21px;
+}
+
+.showcase-library-items.is-list .mc-system-symbol {
+  font-size: 12px;
 }
 
 .showcase-inline-status {
@@ -308,11 +315,15 @@
   text-align: center;
 }
 
-.showcase-navigation-detail > :is(svg, .mc-system-symbol) {
+.showcase-navigation-detail > svg {
   width: 48px;
   height: 48px;
   color: #5487b8;
-  font-size: 48px;
+}
+
+.showcase-navigation-detail > .mc-system-symbol {
+  color: #5487b8;
+  font-size: 29px;
 }
 
 .showcase-navigation-detail h3 {
@@ -397,10 +408,13 @@
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
 }
 
-.showcase-control-row :is(svg, .mc-system-symbol) {
+.showcase-control-row svg {
   width: 15px;
   height: 15px;
-  font-size: 15px;
+}
+
+.showcase-control-row .mc-system-symbol {
+  font-size: 9px;
 }
 
 .showcase-popover-copy,
@@ -447,11 +461,15 @@
   background: #ffffff;
 }
 
-.showcase-recipe-summary > :is(svg, .mc-system-symbol) {
+.showcase-recipe-summary > svg {
   width: 44px;
   height: 44px;
   color: #5487b8;
-  font-size: 44px;
+}
+
+.showcase-recipe-summary > .mc-system-symbol {
+  color: #5487b8;
+  font-size: 26px;
 }
 
 .showcase-recipe-summary h3 {
@@ -483,10 +501,13 @@
   font-size: 13px;
 }
 
-.showcase-component-inspector > header :is(svg, .mc-system-symbol) {
+.showcase-component-inspector > header svg {
   width: 15px;
   height: 15px;
-  font-size: 15px;
+}
+
+.showcase-component-inspector > header .mc-system-symbol {
+  font-size: 9px;
 }
 
 .showcase-component-inspector dl {
@@ -511,11 +532,15 @@
   text-align: center;
 }
 
-.showcase-preview-card > :is(svg, .mc-system-symbol) {
+.showcase-preview-card > svg {
   width: 54px;
   height: 54px;
   color: #5185b6;
-  font-size: 54px;
+}
+
+.showcase-preview-card > .mc-system-symbol {
+  color: #5185b6;
+  font-size: 32px;
 }
 
 .showcase-preview-card p {

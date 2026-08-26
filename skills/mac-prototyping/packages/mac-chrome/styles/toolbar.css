@@ -85,11 +85,15 @@
 /* SystemSymbol deliberately has no global default size. Toolbar controls do:
    keep every glyph in the same quiet 14px optical box regardless of which
    symbol renderer or consumer supplied it. */
-.mc-toolbar-button > :is(svg, .mc-system-symbol),
-.mc-search-bubble > button > :is(svg, .mc-system-symbol) {
+.mc-toolbar-button > svg,
+.mc-search-bubble > button > svg {
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
+}
+
+.mc-toolbar-button > .mc-system-symbol,
+.mc-search-bubble > button > .mc-system-symbol {
   font-size: 14px;
 }
 

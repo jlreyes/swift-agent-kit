@@ -21,10 +21,13 @@
   color: var(--text-faint);
 }
 
-.mc-content-unavailable-icon :is(svg, .mc-system-symbol) {
+.mc-content-unavailable-icon svg {
   width: 42px;
   height: 42px;
-  font-size: 42px;
+}
+
+.mc-content-unavailable-icon .mc-system-symbol {
+  font-size: 26px;
 }
 
 .mc-content-unavailable h2 {

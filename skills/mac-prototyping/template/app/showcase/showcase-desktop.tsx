@@ -50,6 +50,7 @@ import {
   type ChooserChoice,
   type FinderEntry,
   type FinderViewMode,
+  type MacAppDefinition,
   type MacListSection,
   type MacDialogAction,
   type MacSourceListSection,
@@ -875,9 +876,48 @@ function defaultDockItem(id: string) {
   return item;
 }
 
+const showcaseApps = {
+  activity: {
+    id: "showcase-activity",
+    name: "Showcase Activity",
+    presentation: "menuBar",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" /> },
+  },
+  catalog: {
+    id: "catalog",
+    name: "Mac Chrome",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "var(--accent)", foreground: "var(--on-accent)" },
+  },
+  finder: { id: "finder", name: "Finder", defaultRunning: false, icon: defaultDockItem("finder").icon },
+  chooser: {
+    id: "chooser",
+    name: "Workspace Chooser",
+    defaultRunning: false,
+    icon: { kind: "symbol", symbol: <SystemSymbol name="square.grid.2x2" />, background: "var(--selection-strong)", foreground: "var(--on-accent)" },
+  },
+  setup: {
+    id: "setup",
+    name: "Setup Assistant",
+    defaultRunning: false,
+    icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" />, background: "var(--brand-strong)", foreground: "var(--on-accent)" },
+  },
+  chat: {
+    id: "chat",
+    name: "Chat",
+    defaultRunning: false,
+    icon: { kind: "symbol", symbol: <SystemSymbol name="person.2.fill" />, background: "var(--chrome-ink)", foreground: "var(--on-accent)" },
+  },
+  appStore: { id: "app-store", name: "App Store", defaultRunning: false, icon: defaultDockItem("app-store").icon },
+  chrome: { id: "chrome", name: "Google Chrome", defaultRunning: false, icon: defaultDockItem("chrome").icon },
+  downloads: { id: "downloads", name: "Downloads", dockGroup: "places", defaultRunning: false, icon: defaultDockItem("downloads").icon },
+  trash: { id: "trash", name: "Trash", dockGroup: "places", defaultRunning: false, icon: defaultDockItem("trash").icon },
+} as const satisfies Record<string, MacAppDefinition>;
+
+const showcaseAppManifest: readonly MacAppDefinition[] = Object.values(showcaseApps);
+
 export function ShowcaseDesktop() {
   return (
-    <MacWindowManager>
+    <MacWindowManager initialApps={showcaseAppManifest}>
       <ManagedShowcaseDesktop />
     </MacWindowManager>
   );
@@ -992,12 +1032,7 @@ function ManagedShowcaseDesktop() {
       menuItems={menuItems}
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
       menuBarExtras={(
-        <MacApp
-          id="showcase-activity"
-          name="Showcase Activity"
-          presentation="menuBar"
-          icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}
-        >
+        <MacApp {...showcaseApps.activity}>
           <MenuBarExtra
             badge={extraCount}
             icon={<SystemSymbol name="sparkles" />}
@@ -1058,11 +1093,7 @@ function ManagedShowcaseDesktop() {
         </MacApp>
       )}
     >
-      <MacApp
-        id="catalog"
-        name="Mac Chrome"
-        icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "var(--accent)", foreground: "var(--on-accent)" }}
-      >
+      <MacApp {...showcaseApps.catalog}>
         <CatalogWindow
           activeStory={activeStory}
           canGoBack={historyIndex > 0}
@@ -1080,7 +1111,7 @@ function ManagedShowcaseDesktop() {
           onSidebarVisibleChange={updateCatalogSidebarVisibility}
         />
       </MacApp>
-      <MacApp id="finder" name="Finder" defaultRunning={false} icon={defaultDockItem("finder").icon}>
+      <MacApp {...showcaseApps.finder}>
         <FinderRecipe
           mode={finderMode}
           previewVisible={finderPreviewVisible}
@@ -1091,19 +1122,19 @@ function ManagedShowcaseDesktop() {
           onSidebarVisibleChange={updateFinderSidebarVisibility}
         />
       </MacApp>
-      <MacApp id="chooser" name="Workspace Chooser" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="square.grid.2x2" />, background: "var(--selection-strong)", foreground: "var(--on-accent)" }}>
+      <MacApp {...showcaseApps.chooser}>
         <ChooserRecipe onClose={() => setStatus("Chooser window closed.")} />
       </MacApp>
-      <MacApp id="setup" name="Setup Assistant" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" />, background: "var(--brand-strong)", foreground: "var(--on-accent)" }}>
+      <MacApp {...showcaseApps.setup}>
         <SetupRecipe onClose={() => setStatus("Setup Assistant window closed.")} />
       </MacApp>
-      <MacApp id="chat" name="Chat" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="person.2.fill" />, background: "var(--chrome-ink)", foreground: "var(--on-accent)" }}>
+      <MacApp {...showcaseApps.chat}>
         <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />
       </MacApp>
-      <MacApp id="app-store" name="App Store" defaultRunning={false} icon={defaultDockItem("app-store").icon}><SystemAppRecipe label="App Store" symbol="app" /></MacApp>
-      <MacApp id="chrome" name="Google Chrome" defaultRunning={false} icon={defaultDockItem("chrome").icon}><SystemAppRecipe label="Google Chrome" symbol="network" /></MacApp>
-      <MacApp id="downloads" name="Downloads" dockGroup="places" defaultRunning={false} icon={defaultDockItem("downloads").icon}><SystemAppRecipe label="Downloads" symbol="arrow.down.doc" /></MacApp>
-      <MacApp id="trash" name="Trash" dockGroup="places" defaultRunning={false} icon={defaultDockItem("trash").icon}><SystemAppRecipe label="Trash" symbol="xmark" /></MacApp>
+      <MacApp {...showcaseApps.appStore}><SystemAppRecipe label="App Store" symbol="app" /></MacApp>
+      <MacApp {...showcaseApps.chrome}><SystemAppRecipe label="Google Chrome" symbol="network" /></MacApp>
+      <MacApp {...showcaseApps.downloads}><SystemAppRecipe label="Downloads" symbol="arrow.down.doc" /></MacApp>
+      <MacApp {...showcaseApps.trash}><SystemAppRecipe label="Trash" symbol="xmark" /></MacApp>
       <MacAppDock label="Showcase Dock" />
     </DesktopShell>
   );

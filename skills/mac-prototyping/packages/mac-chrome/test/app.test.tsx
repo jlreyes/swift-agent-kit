@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { MacApp, MacAppDock, MacWindowManager, useMacWindowManager } from "../app.tsx";
 import { DesktopShell } from "../desktop-shell.tsx";
@@ -66,6 +67,27 @@ function managedDockButton(name: string) {
 }
 
 describe("Mac app and window management", () => {
+  it("server-renders the immutable app manifest before registration effects run", () => {
+    const html = renderToStaticMarkup(
+      <MacWindowManager
+        initialApps={[
+          { id: "showcase", name: "Showcase", icon: { kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> } },
+          { id: "notes", name: "Notes", defaultRunning: false, icon: { kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> } },
+          { id: "activity", name: "Activity", presentation: "menuBar", icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" /> } },
+        ]}
+      >
+        <MacAppDock label="Boot Dock" />
+      </MacWindowManager>,
+    );
+    const container = document.createElement("div");
+    container.innerHTML = html;
+
+    expect(container.querySelectorAll("[aria-label='Boot Dock'] .p0-dock-item")).toHaveLength(2);
+    expect(container.querySelector("[aria-label='Showcase'] [data-system-symbol='laptopcomputer']")).toBeTruthy();
+    expect(container.querySelector("[aria-label='Notes'] [data-system-symbol='doc.text.fill']")).toBeTruthy();
+    expect(container.querySelector("[aria-label='Activity']")).toBeNull();
+  });
+
   it("launches apps from the Dock and makes pointer- or focus-activated windows key", async () => {
     render(<ManagedDesktop />);
 

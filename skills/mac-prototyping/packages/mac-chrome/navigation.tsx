@@ -4,6 +4,7 @@ import "./resize-observer-compat.ts";
 
 import {
   useId,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -82,6 +83,17 @@ function panelSizing(
   };
 }
 
+function layoutWeight(size: number | string): number {
+  const parsed = typeof size === "number" ? size : Number.parseFloat(size);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function normalizedLayout(entries: readonly (readonly [string, number | string])[]): Readonly<Record<string, number>> {
+  const weights = entries.map(([id, size]) => [id, layoutWeight(size)] as const);
+  const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
+  return Object.fromEntries(weights.map(([id, weight]) => [id, (weight / total) * 100]));
+}
+
 /**
  * A macOS navigation split view: sidebar + detail, or sidebar + content +
  * detail. The optional middle column represents a selection hierarchy, while
@@ -106,6 +118,23 @@ export function MacNavigationSplitView({
   const resolvedSidebarSizing = panelSizing(sidebarSizing, defaultSidebarSizing);
   const resolvedContentSizing = panelSizing(contentSizing, defaultContentSizing);
   const resolvedDetailSizing = panelSizing(detailSizing, defaultDetailSizing);
+  const hasContent = content !== undefined;
+  const defaultLayout = useMemo(
+    () =>
+      normalizedLayout([
+        ...(sidebarVisible ? [[`${idPrefix}-sidebar`, resolvedSidebarSizing.defaultSize] as const] : []),
+        ...(hasContent ? [[`${idPrefix}-content`, resolvedContentSizing.defaultSize] as const] : []),
+        [`${idPrefix}-detail`, resolvedDetailSizing.defaultSize] as const,
+      ]),
+    [
+      hasContent,
+      idPrefix,
+      resolvedContentSizing.defaultSize,
+      resolvedDetailSizing.defaultSize,
+      resolvedSidebarSizing.defaultSize,
+      sidebarVisible,
+    ],
+  );
 
   const leadingColumns: ReactNode[] = [];
   if (sidebarVisible) {
@@ -155,11 +184,11 @@ export function MacNavigationSplitView({
       />,
     );
   }
-
   return (
     <Group
       id={`${idPrefix}-group`}
       className={`mc-navigation-split-view ${className}`.trim()}
+      defaultLayout={defaultLayout}
       orientation="horizontal"
     >
       {leadingColumns}

@@ -72,6 +72,7 @@ export type {
   FinderSearch,
   FinderSelection,
   FinderViewMode,
+  MacAppDefinition,
   MacManagedApp,
   MacAppPresentation,
   MacAlertAction,

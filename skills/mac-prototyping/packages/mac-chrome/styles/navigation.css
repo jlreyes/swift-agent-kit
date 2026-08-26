@@ -184,10 +184,13 @@
   color: var(--accent);
 }
 
-.mc-sidebar-item-icon :is(svg, .mc-system-symbol) {
+.mc-sidebar-item-icon svg {
   width: 16px;
   height: 16px;
-  font-size: 16px;
+}
+
+.mc-sidebar-item-icon .mc-system-symbol {
+  font-size: 12px;
 }
 
 .mc-sidebar-item-label {

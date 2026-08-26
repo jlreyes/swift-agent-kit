@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { act, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   MacInspector,
@@ -12,6 +13,27 @@ import {
 afterEach(cleanup);
 
 describe("MacNavigationSplitView", () => {
+  it("server-renders the final normalized panel ratios instead of correcting them after hydration", () => {
+    const html = renderToStaticMarkup(
+      <MacNavigationSplitView
+        id="stable-layout"
+        sidebar={<div>Sidebar</div>}
+        sidebarSizing={{ defaultSize: 224 }}
+        detail={<div>Detail</div>}
+        detailSizing={{ defaultSize: 620 }}
+      />,
+    );
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const sidebar = container.querySelector<HTMLElement>("#stable-layout-sidebar");
+    const detail = container.querySelector<HTMLElement>("#stable-layout-detail");
+
+    expect(Number(sidebar?.style.flexGrow)).toBeCloseTo(224 / 844 * 100);
+    expect(Number(detail?.style.flexGrow)).toBeCloseTo(620 / 844 * 100);
+    expect(sidebar?.style.flexBasis).toBe("0px");
+    expect(detail?.style.flexBasis).toBe("0px");
+  });
+
   it("composes a resizable two-column sidebar and detail layout", () => {
     const { container } = render(
       <MacNavigationSplitView

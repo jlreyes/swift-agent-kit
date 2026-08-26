@@ -4,6 +4,7 @@ export {
   MacAppDock,
   MacWindowManager,
   useMacWindowManager,
+  type MacAppDefinition,
   type MacManagedApp,
   type MacManagedWindow,
   type MacAppPresentation,

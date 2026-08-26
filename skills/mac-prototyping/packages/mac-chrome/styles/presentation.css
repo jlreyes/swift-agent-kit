@@ -138,10 +138,13 @@ body > .mc-window-modal-layer-desktop {
   color: var(--accent);
 }
 
-.mc-alert-icon :is(svg, .mc-system-symbol) {
+.mc-alert-icon svg {
   width: 40px;
   height: 40px;
-  font-size: 40px;
+}
+
+.mc-alert-icon .mc-system-symbol {
+  font-size: 28px;
 }
 
 .mc-alert-application {

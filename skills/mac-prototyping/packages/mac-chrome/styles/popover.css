@@ -65,10 +65,9 @@
   min-width: 0;
 }
 
-.mc-menu-popover .mc-menu-icon > :is(svg, .mc-system-symbol) {
+.mc-menu-popover .mc-menu-icon > svg {
   width: 15px;
   height: 15px;
-  font-size: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.65;
@@ -76,9 +75,16 @@
   stroke-linejoin: round;
 }
 
-.mc-menu-popover .mc-menu-trailing > :is(svg, .mc-system-symbol) {
+.mc-menu-popover .mc-menu-icon > .mc-system-symbol {
+  font-size: 10px;
+}
+
+.mc-menu-popover .mc-menu-trailing > svg {
   width: 13px;
   height: 13px;
+}
+
+.mc-menu-popover .mc-menu-trailing > .mc-system-symbol {
   font-size: 13px;
 }
 
@@ -197,9 +203,12 @@
   background: #ececee;
 }
 
-.mc-details-menu-trigger > :is(svg, .mc-system-symbol) {
+.mc-details-menu-trigger > svg {
   width: 16px;
   height: 16px;
+}
+
+.mc-details-menu-trigger > .mc-system-symbol {
   font-size: 16px;
 }
 
@@ -285,10 +294,13 @@
   filter: invert(1);
 }
 
-.mc-menubar-trigger :is(svg, .mc-system-symbol) {
+.mc-menubar-trigger svg {
   width: 15px;
   height: 15px;
-  font-size: 15px;
+}
+
+.mc-menubar-trigger .mc-system-symbol {
+  font-size: 13px;
 }
 
 .mc-menubar-badge {
@@ -334,10 +346,13 @@
   object-fit: contain;
 }
 
-.mc-menubar-popover header :is(svg, .mc-system-symbol) {
+.mc-menubar-popover header svg {
   width: 26px;
   height: 26px;
-  font-size: 26px;
+}
+
+.mc-menubar-popover header .mc-system-symbol {
+  font-size: 18px;
 }
 
 .mc-menubar-popover header span {

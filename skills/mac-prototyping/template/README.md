@@ -72,6 +72,10 @@ Build a product surface from public primitives before adding local components:
   app tile running, and restores through that thumbnail. Do not make a local
   minimized-window UI. Standalone unmanaged `WindowChrome` uses its local hide
   fallback instead.
+  Define each managed app's immutable `MacAppDefinition` once, pass the full
+  manifest to `MacWindowManager` as `initialApps`, and spread the same
+  definitions into `MacApp`; this puts the final app identities and Dock tiles
+  in SSR rather than adding or shifting them after registration effects.
 - Use `MacApp presentation="windowed"` for ordinary Dock apps and
   `presentation="menuBar"` with `MenuBarExtra` for status-item-only apps.
 - Use `MacAlert presentationScope="desktop"` for a menu-bar app's system

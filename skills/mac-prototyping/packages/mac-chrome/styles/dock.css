@@ -106,8 +106,8 @@
 }
 
 .p0-app-icon-glyph {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 30px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -115,18 +115,18 @@
 }
 
 .p0-app-icon-glyph > * {
-  max-width: 26px;
-  max-height: 26px;
-}
-
-.p0-app-icon-glyph > :is(svg, .mc-system-symbol) {
-  width: 26px;
-  height: 26px;
-  font-size: 26px;
+  max-width: 34px;
+  max-height: 30px;
 }
 
 .p0-app-icon-glyph > svg {
+  width: 26px;
+  height: 26px;
   display: block;
+}
+
+.p0-app-icon-glyph > .mc-system-symbol {
+  font-size: 20px;
 }
 
 .p0-window-thumbnail {

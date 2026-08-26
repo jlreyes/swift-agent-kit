@@ -10,7 +10,11 @@ import {
   type MacSourceListSection,
 } from "../navigation.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("MacNavigationSplitView", () => {
   it("server-renders the final normalized panel ratios instead of correcting them after hydration", () => {
@@ -32,6 +36,27 @@ describe("MacNavigationSplitView", () => {
     expect(Number(detail?.style.flexGrow)).toBeCloseTo(620 / 844 * 100);
     expect(sidebar?.style.flexBasis).toBe("0px");
     expect(detail?.style.flexBasis).toBe("0px");
+  });
+
+  it("preserves unlike CSS units instead of normalizing their numeric prefixes", () => {
+    const html = renderToStaticMarkup(
+      <MacNavigationSplitView
+        id="mixed-units"
+        sidebar={<div>Sidebar</div>}
+        sidebarSizing={{ defaultSize: "50%" }}
+        detail={<div>Detail</div>}
+        detailSizing={{ defaultSize: "500px" }}
+      />,
+    );
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const sidebar = container.querySelector<HTMLElement>("#mixed-units-sidebar");
+    const detail = container.querySelector<HTMLElement>("#mixed-units-detail");
+
+    expect(sidebar?.style.flexBasis).toBe("50%");
+    expect(detail?.style.flexBasis).toBe("500px");
+    expect(sidebar?.style.flexGrow).toBe("");
+    expect(detail?.style.flexGrow).toBe("");
   });
 
   it("composes a resizable two-column sidebar and detail layout", () => {
@@ -119,6 +144,38 @@ function SourceListHarness({ onSelection }: { readonly onSelection: (id: string)
 }
 
 describe("MacSourceList", () => {
+  it("selects only explicitly selectable section headings without conflating disclosure", () => {
+    const onItemSelection = vi.fn();
+    const onSectionSelection = vi.fn();
+    render(
+      <MacSourceList
+        label="Components"
+        sections={[{
+          id: "library",
+          title: "Library",
+          collapsible: true,
+          selectable: true,
+          items: [
+            { id: "all", label: "All Components" },
+            { id: "shared", label: "Shared" },
+          ],
+        }]}
+        selectedId="all"
+        selectedSectionId={null}
+        onSelectionChange={onItemSelection}
+        onSectionSelectionChange={onSectionSelection}
+      />,
+    );
+    const library = screen.getByRole("row", { name: /Library/ });
+
+    fireEvent.click(screen.getByRole("button", { name: /Collapse Library/ }));
+    expect(onSectionSelection).not.toHaveBeenCalled();
+
+    fireEvent.click(library);
+    expect(onSectionSelection).toHaveBeenCalledWith("library");
+    expect(onItemSelection).not.toHaveBeenCalled();
+  });
+
   it("drives collection-level controlled selection with arrow navigation", () => {
     const onSelection = vi.fn();
     render(<SourceListHarness onSelection={onSelection} />);
@@ -189,6 +246,39 @@ describe("MacSourceList", () => {
 });
 
 describe("MacInspector", () => {
+  it("measures a controlled CSS width for ARIA and follows rendered geometry changes", () => {
+    let renderedWidth = 315;
+    let notifyResize: () => void = () => undefined;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      return this.classList.contains("mc-inspector")
+        ? new DOMRect(0, 0, renderedWidth, 500)
+        : new DOMRect();
+    });
+    render(
+      <MacInspector label="Details Inspector" width="50%">
+        Metadata
+      </MacInspector>,
+    );
+    const separator = screen.getByRole("separator", { name: "Resize Details Inspector" });
+    const inspector = screen.getByRole("complementary", { name: "Details Inspector" });
+
+    expect(inspector.style.width).toBe("50%");
+    expect(separator.getAttribute("aria-valuenow")).toBe("315");
+
+    renderedWidth = 340;
+    act(() => notifyResize());
+    expect(separator.getAttribute("aria-valuenow")).toBe("340");
+  });
+
   it("stays a separately controlled supplementary pane", () => {
     const { rerender } = render(
       <MacInspector label="Details Inspector" width={288}>

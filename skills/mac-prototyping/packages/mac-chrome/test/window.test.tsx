@@ -4,7 +4,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MacApp, MacAppDock, MacWindowManager } from "../app.tsx";
-import { TrafficLights, WindowChrome } from "../window";
+import { TrafficLights, useWindowDrag, WindowChrome } from "../window";
 import { FinderWindow } from "../finder";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -117,6 +117,25 @@ function renderCanvasWindow({
   );
 }
 
+function DragHarness() {
+  const drag = useWindowDrag<HTMLElement>(true);
+  return (
+    <div className="desktop-canvas">
+      <section
+        ref={drag.windowRef}
+        className="legacy-drag-window"
+        style={{ transform: "rotate(2deg)", ...drag.style }}
+        onPointerDown={drag.onPointerDown}
+        onPointerMove={drag.onPointerMove}
+        onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerCancel}
+      >
+        <div data-window-drag-handle="">Title</div>
+      </section>
+    </div>
+  );
+}
+
 async function resizeFrom(
   windowElement: HTMLElement,
   edge: string,
@@ -133,6 +152,27 @@ async function resizeFrom(
 }
 
 describe("WindowChrome geometry", () => {
+  it("clamps the generic drag hook to its offset desktop canvas without replacing caller transforms", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(300, 50, 400, 300);
+      if (this.classList.contains("legacy-drag-window")) return new DOMRect(350, 90, 300, 200);
+      return new DOMRect();
+    });
+    const { container } = render(<DragHarness />);
+    const windowElement = container.querySelector<HTMLElement>(".legacy-drag-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    firePointer(handle, "pointerdown", { clientX: 400, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 1_400, clientY: 100 });
+    await flushAnimationFrame();
+
+    expect(windowElement.style.translate).toBe("230px 0px");
+    expect(windowElement.style.transform).toBe("rotate(2deg)");
+  });
+
   it("applies the generic default frame, centered", () => {
     const { container } = render(
       <WindowChrome label="Plain">
@@ -225,6 +265,82 @@ describe("WindowChrome geometry", () => {
     expect(windowElement.style.height).toBe("320px");
   });
 
+  it("captures untransformed layout geometry without applying caller transforms twice", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(40, 20, 800, 600);
+      if (this.classList.contains("mac-window")) {
+        return this.style.transform === "none"
+          ? new DOMRect(140, 100, 500, 400)
+          : new DOMRect(160, 120, 1_000, 800);
+      }
+      return new DOMRect();
+    });
+    const { container } = render(
+      <div className="desktop-canvas">
+        <WindowChrome
+          frame={{ top: 80, left: 100, width: 500, height: 400 }}
+          label="Transformed window"
+          style={{ transform: "translate(20px, 10px) scale(2)" }}
+        >
+          <div data-window-drag-handle="">Title</div>
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+
+    expect(windowElement?.style.left).toBe("100px");
+    expect(windowElement?.style.top).toBe("80px");
+    expect(windowElement?.style.width).toBe("500px");
+    expect(windowElement?.style.height).toBe("400px");
+    expect(windowElement?.style.transform).toBe("translate(20px, 10px) scale(2)");
+  });
+
+  it("recontains standalone windows when the viewport resizes", async () => {
+    let viewportWidth = 800;
+    vi.spyOn(window, "innerWidth", "get").mockImplementation(() => viewportWidth);
+    vi.spyOn(window, "innerHeight", "get").mockImplementation(() => 600);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("mac-window")) return new DOMRect(100, 80, 500, 400);
+      return new DOMRect();
+    });
+    const { container } = render(
+      <WindowChrome frame={{ top: 80, left: 100, width: 500, height: 400 }} label="Viewport window">
+        <div data-window-drag-handle="">Title</div>
+      </WindowChrome>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement?.style.left).toBe("100px");
+
+    viewportWidth = 450;
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushNextTask();
+
+    expect(windowElement?.style.left).toBe("24px");
+    expect(windowElement?.style.width).toBe("402px");
+  });
+
+  it("keeps a positive reachable frame even when the canvas is smaller than the safe insets", () => {
+    mockLayout({
+      canvasLeft: 0,
+      canvasTop: 0,
+      canvasWidth: 40,
+      canvasHeight: 100,
+      windowLeft: 0,
+      windowTop: 0,
+      windowWidth: 500,
+      windowHeight: 400,
+    });
+    const { container } = renderCanvasWindow({ minSize: { width: 100, height: 100 } });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const width = Number.parseFloat(windowElement?.style.width ?? "0");
+    const height = Number.parseFloat(windowElement?.style.height ?? "0");
+
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+    expect(width).toBeLessThanOrEqual(40);
+    expect(height).toBeLessThanOrEqual(100);
+  });
+
   it("recontains after shrink/reset notifications in a later task, never the observer cycle", async () => {
     const layout = { ...standardLayout };
     let notifyResize: () => void = () => undefined;
@@ -262,6 +378,39 @@ describe("WindowChrome geometry", () => {
     await flushNextTask();
     expect(windowElement?.style.left).toBe("24px");
     expect(windowElement?.style.width).toBe("420px");
+  });
+
+  it("rebases an active resize when its canvas shrinks", async () => {
+    const layout = { ...standardLayout };
+    let notifyResize: () => void = () => undefined;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    mockLayout(layout);
+    const { container } = renderCanvasWindow({ minSize: { width: 100, height: 100 } });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = windowElement?.querySelector<HTMLElement>("[data-window-resize-handle='w']");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null || handle === undefined) return;
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 200 });
+    layout.canvasWidth = 450;
+    act(() => notifyResize());
+    await flushNextTask();
+    expect(windowElement.style.left).toBe("24px");
+    expect(windowElement.style.width).toBe("402px");
+
+    firePointer(windowElement, "pointermove", { clientX: 210, clientY: 200 });
+    await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("34px");
+    expect(windowElement.style.width).toBe("392px");
   });
 
   it("attaches containment after a default-closed managed window opens from the Dock", async () => {

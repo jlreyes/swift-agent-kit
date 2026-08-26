@@ -4,6 +4,7 @@ import "./resize-observer-compat.ts";
 
 import {
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -83,15 +84,52 @@ function panelSizing(
   };
 }
 
-function layoutWeight(size: number | string): number {
-  const parsed = typeof size === "number" ? size : Number.parseFloat(size);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+type LayoutUnit = "%" | "em" | "px" | "rem" | "vh" | "vw";
+type LayoutSize = { readonly unit: LayoutUnit; readonly value: number };
+
+function layoutUnit(unit: string | undefined): LayoutUnit | null {
+  switch (unit) {
+    case undefined:
+    case "%":
+      return "%";
+    case "em":
+    case "px":
+    case "rem":
+    case "vh":
+    case "vw":
+      return unit;
+    default:
+      return null;
+  }
 }
 
-function normalizedLayout(entries: readonly (readonly [string, number | string])[]): Readonly<Record<string, number>> {
-  const weights = entries.map(([id, size]) => [id, layoutWeight(size)] as const);
-  const total = weights.reduce((sum, [, weight]) => sum + weight, 0);
-  return Object.fromEntries(weights.map(([id, weight]) => [id, (weight / total) * 100]));
+function layoutSize(size: number | string): LayoutSize | null {
+  if (typeof size === "number") {
+    return Number.isFinite(size) && size >= 0 ? { unit: "px", value: size } : null;
+  }
+  const match = /^([0-9]+(?:\.[0-9]+)?)(%|px|rem|em|vh|vw)?$/.exec(size.trim());
+  if (match?.[1] === undefined) return null;
+  const value = Number(match[1]);
+  const unit = layoutUnit(match[2]);
+  if (!Number.isFinite(value) || unit === null) return null;
+  /* react-resizable-panels interprets a unitless string as a percentage. */
+  return { unit, value };
+}
+
+function normalizedLayout(
+  entries: readonly (readonly [string, number | string])[],
+): Readonly<Record<string, number>> | undefined {
+  const parsed = entries.map(([id, size]) => [id, layoutSize(size)] as const);
+  const firstUnit = parsed[0]?.[1]?.unit;
+  /* A server render has no group geometry with which to resolve unlike CSS
+     units. Let Panel preserve those authored sizes verbatim instead of
+     pretending that e.g. 50% and 500px are commensurate weights. */
+  if (firstUnit === undefined || parsed.some(([, size]) => size === null || size.unit !== firstUnit)) {
+    return undefined;
+  }
+  const total = parsed.reduce((sum, [, size]) => sum + (size?.value ?? 0), 0);
+  if (total <= 0) return undefined;
+  return Object.fromEntries(parsed.map(([id, size]) => [id, ((size?.value ?? 0) / total) * 100]));
 }
 
 /**
@@ -232,10 +270,10 @@ function clampedWidth(width: number, minimum: number, maximum: number): number {
   return Math.min(Math.max(width, minimum), maximum);
 }
 
-function pixelWidth(width: number | string, fallback: number): number {
+function pixelWidth(width: number | string): number | undefined {
   if (typeof width === "number") return width;
   const match = /^([0-9]+(?:\.[0-9]+)?)px$/.exec(width.trim());
-  return match?.[1] === undefined ? fallback : Number(match[1]);
+  return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
 type InspectorDrag = {
@@ -270,15 +308,42 @@ export function MacInspector({
   const generatedId = useId().replaceAll(":", "");
   const inspectorId = `mc-inspector-${generatedId}`;
   const renderedWidth = width ?? uncontrolledWidth;
-  const reportedWidth = clampedWidth(
-    pixelWidth(renderedWidth, uncontrolledWidth),
-    normalizedMinimum,
-    normalizedMaximum,
-  );
+  const knownPixelWidth = pixelWidth(renderedWidth);
+  const measurementKey = knownPixelWidth === undefined
+    ? `${renderedWidth}|${normalizedMinimum}|${normalizedMaximum}`
+    : null;
+  const [measurement, setMeasurement] = useState<{ readonly key: string; readonly width: number } | null>(null);
+  const measuredWidth = measurementKey !== null && measurement?.key === measurementKey
+    ? measurement.width
+    : undefined;
+  const reportedWidth = knownPixelWidth === undefined
+    ? measuredWidth
+    : clampedWidth(knownPixelWidth, normalizedMinimum, normalizedMaximum);
+
+  useLayoutEffect(() => {
+    if (measurementKey === null || !visible) return;
+    const currentMeasurementKey = measurementKey;
+    const element = inspectorRef.current;
+    if (element === null) return;
+    const measuredElement = element;
+    function measure() {
+      const nextWidth = measuredElement.getBoundingClientRect().width;
+      if (nextWidth <= 0) return;
+      setMeasurement((current) =>
+        current?.key === currentMeasurementKey && current.width === nextWidth
+          ? current
+          : { key: currentMeasurementKey, width: nextWidth });
+    }
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(measuredElement);
+    return () => observer.disconnect();
+  }, [measurementKey, visible]);
 
   function currentWidth(): number {
     const measuredWidth = inspectorRef.current?.getBoundingClientRect().width ?? 0;
-    return measuredWidth > 0 ? measuredWidth : reportedWidth;
+    return measuredWidth > 0 ? measuredWidth : (reportedWidth ?? uncontrolledWidth);
   }
 
   function resizeTo(nextWidth: number) {
@@ -389,6 +454,8 @@ export type MacSourceListSection = {
   readonly id: string;
   /** An untitled section renders as a plain leading block. */
   readonly title?: string;
+  /** Whether pressing this titled section selects it as an application destination. */
+  readonly selectable?: boolean;
   readonly collapsible?: boolean;
   readonly count?: number;
   readonly action?: ReactNode;
@@ -400,9 +467,12 @@ export type MacSourceListProps = {
   readonly sections: readonly MacSourceListSection[];
   readonly label?: string;
   readonly className?: string;
-  /** Selected item id. Section headings are focusable disclosure controls, not app selections. */
+  /** Selected item id. */
   readonly selectedId: string | null;
   readonly onSelectionChange: (id: string) => void;
+  /** Selected titled section id, independent of item selection. */
+  readonly selectedSectionId?: string | null;
+  readonly onSectionSelectionChange?: (id: string) => void;
   /** Controlled expanded section ids. Omit to start every section expanded. */
   readonly expandedSectionIds?: ReadonlySet<string>;
   readonly onExpandedSectionIdsChange?: (ids: ReadonlySet<string>) => void;
@@ -427,6 +497,8 @@ export function MacSourceList({
   className = "",
   selectedId,
   onSelectionChange,
+  selectedSectionId,
+  onSectionSelectionChange,
   expandedSectionIds,
   onExpandedSectionIdsChange,
 }: MacSourceListProps) {
@@ -440,12 +512,18 @@ export function MacSourceList({
   );
   const expandedKeys = expandedIds.map(sectionKey);
 
-  let selectedKey: Key | undefined;
-  for (const section of sections) {
-    const selectedItem = section.items.find((item) => item.id === selectedId);
-    if (selectedItem !== undefined) {
-      selectedKey = itemKey(selectedItem.id);
-      break;
+  const selectedSection = sections.find((section) =>
+    section.selectable === true && section.id === selectedSectionId);
+  let selectedKey: Key | undefined = selectedSection === undefined
+    ? undefined
+    : sectionKey(selectedSection.id);
+  if (selectedKey === undefined) {
+    for (const section of sections) {
+      const selectedItem = section.items.find((item) => item.id === selectedId);
+      if (selectedItem !== undefined) {
+        selectedKey = itemKey(selectedItem.id);
+        break;
+      }
     }
   }
 
@@ -453,6 +531,10 @@ export function MacSourceList({
     if (selection === "all") return;
     const key = [...selection][0];
     for (const section of sections) {
+      if (section.selectable === true && key === sectionKey(section.id)) {
+        onSectionSelectionChange?.(section.id);
+        return;
+      }
       for (const item of section.items) {
         if (key === itemKey(item.id)) {
           onSelectionChange(item.id);
@@ -525,7 +607,7 @@ export function MacSourceList({
             key={`section-${section.id}`}
             id={sectionKey(section.id)}
             textValue={title}
-            className={`mc-sidebar-section mc-sidebar-section-header${extraClass}`}
+            className={`mc-sidebar-section mc-sidebar-section-header${section.selectable === true && selectedSectionId === section.id ? " mc-selected" : ""}${extraClass}`}
             onPress={(event) => {
               if (event.pointerType !== "keyboard" && event.target instanceof HTMLElement) {
                 event.target.focus();

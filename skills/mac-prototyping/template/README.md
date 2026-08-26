@@ -105,9 +105,10 @@ Build a product surface from public primitives before adding local components:
   Both `MacPopover` and `MenuBarExtra` expose controlled
   `isOpen`/`onOpenChange` state and `triggerRef` for a popover-to-desktop-alert
   handoff with stable focus restoration.
-- Use a typed `DockIcon` with `MacDock` for app tiles. Asset icons preserve
-  their own safe area; generated symbol icons use the shared tile and glyph
-  boxes. Do not create a local full-size Dock icon tile or per-app scaling.
+- Use typed `DockIcon` data with `MacDock` for app tiles; `MacDockAppIcon` is
+  the shared runtime renderer. Asset icons preserve their own safe area;
+  generated symbol icons use the shared tile and glyph boxes. Do not create a
+  local full-size Dock icon tile or per-app scaling.
 
 `FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
 complete recipes layered above the primitives. Use them when their flow fits;

@@ -4,6 +4,25 @@ import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, us
 
 const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
+function activeModalDialogs() {
+  return [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+    .filter((dialog) => dialog.closest('[inert], [aria-hidden="true"]') === null);
+}
+
+function focusTargetOrActiveModal(target: HTMLElement | null) {
+  const activeDialogs = activeModalDialogs();
+  if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
+    target.focus();
+    return;
+  }
+  const topDialog = activeDialogs.at(-1);
+  if (topDialog !== undefined) {
+    (topDialog.querySelector<HTMLElement>(focusableSelector) ?? topDialog).focus();
+    return;
+  }
+  target?.focus();
+}
+
 export function useModalFocusTrap({
   dialogRef,
   fallbackFocusRef,
@@ -28,13 +47,17 @@ export function useModalFocusTrap({
       // connectedness alone must not outrank that explicit policy.
       const fallbackTarget = fallbackFocusRef?.current;
       const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
-      window.requestAnimationFrame(() => target?.focus());
+      // Closing a lower layer must not return focus into its underlay while a
+      // newer modal remains active. In that case the active modal owns focus.
+      window.requestAnimationFrame(() => focusTargetOrActiveModal(target));
     };
   }, [fallbackFocusRef]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+      const dialog = dialogRef.current;
+      if (dialog === null) return;
+      (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [dialogRef, focusVersion, initialFocusSelector]);
@@ -51,7 +74,8 @@ export function useModalFocusTrap({
     const last = controls.at(-1);
     if (!first || !last) {
       event.preventDefault();
-      dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+      const dialog = dialogRef.current;
+      if (dialog !== null) (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
       return;
     }
     if (!(document.activeElement instanceof HTMLElement) || !controls.includes(document.activeElement)) {

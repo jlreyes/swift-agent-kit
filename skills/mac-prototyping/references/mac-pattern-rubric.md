@@ -126,9 +126,6 @@ and `.inspector`.)
   dividers are visibly resizable and keyboard-operable, and small viewports
   retain an intelligible hierarchy rather than compressing all columns into
   unreadable strips.
-- `MacNavigationSplitView` owns SSR normalization of panel defaults. Use the
-  primitive rather than a local panel layout; split children must not move when
-  hydration replaces raw pixel flex-bases with normalized proportions.
 - Product UI must not silently import a showcase-local component or duplicate
   showcase styling. `/showcase` is evidence that public primitives compose;
   it is not a private component source.

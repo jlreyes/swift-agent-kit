@@ -1,12 +1,27 @@
 "use client";
 
 // PLACEHOLDER components — replaced wholesale when the real packages/mac-chrome
-// is vendored over this directory. The stub keeps only enough client behavior
-// for template routes and jsdom interaction tests. Prop names, rendered class
-// names, and default window geometry mirror the real package so pages written
-// against the stub keep working after vendoring. Full drag, focus, overlay,
-// and keyboard behavior exists only in the real package.
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+// is vendored over this directory. The stub keeps the public APIs and common
+// interaction contracts honest so template code remains functional before
+// vendoring. Advanced window drag/resize, modal ownership/portals, and visual
+// transition machinery remain exclusive to the real package.
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import {
+  Button,
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  Popover,
+  Separator as AriaSeparator,
+  Tree,
+  TreeItem,
+  TreeItemContent,
+  type Key,
+  type Selection,
+} from "react-aria-components";
+import { Group, Panel, Separator as PanelSeparator } from "react-resizable-panels";
 import { getSymbol, type SymbolName } from "symbolist";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
@@ -56,6 +71,27 @@ export type MenuCommand = {
 };
 
 const stubStandardMenus: Readonly<Record<string, MenuSpec>> = {
+  File: [
+    { kind: "action", id: "new-window", label: "New Window", shortcut: "⌘N" },
+    { kind: "action", id: "open", label: "Open…", shortcut: "⌘O" },
+    { kind: "separator", id: "file-separator-1" },
+    { kind: "action", id: "close-window", label: "Close Window", shortcut: "⌘W" },
+    { kind: "action", id: "save", label: "Save", shortcut: "⌘S" },
+  ],
+  Edit: [
+    { kind: "action", id: "undo", label: "Undo", shortcut: "⌘Z" },
+    { kind: "action", id: "redo", label: "Redo", shortcut: "⇧⌘Z" },
+    { kind: "separator", id: "edit-separator-1" },
+    { kind: "action", id: "cut", label: "Cut", shortcut: "⌘X" },
+    { kind: "action", id: "copy", label: "Copy", shortcut: "⌘C" },
+    { kind: "action", id: "paste", label: "Paste", shortcut: "⌘V" },
+    { kind: "action", id: "select-all", label: "Select All", shortcut: "⌘A" },
+  ],
+  View: [
+    { kind: "action", id: "show-sidebar", label: "Show Sidebar", shortcut: "⌃⌘S" },
+    { kind: "separator", id: "view-separator-1" },
+    { kind: "action", id: "enter-full-screen", label: "Enter Full Screen", shortcut: "⌃⌘F" },
+  ],
   Window: [
     { kind: "action", id: "minimize", label: "Minimize", shortcut: "⌘M" },
     { kind: "action", id: "zoom", label: "Zoom" },
@@ -65,12 +101,111 @@ const stubStandardMenus: Readonly<Record<string, MenuSpec>> = {
   ],
 };
 
-export function MacMenu({ className = "", items, label, trigger, triggerClassName = "", triggerLabel }: {
+function stubAppleMenu(): MenuSpec {
+  return [
+    { kind: "action", id: "about-this-mac", label: "About This Mac", icon: <SystemSymbol name="laptopcomputer" /> },
+    { kind: "separator", id: "apple-separator-1" },
+    { kind: "action", id: "system-settings", label: "System Settings…", icon: <SystemSymbol name="gear" /> },
+    { kind: "action", id: "app-store", label: "App Store…", icon: <SystemSymbol name="app" /> },
+    { kind: "separator", id: "apple-separator-2" },
+    { kind: "action", id: "force-quit", label: "Force Quit…", shortcut: "⌥⌘Esc" },
+    { kind: "separator", id: "apple-separator-3" },
+    { kind: "action", id: "sleep", label: "Sleep" },
+    { kind: "action", id: "restart", label: "Restart…" },
+    { kind: "action", id: "shut-down", label: "Shut Down…" },
+    { kind: "separator", id: "apple-separator-4" },
+    { kind: "action", id: "lock-screen", label: "Lock Screen", shortcut: "⌃⌘Q" },
+    { kind: "action", id: "log-out", label: "Log Out…", shortcut: "⇧⌘Q" },
+  ];
+}
+
+function stubAppMenu(appName: string): MenuSpec {
+  return [
+    { kind: "action", id: "about-app", label: `About ${appName}` },
+    { kind: "separator", id: "app-separator-1" },
+    { kind: "action", id: "settings", label: "Settings…", shortcut: "⌘," },
+    { kind: "separator", id: "app-separator-2" },
+    { kind: "action", id: "hide-app", label: `Hide ${appName}`, shortcut: "⌘H" },
+    { kind: "action", id: "hide-others", label: "Hide Others", shortcut: "⌥⌘H" },
+    { kind: "action", id: "show-all", label: "Show All", disabled: true },
+    { kind: "separator", id: "app-separator-3" },
+    { kind: "action", id: "quit-app", label: `Quit ${appName}`, shortcut: "⌘Q" },
+  ];
+}
+
+function StubMenuActionItem({ entry }: { readonly entry: MenuAction }) {
+  return (
+    <MenuItem
+      id={entry.id}
+      textValue={entry.label}
+      className="mc-menu-item"
+      href={entry.href}
+      target={entry.target}
+      rel={entry.target === "_blank" ? "noreferrer" : undefined}
+      isDisabled={entry.disabled}
+      onAction={() => entry.onSelect?.()}
+    >
+      <span className="mc-menu-icon" aria-hidden="true">
+        {entry.icon ?? (entry.checked === true ? <SystemSymbol name="checkmark" /> : null)}
+      </span>
+      <span className="mc-menu-copy">
+        <span className="mc-menu-label">{entry.label}</span>
+        {entry.detail !== undefined ? <small>{entry.detail}</small> : null}
+      </span>
+      <span className="mc-menu-trailing" aria-hidden="true">
+        {entry.shortcut !== undefined ? <kbd className="mc-menu-shortcut">{entry.shortcut}</kbd> : entry.trailingIcon}
+      </span>
+    </MenuItem>
+  );
+}
+
+type StubMenuBlock =
+  | { readonly kind: "separator"; readonly id: string }
+  | { readonly kind: "group"; readonly id: string; readonly label?: string; readonly entries: MenuAction[] };
+
+function stubMenuBlocks(items: MenuSpec): readonly StubMenuBlock[] {
+  const blocks: StubMenuBlock[] = [];
+  let group: Extract<StubMenuBlock, { readonly kind: "group" }> | null = null;
+  for (const entry of items) {
+    if (entry.kind === "separator") {
+      group = null;
+      blocks.push(entry);
+    } else if (entry.kind === "section") {
+      group = { kind: "group", id: entry.id, label: entry.label, entries: [] };
+      blocks.push(group);
+    } else {
+      if (group === null) {
+        group = { kind: "group", id: `group:${entry.id}`, entries: [] };
+        blocks.push(group);
+      }
+      group.entries.push(entry);
+    }
+  }
+  return blocks;
+}
+
+function renderStubMenuBlock(block: StubMenuBlock): readonly ReactNode[] {
+  if (block.kind === "separator") return [<AriaSeparator key={block.id} id={block.id} className="menu-separator" />];
+  const items = block.entries.map((entry) => <StubMenuActionItem key={entry.id} entry={entry} />);
+  const hasChecked = block.entries.some((entry) => entry.checked !== undefined);
+  if (block.label === undefined && !hasChecked) return items;
+  const selectionProps = hasChecked
+    ? { selectionMode: "single" as const, selectedKeys: block.entries.filter((entry) => entry.checked === true).map((entry) => entry.id) }
+    : {};
+  return [
+    <MenuSection key={block.id} id={block.id} className="mc-menu-group" {...selectionProps}>
+      {block.label !== undefined ? <Header className="menu-section-label">{block.label}</Header> : null}
+      {items}
+    </MenuSection>,
+  ];
+}
+
+export function MacMenu({ className = "", isOpen, items, label, onMenuKeyDown, onOpenChange, onTriggerPointerEnter, popover, trigger, triggerClassName = "", triggerLabel }: {
   readonly className?: string;
   readonly isOpen?: boolean;
   readonly items: MenuSpec;
   readonly label: string;
-  readonly onMenuKeyDown?: () => void;
+  readonly onMenuKeyDown?: (event: ReactKeyboardEvent) => void;
   readonly onOpenChange?: (open: boolean) => void;
   readonly onTriggerPointerEnter?: () => void;
   readonly popover?: MenuPopoverConfig;
@@ -78,23 +213,20 @@ export function MacMenu({ className = "", items, label, trigger, triggerClassNam
   readonly triggerLabel?: string;
   readonly triggerClassName?: string;
 }) {
+  const controlledState = isOpen === undefined ? {} : { isOpen };
   return (
-    <details className={`mc-menu ${className}`.trim()}>
-      <summary role="button" aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</summary>
-      <div role="menu" aria-label={label} className="mc-menu-popover">
-        {items.map((item) => item.kind === "separator" ? (
-          <hr key={item.id} className="menu-separator" />
-        ) : item.kind === "section" ? (
-          <strong key={item.id} className="menu-section-label">{item.label}</strong>
-        ) : (
-          <button key={item.id} type="button" role={item.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={item.checked} disabled={item.disabled} onClick={item.onSelect}>
-            <span aria-hidden="true">{item.icon ?? (item.checked ? <SystemSymbol name="checkmark" /> : null)}</span>
-            <span>{item.label}</span>
-            {item.shortcut !== undefined ? <kbd>{item.shortcut}</kbd> : item.trailingIcon}
-          </button>
-        ))}
-      </div>
-    </details>
+    <div className={`mc-menu ${className}`.trim()} onPointerEnter={onTriggerPointerEnter}>
+      <MenuTrigger {...controlledState} onOpenChange={onOpenChange}>
+        <Button aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+        <Popover isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+          <div className="mc-menu-key-scope" onKeyDown={onMenuKeyDown}>
+            <Menu aria-label={label} aria-labelledby="" className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}>
+              {stubMenuBlocks(items).flatMap(renderStubMenuBlock)}
+            </Menu>
+          </div>
+        </Popover>
+      </MenuTrigger>
+    </div>
   );
 }
 
@@ -199,6 +331,8 @@ export interface DesktopShellProps {
 export function DesktopShell({
   appName,
   menuItems = ["File", "Edit", "View", "Window", "Help"],
+  appleMenuItems,
+  appMenuItems,
   onMenuAction,
   date = "Wed Aug 6",
   clock = "9:47 AM",
@@ -206,6 +340,22 @@ export function DesktopShell({
   wallpaper,
   children,
 }: DesktopShellProps) {
+  const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
+  const menuBarRef = useRef<HTMLDivElement>(null);
+  const menus: readonly MenuBarMenu[] = [
+    { title: "Apple", items: appleMenuItems ?? stubAppleMenu() },
+    { title: appName, items: appMenuItems ?? stubAppMenu(appName) },
+    ...menuItems.map((item): MenuBarMenu => typeof item === "string"
+      ? { title: item, items: stubStandardMenus[item] ?? [{ kind: "action", id: "unavailable", label: "No Commands Available", disabled: true }] }
+      : item),
+  ].map((menu) => ({
+    ...menu,
+    items: menu.items.map((entry) => {
+      if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) return entry;
+      if (onMenuAction === undefined) return { ...entry, disabled: true };
+      return { ...entry, onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }) };
+    }),
+  }));
   const canvasStyle = wallpaper
     ? ({ "--mc-wallpaper": wallpaper.startsWith("url(") ? wallpaper : `url("${wallpaper}")` } as CSSProperties)
     : undefined;
@@ -213,32 +363,29 @@ export function DesktopShell({
     <main className="showcase-viewport">
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
-          <div className="menu-left">
-            <button type="button" className="mc-menu-trigger mc-menubar-menu-title" aria-label="Apple">
-              <span className="apple-mark"><SystemSymbol name="apple.logo" /></span>
-            </button>
-            <button type="button" className="mc-menu-trigger mc-menubar-menu-title"><strong>{appName}</strong></button>
-            {menuItems.map((item) => {
-              const title = typeof item === "string" ? item : item.title;
-              const baseItems: MenuSpec = typeof item === "string"
-                ? stubStandardMenus[title] ?? [{ kind: "action", id: `stub-${title.toLowerCase()}`, label: `No ${title} commands`, disabled: true }]
-                : item.items;
-              const items: MenuSpec = baseItems.map((entry) =>
-                entry.kind === "action" && entry.onSelect === undefined && onMenuAction !== undefined
-                  ? { ...entry, onSelect: () => onMenuAction({ menu: title, id: entry.id, label: entry.label }) }
-                  : entry);
-              return (
-                <MacMenu
-                  key={title}
-                  className="mc-menubar-menu"
-                  triggerClassName="mc-menubar-menu-title"
-                  trigger={title}
-                  triggerLabel={`${title} menu`}
-                  label={`${title} menu`}
-                  items={items}
-                />
-              );
-            })}
+          <div ref={menuBarRef} className="menu-left">
+            {menus.map((menu, index) => (
+              <MacMenu
+                key={`${index}:${menu.title}`}
+                className={`mc-menubar-menu${index === 0 ? " mc-apple-menu" : ""}${index === 1 ? " mc-app-menu" : ""}`}
+                isOpen={openMenuIndex === index}
+                triggerClassName="mc-menubar-menu-title"
+                trigger={index === 0 ? <span className="apple-mark"><SystemSymbol name="apple.logo" /></span> : menu.title}
+                triggerLabel={menu.title}
+                label={`${menu.title} menu`}
+                items={menu.items}
+                onMenuKeyDown={(event) => {
+                  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const offset = event.key === "ArrowLeft" ? -1 : 1;
+                  setOpenMenuIndex((index + offset + menus.length) % menus.length);
+                }}
+                onOpenChange={(open) => setOpenMenuIndex((current) => open ? index : current === index ? null : current)}
+                onTriggerPointerEnter={() => setOpenMenuIndex((current) => current === null ? null : index)}
+                popover={{ className: "mc-menubar-menu-popover", placement: "bottom start", offset: 3, nonModal: true }}
+              />
+            ))}
           </div>
           <div className="menu-right" aria-label="Mac status items">
             {menuBarExtras !== undefined ? <span className="mc-menubar-extras">{menuBarExtras}</span> : null}
@@ -710,20 +857,30 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
       {items.map((item, index) => {
         const previousItem = items[index - 1];
         const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
+        const payload = item.draggablePayload;
+        const draggable = payload !== undefined && Object.keys(payload).length > 0;
         return (
           <span className="p0-dock-item-wrap" key={item.id}>
             {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
             <button
-              className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}`}
+              className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
               type="button"
               aria-label={item.label}
+              data-hover-effect="lift"
+              draggable={draggable}
               onClick={item.onActivate}
+              onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
+                if (payload === undefined) return;
+                for (const [type, data] of Object.entries(payload)) event.dataTransfer.setData(type, data);
+                event.dataTransfer.effectAllowed = "copy";
+              }}
             >
               {item.windowThumbnail ? (
                 <span className="p0-window-thumbnail" style={{ aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`, viewTransitionName: item.viewTransitionName }}>
                   {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
                 </span>
               ) : <MacDockAppIcon icon={item.icon} />}
+              <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
               <span className="p0-dock-running-dot" aria-hidden="true" />
             </button>
           </span>
@@ -829,6 +986,56 @@ export type MacNavigationSplitViewProps = {
   readonly id?: string;
 };
 
+const stubSidebarSizing = { minSize: 160, defaultSize: 220, maxSize: 320 } satisfies Required<MacNavigationColumnSizing>;
+const stubContentSizing = { minSize: 220, defaultSize: 280, maxSize: 420 } satisfies Required<MacNavigationColumnSizing>;
+const stubDetailSizing = { minSize: 280, defaultSize: 520, maxSize: "100%" } satisfies Required<MacNavigationColumnSizing>;
+const stubPanelStyle: CSSProperties = { display: "flex", overflow: "hidden" };
+
+function stubPanelSizing(sizing: MacNavigationColumnSizing | undefined, defaults: Required<MacNavigationColumnSizing>): Required<MacNavigationColumnSizing> {
+  return {
+    minSize: sizing?.minSize ?? defaults.minSize,
+    defaultSize: sizing?.defaultSize ?? defaults.defaultSize,
+    maxSize: sizing?.maxSize ?? defaults.maxSize,
+  };
+}
+
+type StubLayoutUnit = "%" | "em" | "px" | "rem" | "vh" | "vw";
+type StubLayoutSize = { readonly unit: StubLayoutUnit; readonly value: number };
+
+function stubLayoutUnit(unit: string | undefined): StubLayoutUnit | null {
+  switch (unit) {
+    case undefined:
+    case "%":
+      return "%";
+    case "em":
+    case "px":
+    case "rem":
+    case "vh":
+    case "vw":
+      return unit;
+    default:
+      return null;
+  }
+}
+
+function stubLayoutSize(size: number | string): StubLayoutSize | null {
+  if (typeof size === "number") return Number.isFinite(size) && size >= 0 ? { unit: "px", value: size } : null;
+  const match = /^([0-9]+(?:\.[0-9]+)?)(%|px|rem|em|vh|vw)?$/.exec(size.trim());
+  if (match?.[1] === undefined) return null;
+  const value = Number(match[1]);
+  const unit = stubLayoutUnit(match[2]);
+  return Number.isFinite(value) && unit !== null ? { unit, value } : null;
+}
+
+function stubNormalizedLayout(entries: readonly (readonly [string, number | string])[]): Readonly<Record<string, number>> | undefined {
+  const parsed = entries.map(([id, size]) => [id, stubLayoutSize(size)] as const);
+  const firstUnit = parsed[0]?.[1]?.unit;
+  if (firstUnit === undefined || parsed.some(([, size]) => size === null || size.unit !== firstUnit)) return undefined;
+  const total = parsed.reduce((sum, [, size]) => sum + (size?.value ?? 0), 0);
+  if (total <= 0) return undefined;
+  return Object.fromEntries(parsed.map(([id, size]) => [id, ((size?.value ?? 0) / total) * 100]));
+}
+
 export function MacNavigationSplitView({
   sidebar,
   content,
@@ -837,14 +1044,73 @@ export function MacNavigationSplitView({
   sidebarLabel = "Sidebar",
   contentLabel = "Content",
   detailLabel = "Detail",
+  sidebarSizing,
+  contentSizing,
+  detailSizing,
   className = "",
+  id,
 }: MacNavigationSplitViewProps) {
+  const generatedId = useId().replaceAll(":", "");
+  const idPrefix = id ?? `mc-navigation-${generatedId}`;
+  const resolvedSidebarSizing = stubPanelSizing(sidebarSizing, stubSidebarSizing);
+  const resolvedContentSizing = stubPanelSizing(contentSizing, stubContentSizing);
+  const resolvedDetailSizing = stubPanelSizing(detailSizing, stubDetailSizing);
+  const hasContent = content !== undefined;
+  const defaultLayout = useMemo(() => stubNormalizedLayout([
+    ...(sidebarVisible ? [[`${idPrefix}-sidebar`, resolvedSidebarSizing.defaultSize] as const] : []),
+    ...(hasContent ? [[`${idPrefix}-content`, resolvedContentSizing.defaultSize] as const] : []),
+    [`${idPrefix}-detail`, resolvedDetailSizing.defaultSize] as const,
+  ]), [hasContent, idPrefix, resolvedContentSizing.defaultSize, resolvedDetailSizing.defaultSize, resolvedSidebarSizing.defaultSize, sidebarVisible]);
+
+  const leadingColumns: ReactNode[] = [];
+  if (sidebarVisible) {
+    leadingColumns.push(
+      <Panel
+        key="sidebar"
+        id={`${idPrefix}-sidebar`}
+        className="mc-navigation-panel"
+        minSize={resolvedSidebarSizing.minSize}
+        defaultSize={resolvedSidebarSizing.defaultSize}
+        maxSize={resolvedSidebarSizing.maxSize}
+        groupResizeBehavior="preserve-pixel-size"
+        style={stubPanelStyle}
+      >
+        <aside className="mc-navigation-column mc-navigation-sidebar" aria-label={sidebarLabel}>{sidebar}</aside>
+      </Panel>,
+      <PanelSeparator key="sidebar-separator" className="mc-navigation-separator" aria-label={`Resize ${sidebarLabel}`} />,
+    );
+  }
+  if (content !== undefined) {
+    leadingColumns.push(
+      <Panel
+        key="content"
+        id={`${idPrefix}-content`}
+        className="mc-navigation-panel"
+        minSize={resolvedContentSizing.minSize}
+        defaultSize={resolvedContentSizing.defaultSize}
+        maxSize={resolvedContentSizing.maxSize}
+        groupResizeBehavior="preserve-pixel-size"
+        style={stubPanelStyle}
+      >
+        <section className="mc-navigation-column mc-navigation-content" aria-label={contentLabel}>{content}</section>
+      </Panel>,
+      <PanelSeparator key="content-separator" className="mc-navigation-separator" aria-label={`Resize ${contentLabel}`} />,
+    );
+  }
   return (
-    <div className={`mc-navigation-split-view ${className}`.trim()}>
-      {sidebarVisible ? <><aside className="mc-navigation-column mc-navigation-sidebar" aria-label={sidebarLabel}>{sidebar}</aside><span className="mc-navigation-separator" /></> : null}
-      {content !== undefined ? <><section className="mc-navigation-column mc-navigation-content" aria-label={contentLabel}>{content}</section><span className="mc-navigation-separator" /></> : null}
-      <section className="mc-navigation-column mc-navigation-detail" aria-label={detailLabel}>{detail}</section>
-    </div>
+    <Group id={`${idPrefix}-group`} className={`mc-navigation-split-view ${className}`.trim()} defaultLayout={defaultLayout} orientation="horizontal">
+      {leadingColumns}
+      <Panel
+        id={`${idPrefix}-detail`}
+        className="mc-navigation-panel"
+        minSize={resolvedDetailSizing.minSize}
+        defaultSize={resolvedDetailSizing.defaultSize}
+        maxSize={resolvedDetailSizing.maxSize}
+        style={stubPanelStyle}
+      >
+        <section className="mc-navigation-column mc-navigation-detail" aria-label={detailLabel}>{detail}</section>
+      </Panel>
+    </Group>
   );
 }
 
@@ -860,15 +1126,48 @@ export type MacInspectorProps = {
   readonly onWidthChange?: (width: number) => void;
 };
 
+function stubPixelWidth(width: number | string): number | undefined {
+  if (typeof width === "number") return width;
+  const match = /^([0-9]+(?:\.[0-9]+)?)px$/.exec(width.trim());
+  return match?.[1] === undefined ? undefined : Number(match[1]);
+}
+
+type StubInspectorDrag = { readonly pointerId: number; readonly startX: number; readonly startWidth: number };
+
 export function MacInspector({ children, className = "", label = "Inspector", visible = true, width, defaultWidth = 260, minWidth = 220, maxWidth = 360, onWidthChange }: MacInspectorProps) {
   const minimum = Math.min(minWidth, maxWidth);
   const maximum = Math.max(minWidth, maxWidth);
   const clamp = (next: number) => Math.min(Math.max(next, minimum), maximum);
   const [internalWidth, setInternalWidth] = useState(() => clamp(defaultWidth));
+  const inspectorRef = useRef<HTMLElement>(null);
   const renderedWidth = width ?? internalWidth;
-  const currentWidth = typeof renderedWidth === "number" ? clamp(renderedWidth) : internalWidth;
-  const drag = useRef<{ readonly startX: number; readonly startWidth: number } | null>(null);
+  const knownPixelWidth = stubPixelWidth(renderedWidth);
+  const measurementKey = knownPixelWidth === undefined ? `${renderedWidth}|${minimum}|${maximum}` : null;
+  const [measurement, setMeasurement] = useState<{ readonly key: string; readonly width: number } | null>(null);
+  const measuredWidth = measurementKey !== null && measurement?.key === measurementKey ? measurement.width : undefined;
+  const reportedWidth = knownPixelWidth === undefined ? measuredWidth : clamp(knownPixelWidth);
+  const drag = useRef<StubInspectorDrag | null>(null);
   const inspectorId = `mc-inspector-${useId().replaceAll(":", "")}`;
+
+  useLayoutEffect(() => {
+    if (measurementKey === null || !visible) return;
+    const element = inspectorRef.current;
+    if (element === null) return;
+    const measuredElement = element;
+    const currentMeasurementKey = measurementKey;
+    function measure() {
+      const nextWidth = measuredElement.getBoundingClientRect().width;
+      if (nextWidth <= 0) return;
+      setMeasurement((current) => current?.key === currentMeasurementKey && current.width === nextWidth
+        ? current
+        : { key: currentMeasurementKey, width: nextWidth });
+    }
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(measuredElement);
+    return () => observer.disconnect();
+  }, [measurementKey, visible]);
 
   function resize(next: number) {
     const resized = clamp(next);
@@ -876,26 +1175,38 @@ export function MacInspector({ children, className = "", label = "Inspector", vi
     onWidthChange?.(resized);
   }
 
+  function currentWidth(): number {
+    const measured = inspectorRef.current?.getBoundingClientRect().width ?? 0;
+    return measured > 0 ? measured : (reportedWidth ?? internalWidth);
+  }
+
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.isPrimary === false) return;
-    drag.current = { startX: event.clientX, startWidth: currentWidth };
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: currentWidth() };
     event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
   function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (drag.current === null) return;
+    if (drag.current === null || drag.current.pointerId !== event.pointerId) return;
     resize(drag.current.startWidth + drag.current.startX - event.clientX);
   }
 
+  function finishPointerResize(event: ReactPointerEvent<HTMLDivElement>) {
+    if (drag.current === null || drag.current.pointerId !== event.pointerId) return;
+    drag.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
   function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const next = event.key === "ArrowLeft" ? currentWidth + 10 : event.key === "ArrowRight" ? currentWidth - 10 : event.key === "Home" ? minimum : event.key === "End" ? maximum : undefined;
+    const next = event.key === "ArrowLeft" ? currentWidth() + 10 : event.key === "ArrowRight" ? currentWidth() - 10 : event.key === "Home" ? minimum : event.key === "End" ? maximum : undefined;
     if (next === undefined) return;
     event.preventDefault();
     resize(next);
   }
 
   if (!visible) return null;
-  return <><div role="separator" aria-controls={inspectorId} aria-label={`Resize ${label}`} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={currentWidth} className="mc-navigation-separator mc-inspector-separator" tabIndex={0} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} /><aside id={inspectorId} className={`mc-inspector ${className}`.trim()} aria-label={label} style={{ width: cssLength(renderedWidth), minWidth: cssLength(minimum), maxWidth: cssLength(maximum) }}>{children}</aside></>;
+  return <><div role="separator" aria-controls={inspectorId} aria-label={`Resize ${label}`} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={reportedWidth} className="mc-navigation-separator mc-inspector-separator" tabIndex={0} onKeyDown={onKeyDown} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={finishPointerResize} onPointerCancel={finishPointerResize} /><aside ref={inspectorRef} id={inspectorId} className={`mc-inspector ${className}`.trim()} aria-label={label} style={{ width: cssLength(renderedWidth), minWidth: cssLength(minimum), maxWidth: cssLength(maximum) }}>{children}</aside></>;
 }
 
 export type MacSourceListItem = {
@@ -909,6 +1220,7 @@ export type MacSourceListItem = {
 export type MacSourceListSection = {
   readonly id: string;
   readonly title?: string;
+  readonly selectable?: boolean;
   readonly collapsible?: boolean;
   readonly count?: number;
   readonly action?: ReactNode;
@@ -922,33 +1234,118 @@ export type MacSourceListProps = {
   readonly className?: string;
   readonly selectedId: string | null;
   readonly onSelectionChange: (id: string) => void;
+  readonly selectedSectionId?: string | null;
+  readonly onSectionSelectionChange?: (id: string) => void;
   readonly expandedSectionIds?: ReadonlySet<string>;
   readonly onExpandedSectionIdsChange?: (ids: ReadonlySet<string>) => void;
 };
 
-export function MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange }: MacSourceListProps) {
+function stubSectionKey(id: string): string { return `section:${id}`; }
+function stubItemKey(id: string): string { return `item:${id}`; }
+
+export function MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange, selectedSectionId, onSectionSelectionChange, expandedSectionIds, onExpandedSectionIdsChange }: MacSourceListProps) {
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const collapsibleIds = sections.filter((section) => section.title !== undefined && (section.collapsible ?? false)).map((section) => section.id);
+  const controlledExpandedIds = expandedSectionIds === undefined ? undefined : new Set(expandedSectionIds);
+  const expandedIds = collapsibleIds.filter((id) => controlledExpandedIds === undefined ? !collapsedIds.has(id) : controlledExpandedIds.has(id));
+  const expandedKeys = expandedIds.map(stubSectionKey);
+  const selectedSection = sections.find((section) => section.selectable === true && section.id === selectedSectionId);
+  let selectedKey: Key | undefined = selectedSection === undefined ? undefined : stubSectionKey(selectedSection.id);
+  if (selectedKey === undefined) {
+    for (const section of sections) {
+      if (section.items.some((item) => item.id === selectedId)) {
+        selectedKey = stubItemKey(selectedId ?? "");
+        break;
+      }
+    }
+  }
+
+  function handleSelectionChange(selection: Selection) {
+    if (selection === "all") return;
+    const key = [...selection][0];
+    for (const section of sections) {
+      if (section.selectable === true && key === stubSectionKey(section.id)) {
+        onSectionSelectionChange?.(section.id);
+        return;
+      }
+      const item = section.items.find((candidate) => key === stubItemKey(candidate.id));
+      if (item !== undefined) {
+        onSelectionChange(item.id);
+        return;
+      }
+    }
+  }
+
+  function handleExpandedChange(keys: Set<Key>) {
+    const nextExpandedIds = new Set(collapsibleIds.filter((id) => keys.has(stubSectionKey(id))));
+    if (expandedSectionIds === undefined) setCollapsedIds(new Set(collapsibleIds.filter((id) => !nextExpandedIds.has(id))));
+    onExpandedSectionIdsChange?.(nextExpandedIds);
+  }
+
+  function itemRows(section: MacSourceListSection): readonly ReactNode[] {
+    return section.items.map((item, index) => {
+      const leadClass = section.title === undefined && index === 0
+        ? `mc-sidebar-section${section.className !== undefined ? ` ${section.className}` : ""} `
+        : "";
+      return (
+        <TreeItem
+          key={item.id}
+          id={stubItemKey(item.id)}
+          textValue={item.label}
+          className={`${leadClass}mc-sidebar-item${selectedId === item.id ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
+          onPress={(event) => { if (event.pointerType !== "keyboard" && event.target instanceof HTMLElement) event.target.focus(); }}
+        >
+          <TreeItemContent>
+            {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
+            <span className="mc-sidebar-item-label">{item.label}</span>
+            {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
+          </TreeItemContent>
+        </TreeItem>
+      );
+    });
+  }
+
   return (
-    <nav role="tree" aria-label={label} className={`mc-sidebar-tree ${className}`.trim()}>
-      {sections.map((section) => (
-        <section key={section.id} className={`mc-sidebar-section ${section.className ?? ""}`.trim()}>
-          {section.title !== undefined ? <strong className="mc-sidebar-section-label">{section.title}{section.count !== undefined ? <small>{section.count}</small> : null}</strong> : null}
-          {section.items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="treeitem"
-              aria-selected={selectedId === item.id}
-              className={`mc-sidebar-item${selectedId === item.id ? " mc-selected" : ""}${item.indent ? " mc-indent" : ""}`}
-              onClick={() => onSelectionChange(item.id)}
-            >
-              {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
-              <span className="mc-sidebar-item-label">{item.label}</span>
-              {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
-            </button>
-          ))}
-        </section>
-      ))}
-    </nav>
+    <Tree
+      aria-label={label}
+      className={`mc-sidebar-tree ${className}`.trim()}
+      selectionMode="single"
+      selectionBehavior="replace"
+      disallowEmptySelection
+      selectedKeys={selectedKey === undefined ? [] : [selectedKey]}
+      onSelectionChange={handleSelectionChange}
+      expandedKeys={expandedKeys}
+      onExpandedChange={handleExpandedChange}
+    >
+      {sections.flatMap((section) => {
+        if (section.title === undefined) return itemRows(section);
+        const title = section.title;
+        const collapsible = section.collapsible ?? false;
+        const expanded = expandedIds.includes(section.id);
+        const extraClass = section.className !== undefined ? ` ${section.className}` : "";
+        const header = (
+          <TreeItem
+            key={`section-${section.id}`}
+            id={stubSectionKey(section.id)}
+            textValue={title}
+            className={`mc-sidebar-section mc-sidebar-section-header${section.selectable === true && selectedSectionId === section.id ? " mc-selected" : ""}${extraClass}`}
+            onPress={(event) => { if (event.pointerType !== "keyboard" && event.target instanceof HTMLElement) event.target.focus(); }}
+          >
+            <TreeItemContent>
+              <span className="mc-sidebar-section-label"><strong>{title}</strong>{section.count !== undefined ? <small>{section.count}</small> : null}</span>
+              {section.action}
+              {collapsible ? (
+                <Button slot="chevron" className="mc-sidebar-disclosure-button" aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}>
+                  <span className="mc-sidebar-disclosure" data-expanded={expanded ? "" : undefined} aria-hidden="true" />
+                </Button>
+              ) : null}
+            </TreeItemContent>
+            {collapsible ? itemRows(section) : null}
+          </TreeItem>
+        );
+        return collapsible ? [header] : [header, ...itemRows(section)];
+      })}
+    </Tree>
   );
 }
 
@@ -1158,10 +1555,9 @@ export type FinderSearch = {
   readonly onChange: (value: string) => void;
 };
 
-// Static Finder shell mirroring the real package's rendered structure (window
-// label, sidebar header/sections, listbox/option roles, mc-finder-* classes).
-// Callback props are accepted for API parity but never wired — server-safe.
-export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose }: {
+// Finder shell mirroring the real package's rendered structure (window label,
+// sidebar header/sections, listbox/option roles, and mc-finder-* classes).
+export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom }: {
   readonly sidebar: readonly SidebarSection[];
   readonly sidebarHeader?: ReactNode;
   readonly sidebarVisible?: boolean;
@@ -1193,7 +1589,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
     onSidebarVisibleChange?.(visible);
   }
   return (
-    <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose}>
+    <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       {isSidebarVisible ? <aside className="mc-finder-sidebar">
         <div className="mc-finder-sidebar-top" data-window-drag-handle="">
           <TrafficLights />
@@ -1278,9 +1674,11 @@ export function QuickLook({ entry, detail, onClose }: {
   readonly detail?: ReactNode;
   readonly onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const handleModalKeyDown = useModalFocusTrap({ dialogRef: panelRef, onCancel: onClose });
   return (
-    <div className="mc-quicklook-scrim">
-      <section className="mc-quicklook-panel" role="dialog" aria-modal="true" aria-label={`Quick Look ${entry.name}`}>
+    <div className="mc-quicklook-scrim" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <section ref={panelRef} className="mc-quicklook-panel" role="dialog" aria-modal="true" aria-label={`Quick Look ${entry.name}`} onKeyDown={handleModalKeyDown}>
         <header><button type="button" onClick={onClose} aria-label="Close Quick Look">×</button><strong>{entry.name}</strong></header>
         <div>{entry.icon}<h2>{entry.name}</h2>{detail}</div>
       </section>
@@ -1290,7 +1688,9 @@ export function QuickLook({ entry, detail, onClose }: {
 
 export function finderKeyTarget(key: string, index: number, columns: number, count: number): number | null {
   if (count === 0) return null;
-  if (index < 0 || index >= count) return 0;
+  if (index < 0 || index >= count) {
+    return key === "ArrowUp" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowRight" ? 0 : null;
+  }
   if (key === "ArrowLeft") return columns > 1 && index > 0 ? index - 1 : null;
   if (key === "ArrowRight") return columns > 1 && index < count - 1 ? index + 1 : null;
   if (key === "ArrowUp") return index - columns >= 0 ? index - columns : null;
@@ -1363,24 +1763,31 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
     rawSnapshot = undefined;
     subscribers.forEach((subscriber) => subscriber());
   }
+  function handleStorage(event: StorageEvent) {
+    if (event.key === key) notify();
+  }
+  function subscribe(subscriber: () => void) {
+    subscribers.add(subscriber);
+    if (subscribers.size === 1) window.addEventListener("storage", handleStorage);
+    return () => {
+      subscribers.delete(subscriber);
+      if (subscribers.size === 0) window.removeEventListener("storage", handleStorage);
+    };
+  }
   function write(ids: readonly string[]) {
     try { window.localStorage.setItem(key, JSON.stringify(ids)); } catch { /* storage is optional */ }
     notify();
   }
   return {
     key,
-    useStoredIds: () => useSyncExternalStore(
-      (subscriber) => { subscribers.add(subscriber); return () => subscribers.delete(subscriber); },
-      read,
-      () => empty,
-    ),
+    useStoredIds: () => useSyncExternalStore(subscribe, read, () => empty),
     read,
     add: (id) => { const ids = read(); if (!ids.includes(id)) write([...ids, id]); },
-    remove: (id) => write(read().filter((candidate) => candidate !== id)),
+    remove: (id) => { const ids = read(); if (ids.includes(id)) write(ids.filter((candidate) => candidate !== id)); },
   };
 }
 
-export function ChooserWindow({ title, subtitle, finePrint, windowTitle, toolbarExtras, choices, selected, onSelect, onActivate, secondaryGroup, footer, label, frame }: {
+export function ChooserWindow({ title, subtitle, finePrint, windowTitle, toolbarExtras, choices, selected, onSelect, onActivate, secondaryGroup, footer, label, frame, onClose, onMinimize, onZoom }: {
   readonly title: string;
   readonly subtitle: string;
   readonly finePrint?: string;
@@ -1400,7 +1807,7 @@ export function ChooserWindow({ title, subtitle, finePrint, windowTitle, toolbar
 }) {
   const active = choices.find((choice) => choice.id === selected);
   return (
-    <WindowChrome className="mc-chooser-window" label={label ?? title} frame={frame}>
+    <WindowChrome className="mc-chooser-window" label={label ?? title} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       <header className="mc-chooser-toolbar"><TrafficLights /><strong>{windowTitle}</strong>{toolbarExtras}</header>
       <header className="mc-chooser-heading"><h1>{title}</h1><p>{subtitle}</p>{finePrint !== undefined ? <small>{finePrint}</small> : null}</header>
       <div className="mc-chooser-body">
@@ -1433,7 +1840,52 @@ export function SetupHeading({ symbol, title }: { readonly symbol?: SystemSymbol
   return <header className="mc-setup-heading">{symbol !== undefined ? <SystemSymbol name={symbol} /> : null}<h1>{title}</h1></header>;
 }
 
-export function Sheet({ open, onClose, label, children }: {
+function StubModalPanel({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, className, fallbackFocusRef, initialFocusSelector, onCancel, onDefault, role }: {
+  readonly ariaDescribedBy?: string;
+  readonly ariaLabel?: string;
+  readonly ariaLabelledBy?: string;
+  readonly children: ReactNode;
+  readonly className: string;
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly initialFocusSelector?: string;
+  readonly onCancel?: () => void;
+  readonly onDefault?: () => void;
+  readonly role: "alertdialog" | "dialog";
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const handleFocusTrapKeyDown = useModalFocusTrap({
+    dialogRef,
+    fallbackFocusRef,
+    ...(initialFocusSelector === undefined ? {} : { initialFocusSelector }),
+    onCancel: onCancel ?? (() => {}),
+  });
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") !== null;
+    if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
+      event.preventDefault();
+      onDefault();
+      return;
+    }
+    handleFocusTrapKeyDown(event);
+  }
+  return (
+    <section
+      ref={dialogRef}
+      className={className}
+      role={role}
+      aria-modal="true"
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
+      onKeyDown={handleKeyDown}
+    >
+      {children}
+    </section>
+  );
+}
+
+export function Sheet({ open, onClose, label, fallbackFocusRef, initialFocusSelector, children }: {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly label?: string;
@@ -1442,7 +1894,7 @@ export function Sheet({ open, onClose, label, children }: {
   readonly children: ReactNode;
 }) {
   if (!open) return null;
-  return <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window"><div className="mc-window-modal-scrim" role="presentation" /><section className="mc-sheet mc-sheet-legacy" role="dialog" aria-modal="true" aria-label={label}>{children}</section></div>;
+  return <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window"><div className="mc-window-modal-scrim" role="presentation" /><StubModalPanel className="mc-sheet mc-sheet-legacy" role="dialog" ariaLabel={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector} onCancel={onClose}>{children}</StubModalPanel></div>;
 }
 
 export type MacDialogActionRole = "cancel" | "destructive";
@@ -1463,6 +1915,16 @@ type StubDialogAction = MacDialogAction | MacAlertAction;
 
 function stubActionIsDefault(action: StubDialogAction) {
   return action.isDefault === true || action.role === "default";
+}
+
+function stubEnabledAction(actions: readonly StubDialogAction[], predicate: (action: StubDialogAction) => boolean) {
+  return actions.find((action) => action.disabled !== true && predicate(action));
+}
+
+function stubPerformAndClose(action: StubDialogAction | undefined, onClose: () => void) {
+  if (action === undefined) return;
+  action.onPress?.();
+  onClose();
 }
 
 function StubDialogActions({ actions, onClose }: { readonly actions: readonly StubDialogAction[]; readonly onClose: () => void }) {
@@ -1498,7 +1960,7 @@ function StubDialogActions({ actions, onClose }: { readonly actions: readonly St
   );
 }
 
-export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSelector: _initialFocusSelector, onClose, open, title }: {
+export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSelector, onClose, open, title }: {
   readonly actions: readonly MacDialogAction[];
   readonly children: ReactNode;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
@@ -1509,21 +1971,30 @@ export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSele
 }) {
   const titleId = useId();
   const bodyId = useId();
-  function closeSheet() {
-    onClose();
-    window.requestAnimationFrame(() => fallbackFocusRef?.current?.focus());
-  }
+  const cancelAction = stubEnabledAction(actions, (action) => action.role === "cancel");
+  const defaultAction = stubEnabledAction(actions, stubActionIsDefault);
+  const resolvedInitialFocus = initialFocusSelector
+    ?? (defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])");
   if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
   return (
     <>
       <span className="mc-window-modal-anchor" aria-hidden="true" />
       <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window">
         <div className="mc-window-modal-scrim" role="presentation" />
-        <section className="mc-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
+        <StubModalPanel
+          className="mc-sheet"
+          role="dialog"
+          ariaLabelledBy={titleId}
+          ariaDescribedBy={bodyId}
+          fallbackFocusRef={fallbackFocusRef}
+          initialFocusSelector={resolvedInitialFocus}
+          onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
+          onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
+        >
           <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
           <div className="mc-sheet-body" id={bodyId}>{children}</div>
-          <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={closeSheet} /></footer>
-        </section>
+          <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
+        </StubModalPanel>
       </div>
     </>
   );
@@ -1551,10 +2022,8 @@ export function MacAlert({ actions, applicationName, fallbackFocusRef, icon, mes
 }) {
   const titleId = useId();
   const messageId = useId();
-  function closeAlert() {
-    onClose();
-    window.requestAnimationFrame(() => fallbackFocusRef?.current?.focus());
-  }
+  const cancelAction = stubEnabledAction(actions, (action) => action.role === "cancel");
+  const defaultAction = stubEnabledAction(actions, stubActionIsDefault);
   if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
   const scope = presentationScope === "desktop" ? "desktop" : "window";
   return (
@@ -1562,17 +2031,26 @@ export function MacAlert({ actions, applicationName, fallbackFocusRef, icon, mes
       <span className="mc-window-modal-anchor" aria-hidden="true" />
       <div className={`mc-window-modal-layer mc-window-modal-layer-alert mc-window-modal-layer-${scope}`} data-modal-kind="alert" data-modal-scope={scope}>
         <div className="mc-window-modal-scrim" role="presentation" />
-        <section className={`mc-alert${icon === undefined ? " mc-alert-no-icon" : ""}`} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}>
+        <StubModalPanel
+          className={`mc-alert${icon === undefined ? " mc-alert-no-icon" : ""}`}
+          role="alertdialog"
+          ariaLabelledBy={titleId}
+          ariaDescribedBy={messageId}
+          fallbackFocusRef={fallbackFocusRef}
+          initialFocusSelector={defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])"}
+          onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
+          onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
+        >
         {icon === undefined ? null : <div className="mc-alert-icon" aria-hidden="true">{icon}</div>}
           <div className="mc-alert-copy">{applicationName === undefined ? null : <div className="mc-alert-application">{applicationName}</div>}<h2 id={titleId}>{title}</h2><div className="mc-alert-message" id={messageId}>{message}</div></div>
-          <footer className="mc-alert-footer"><StubDialogActions actions={actions} onClose={closeAlert} /></footer>
-        </section>
+          <footer className="mc-alert-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
+        </StubModalPanel>
       </div>
     </>
   );
 }
 
-export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep, onBack, backLabel = "Back", onContinue, continueLabel = "Continue", continueDisabled = false, modalOpen = false, label, frame, children }: {
+export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep, onBack, backLabel = "Back", onContinue, continueLabel = "Continue", continueDisabled = false, modalOpen = false, label, frame, onClose, onMinimize, onZoom, children }: {
   readonly steps: readonly SetupStep[];
   readonly currentStep: string;
   readonly furthestIndex: number;
@@ -1592,7 +2070,7 @@ export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep
 }) {
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
   return (
-    <WindowChrome className="mc-setup-window" label={label ?? "Setup Assistant"} frame={frame}>
+    <WindowChrome className="mc-setup-window" label={label ?? "Setup Assistant"} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       <div className="mc-setup-titlebar"><TrafficLights /></div>
       <div className="mc-setup-underlay" aria-hidden={modalOpen || undefined}>
         <nav className="mc-setup-progress" aria-label="Steps">{steps.map((step, index) => <button type="button" key={step.id} disabled={index > furthestIndex} aria-current={step.id === currentStep ? "step" : undefined} onClick={() => onSelectStep(step.id)}>{step.symbol !== undefined ? <SystemSymbol name={step.symbol} /> : null}{step.name}</button>)}</nav>
@@ -1610,7 +2088,7 @@ export type Conversation = { readonly id: string; readonly title: string; readon
 export type ChatComposer = { readonly value: string; readonly onChange: (value: string) => void; readonly onSend: () => void; readonly placeholder?: string; readonly accessory?: ReactNode };
 export type ChatSearch = { readonly value: string; readonly onChange: (value: string) => void };
 
-export function ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", sidebarVisible, onSidebarVisibleChange, toolbarExtras, emptyTranscript, label, frame, onClose }: {
+export function ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", sidebarVisible, onSidebarVisibleChange, toolbarExtras, emptyTranscript, label, frame, onClose, onMinimize, onZoom }: {
   readonly conversations: readonly Conversation[];
   readonly activeConversationId: string;
   readonly onSelectConversation: (id: string) => void;
@@ -1635,7 +2113,7 @@ export function ChatWindow({ conversations, activeConversationId, onSelectConver
   }
   const active = conversations.find((conversation) => conversation.id === activeConversationId);
   return (
-    <WindowChrome className="mc-chat-window" label={label ?? active?.title ?? "Chat"} frame={frame} onClose={onClose}>
+    <WindowChrome className="mc-chat-window" label={label ?? active?.title ?? "Chat"} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       {isSidebarVisible ? <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside> : null}
       <section className="mc-chat-main">
         <MacToolbar leading={<>{!isSidebarVisible ? <TrafficLights /> : null}<ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton></>} title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
@@ -1652,8 +2130,59 @@ export function useWindowDrag<T extends HTMLElement>() {
   return { windowRef, style: {}, onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerCancel: noop };
 }
 
-export function useModalFocusTrap() {
-  return () => undefined;
+const stubFocusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+
+export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, initialFocusSelector = stubFocusableSelector, onCancel }: {
+  readonly dialogRef: RefObject<HTMLElement | null>;
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly focusVersion?: string;
+  readonly initialFocusSelector?: string;
+  readonly onCancel: () => void;
+}) {
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      const fallbackTarget = fallbackFocusRef?.current;
+      const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
+      window.requestAnimationFrame(() => target?.focus());
+    };
+  }, [fallbackFocusRef]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [dialogRef, focusVersion, initialFocusSelector]);
+
+  return function handleModalKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>(stubFocusableSelector) ?? [])];
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (first === undefined || last === undefined) {
+      event.preventDefault();
+      dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+      return;
+    }
+    if (!(document.activeElement instanceof HTMLElement) || !controls.includes(document.activeElement)) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 }
 
 export function SystemSymbol({ className = "", name, size }: {

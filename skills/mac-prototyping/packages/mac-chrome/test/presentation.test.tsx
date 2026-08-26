@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { MacAlert, MacSheet, MacWindowStatusBar } from "../presentation.tsx";
+import { MacWindowModalHost } from "../window-modal-host.tsx";
 
 afterEach(cleanup);
 
@@ -100,7 +101,114 @@ function ExplicitFallbackAlertHarness() {
   );
 }
 
+function EmptyModalHarness() {
+  return (
+    <section className="mac-window" aria-label="Empty modal window">
+      <div className="window-underlay">Underlay</div>
+      <MacWindowModalHost
+        ariaLabel="No controls"
+        className="empty-modal"
+        kind="sheet"
+        onCancel={() => {}}
+        open
+        role="dialog"
+      >
+        <p>There are no interactive descendants.</p>
+      </MacWindowModalHost>
+    </section>
+  );
+}
+
+function StackedModalHarness() {
+  const [lowerOpen, setLowerOpen] = useState(true);
+  const [upperOpen, setUpperOpen] = useState(true);
+  return (
+    <section className="mac-window" aria-label="Stacked modal window">
+      <div className="stacked-underlay">Underlay</div>
+      <MacWindowModalHost
+        ariaLabel="Lower dialog"
+        className="lower-dialog"
+        kind="sheet"
+        onCancel={() => setLowerOpen(false)}
+        open={lowerOpen}
+        role="dialog"
+      >
+        <button type="button" onClick={() => setLowerOpen(false)}>Close lower</button>
+      </MacWindowModalHost>
+      <MacWindowModalHost
+        ariaLabel="Upper dialog"
+        className="upper-dialog"
+        kind="sheet"
+        onCancel={() => setUpperOpen(false)}
+        open={upperOpen}
+        role="dialog"
+      >
+        <button type="button" onClick={() => setLowerOpen(false)}>Remove lower</button>
+        <button type="button" onClick={() => setUpperOpen(false)}>Close upper</button>
+      </MacWindowModalHost>
+    </section>
+  );
+}
+
 describe("native presentation primitives", () => {
+  it("focuses the dialog itself when a modal has no focusable descendants", async () => {
+    render(<EmptyModalHarness />);
+    const dialog = await screen.findByRole("dialog", { name: "No controls" });
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    expect(dialog.getAttribute("tabindex")).toBe("-1");
+
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(dialog);
+  });
+
+  it("coordinates stacked modal suppression until the final layer closes", async () => {
+    const { container } = render(<StackedModalHarness />);
+    const underlay = container.querySelector<HTMLElement>(".stacked-underlay");
+    const upper = await screen.findByRole("dialog", { name: "Upper dialog" });
+    const upperLayer = upper.closest<HTMLElement>(".mc-window-modal-layer");
+    const lower = container.querySelector<HTMLElement>(".lower-dialog");
+    const lowerLayer = lower?.closest<HTMLElement>(".mc-window-modal-layer");
+
+    await waitFor(() => {
+      expect(underlay?.hasAttribute("inert")).toBe(true);
+      expect(lowerLayer?.hasAttribute("inert")).toBe(true);
+      expect(lowerLayer?.getAttribute("aria-hidden")).toBe("true");
+      expect(upperLayer?.hasAttribute("inert")).toBe(false);
+      expect(upperLayer?.hasAttribute("aria-hidden")).toBe(false);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove lower" }));
+    await waitFor(() => expect(container.querySelector(".lower-dialog")).toBeNull());
+    expect(underlay?.hasAttribute("inert")).toBe(true);
+    expect(upperLayer?.hasAttribute("inert")).toBe(false);
+    await waitFor(() => expect(upper.contains(document.activeElement)).toBe(true));
+
+    fireEvent.click(screen.getByRole("button", { name: "Close upper" }));
+    await waitFor(() => expect(container.querySelector(".upper-dialog")).toBeNull());
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  it("promotes the previous modal without exposing its underlay when the top layer closes", async () => {
+    const { container } = render(<StackedModalHarness />);
+    const underlay = container.querySelector<HTMLElement>(".stacked-underlay");
+    await screen.findByRole("dialog", { name: "Upper dialog" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close upper" }));
+    const lower = await screen.findByRole("dialog", { name: "Lower dialog" });
+    const lowerLayer = lower.closest<HTMLElement>(".mc-window-modal-layer");
+    await waitFor(() => {
+      expect(lowerLayer?.hasAttribute("inert")).toBe(false);
+      expect(lowerLayer?.hasAttribute("aria-hidden")).toBe(false);
+      expect(underlay?.hasAttribute("inert")).toBe(true);
+      expect(lower.contains(document.activeElement)).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close lower" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
   it("renders a compact window status bar with optional live feedback", () => {
     render(<MacWindowStatusBar live="polite" trailing="4 items">Ready</MacWindowStatusBar>);
     const status = screen.getByRole("status");

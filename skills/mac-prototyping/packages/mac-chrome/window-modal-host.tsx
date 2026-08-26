@@ -20,6 +20,118 @@ type ModalOwner = {
   readonly scope: "desktop" | "window";
 };
 
+type SuppressionState = {
+  count: number;
+  readonly ariaHidden: string | null;
+  readonly inert: boolean;
+};
+
+type ModalOwnerStack = {
+  readonly layers: HTMLDivElement[];
+  readonly owner: ModalOwner;
+  readonly suppressed: Set<HTMLElement>;
+  readonly ownerObserver: MutationObserver;
+  readonly bodyObserver: MutationObserver | null;
+};
+
+const suppressionStates = new WeakMap<HTMLElement, SuppressionState>();
+const modalOwnerStacks = new WeakMap<HTMLElement, ModalOwnerStack>();
+
+function suppress(element: HTMLElement) {
+  const state = suppressionStates.get(element);
+  if (state !== undefined) {
+    state.count += 1;
+    return;
+  }
+  suppressionStates.set(element, {
+    count: 1,
+    ariaHidden: element.getAttribute("aria-hidden"),
+    inert: element.hasAttribute("inert"),
+  });
+  element.setAttribute("inert", "");
+  element.setAttribute("aria-hidden", "true");
+}
+
+function restore(element: HTMLElement) {
+  const state = suppressionStates.get(element);
+  if (state === undefined) return;
+  state.count -= 1;
+  if (state.count > 0) return;
+  suppressionStates.delete(element);
+  if (state.inert) element.setAttribute("inert", "");
+  else element.removeAttribute("inert");
+  if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+  else element.setAttribute("aria-hidden", state.ariaHidden);
+}
+
+function reconcileModalStack(stack: ModalOwnerStack) {
+  const topLayer = stack.layers.at(-1);
+  const desired = new Set<HTMLElement>();
+  for (const child of stack.owner.element.children) {
+    if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
+  }
+  if (stack.owner.scope === "desktop" && stack.owner.element !== document.body) {
+    // Body-level portal roots are part of a desktop modal's underlay. The
+    // element containing the faux desktop also contains every owned layer and
+    // must stay live so the top layer is not made inert through an ancestor.
+    for (const child of document.body.children) {
+      if (!(child instanceof HTMLElement) || child.contains(stack.owner.element)) continue;
+      desired.add(child);
+    }
+  }
+
+  for (const element of stack.suppressed) {
+    if (!desired.has(element)) {
+      restore(element);
+      stack.suppressed.delete(element);
+    }
+  }
+  for (const element of desired) {
+    if (!stack.suppressed.has(element)) {
+      suppress(element);
+      stack.suppressed.add(element);
+    }
+  }
+}
+
+function registerModalLayer(owner: ModalOwner, layer: HTMLDivElement) {
+  let stack = modalOwnerStacks.get(owner.element);
+  if (stack === undefined) {
+    const ownerObserver = new MutationObserver(() => {
+      const current = modalOwnerStacks.get(owner.element);
+      if (current !== undefined) reconcileModalStack(current);
+    });
+    const bodyObserver = owner.scope === "desktop" && owner.element !== document.body
+      ? new MutationObserver(() => {
+          const current = modalOwnerStacks.get(owner.element);
+          if (current !== undefined) reconcileModalStack(current);
+        })
+      : null;
+    stack = { layers: [], owner, suppressed: new Set(), ownerObserver, bodyObserver };
+    modalOwnerStacks.set(owner.element, stack);
+    ownerObserver.observe(owner.element, { childList: true });
+    bodyObserver?.observe(document.body, { childList: true });
+  }
+  stack.layers.push(layer);
+  reconcileModalStack(stack);
+
+  return () => {
+    const current = modalOwnerStacks.get(owner.element);
+    if (current === undefined) return;
+    const index = current.layers.lastIndexOf(layer);
+    if (index !== -1) current.layers.splice(index, 1);
+    if (current.layers.length > 0) {
+      reconcileModalStack(current);
+      return;
+    }
+    current.ownerObserver.disconnect();
+    current.bodyObserver?.disconnect();
+    for (const element of current.suppressed) restore(element);
+    current.suppressed.clear();
+    modalOwnerStacks.delete(owner.element);
+  };
+}
+
 const windowSelector = ".mac-window";
 
 function managedKeyWindow(windowId: string | null): HTMLElement | null {
@@ -100,52 +212,7 @@ function ModalLayer({
   useEffect(() => {
     const layer = layerRef.current;
     if (layer === null) return;
-    const previous = new Map<HTMLElement, { readonly ariaHidden: string | null; readonly inert: boolean }>();
-
-    function suppress(element: HTMLElement) {
-      if (element === layer || previous.has(element)) return;
-      previous.set(element, {
-        ariaHidden: element.getAttribute("aria-hidden"),
-        inert: element.hasAttribute("inert"),
-      });
-      element.setAttribute("inert", "");
-      element.setAttribute("aria-hidden", "true");
-    }
-
-    function suppressCurrentUnderlay() {
-      for (const child of owner.element.children) {
-        if (child instanceof HTMLElement && child !== layer) suppress(child);
-      }
-      if (owner.scope !== "desktop" || owner.element === document.body) return;
-
-      // React Aria and similar overlay systems portal menus/popovers into
-      // body-level containers outside DesktopShell. A desktop-modal alert owns
-      // the whole faux system, so those sibling portal roots are underlay too.
-      for (const child of document.body.children) {
-        if (!(child instanceof HTMLElement)) continue;
-        if (child.contains(owner.element) || child.contains(layer)) continue;
-        suppress(child);
-      }
-    }
-
-    suppressCurrentUnderlay();
-    const ownerObserver = new MutationObserver(suppressCurrentUnderlay);
-    ownerObserver.observe(owner.element, { childList: true });
-    const bodyObserver = owner.scope === "desktop" && owner.element !== document.body
-      ? new MutationObserver(suppressCurrentUnderlay)
-      : null;
-    bodyObserver?.observe(document.body, { childList: true });
-
-    return () => {
-      ownerObserver.disconnect();
-      bodyObserver?.disconnect();
-      for (const [element, state] of previous) {
-        if (state.inert) element.setAttribute("inert", "");
-        else element.removeAttribute("inert");
-        if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
-        else element.setAttribute("aria-hidden", state.ariaHidden);
-      }
-    };
+    return registerModalLayer(owner, layer);
   }, [owner]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
@@ -170,6 +237,7 @@ function ModalLayer({
       <section
         ref={dialogRef}
         className={className}
+        tabIndex={-1}
         role={role}
         aria-modal="true"
         aria-label={ariaLabel}

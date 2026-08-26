@@ -38,7 +38,14 @@ test("the example surface renders the mac shell", async () => {
 
   assert.match(html, /aria-label="Mac Dock"/);
   assert.match(html, /class="mac-menu-bar"/);
-  assert.match(html, /\/mac-assets\/dock\/finder\.png/);
+  assert.match(html, /aria-label="Finder"/);
+  assert.match(html, /class="p0-app-icon p0-app-icon--(?:asset|tile)"/);
+  const usesBundledDefaultSymbols = /data-system-symbol="app\.gift\.fill"/.test(html);
+  const usesScaffoldAssetFallbacks = /\/mac-assets\/dock\/app-store\.png/.test(html);
+  assert.equal(usesBundledDefaultSymbols || usesScaffoldAssetFallbacks, true);
+  if (usesBundledDefaultSymbols) {
+    assert.doesNotMatch(html, /\/mac-assets\/dock\/(?:app-store|chrome|downloads|trash)\.png/);
+  }
   assert.match(html, /aria-label="Apple"/);
   assert.match(html, /class="mc-system-symbol" data-system-symbol="doc\.text"/);
   assert.match(html, /data-system-symbol="apple\.logo"/);

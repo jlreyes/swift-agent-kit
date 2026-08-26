@@ -417,6 +417,50 @@ test("Setup Assistant composes the shared MacSheet without legacy modal plumbing
   expect(screen.queryByRole("dialog", { name: "Welcome Details" })).toBeNull();
 });
 
+test("Setup Assistant cancellation and completion close the managed recipe window", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await openRecipe(user, "Setup Assistant");
+  let setup = screen.getByRole("region", { name: "Setup Assistant showcase" });
+  await user.click(within(setup).getByRole("button", { name: "Not Now" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Setup Assistant showcase" })).toBeNull());
+  expect(screen.getByText("Setup Assistant cancelled.")).toBeDefined();
+
+  await user.click(dockButton("Setup Assistant"));
+  setup = screen.getByRole("region", { name: "Setup Assistant showcase" });
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Finish" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Setup Assistant showcase" })).toBeNull());
+  expect(screen.getByText("Setup Assistant completed.")).toBeDefined();
+});
+
+test("Chat sends new messages to the active conversation", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await openRecipe(user, "Chat");
+  const chat = screen.getByRole("region", { name: "Chat showcase" });
+  const threadList = within(chat).getByRole("complementary", { name: "Conversations" });
+  await user.click(within(threadList).getByText("Research"));
+
+  const composer = within(chat).getByRole("textbox", { name: "Message" });
+  fireEvent.change(composer, { target: { value: "Research follow-up" } });
+  expect((composer as HTMLTextAreaElement).value).toBe("Research follow-up");
+  await user.click(within(chat).getByRole("button", { name: "Send message" }));
+  let transcript = within(chat).getByRole("log", { name: "Conversation" });
+  expect(within(transcript).getByText("Research follow-up")).toBeDefined();
+
+  await user.click(within(threadList).getByText("Project Notes"));
+  transcript = within(chat).getByRole("log", { name: "Conversation" });
+  expect(within(transcript).queryByText("Research follow-up")).toBeNull();
+
+  await user.click(within(threadList).getByText("Research"));
+  transcript = within(chat).getByRole("log", { name: "Conversation" });
+  expect(within(transcript).getByText("Research follow-up")).toBeDefined();
+});
+
 test("full compositions open in their own window instead of nesting in the catalog", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);

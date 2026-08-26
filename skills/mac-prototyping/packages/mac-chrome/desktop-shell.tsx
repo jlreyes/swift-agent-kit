@@ -176,17 +176,30 @@ function withManagedWindowCommands(
     };
   }
 
+  function managedCommand(
+    entry: Extract<MenuSpec[number], { readonly kind: "action" }>,
+    disabled: boolean,
+    action: () => void,
+  ) {
+    // An entry with its own behavior is a consumer command that happens to
+    // use a standard identifier, not permission for the shell to replace it.
+    // This also lets callers deliberately keep a managed-looking command
+    // unavailable while the window manager has a viable target.
+    if (entry.onSelect !== undefined || entry.href !== undefined || entry.disabled !== undefined) return entry;
+    return {
+      ...entry,
+      disabled,
+      onSelect: disabled ? undefined : command(entry.id, entry.label, action),
+    };
+  }
+
   if (menu.title === "File") {
     return {
       ...menu,
       items: menu.items.map((entry) => entry.kind === "action" && entry.id === "close-window"
-        ? {
-            ...entry,
-            disabled: keyWindow === undefined,
-            onSelect: keyWindow === undefined
-              ? undefined
-              : command(entry.id, entry.label, () => manager.closeWindow(keyWindow.id)),
-          }
+        ? managedCommand(entry, keyWindow === undefined, () => {
+            if (keyWindow !== undefined) manager.closeWindow(keyWindow.id);
+          })
         : entry),
     };
   }
@@ -196,28 +209,19 @@ function withManagedWindowCommands(
       items: menu.items.map((entry) => {
         if (entry.kind !== "action") return entry;
         if (entry.id === "hide-app") {
-          return {
-            ...entry,
-            onSelect: command(entry.id, entry.label, () => {
-              for (const window of keyAppWindows) manager.minimizeWindow(window.id);
-            }),
-          };
+          return managedCommand(entry, false, () => {
+            for (const window of keyAppWindows) manager.minimizeWindow(window.id);
+          });
         }
         if (entry.id === "hide-others") {
-          return {
-            ...entry,
-            onSelect: command(entry.id, entry.label, () => {
-              for (const window of manager.windows) {
-                if (window.appId !== keyApp.id && window.state === "open") manager.minimizeWindow(window.id);
-              }
-            }),
-          };
+          return managedCommand(entry, false, () => {
+            for (const window of manager.windows) {
+              if (window.appId !== keyApp.id && window.state === "open") manager.minimizeWindow(window.id);
+            }
+          });
         }
         if (entry.id === "quit-app") {
-          return {
-            ...entry,
-            onSelect: command(entry.id, entry.label, () => manager.quitApp(keyApp.id)),
-          };
+          return managedCommand(entry, false, () => manager.quitApp(keyApp.id));
         }
         return entry;
       }),
@@ -225,38 +229,31 @@ function withManagedWindowCommands(
   }
   if (menu.title !== "Window") return menu;
 
+  const managedItems = menu.items.map((entry) => {
+    if (entry.kind !== "action") return entry;
+    if (entry.id === "minimize") {
+      return managedCommand(entry, keyWindow === undefined, () => {
+        if (keyWindow !== undefined) manager.minimizeWindow(keyWindow.id);
+      });
+    }
+    if (entry.id === "zoom") {
+      return managedCommand(entry, keyWindow === undefined, () => {
+        if (keyWindow !== undefined) manager.toggleZoom(keyWindow.id);
+      });
+    }
+    if (entry.id === "bring-all-to-front") {
+      return managedCommand(entry, manager.keyAppId === null, () => manager.bringAllToFront(manager.keyAppId ?? undefined));
+    }
+    return entry;
+  });
+  const consumerIds = new Set(managedItems.map((entry) => entry.id));
+  const managedWindows = keyAppWindows.filter((window) => !consumerIds.has(`window-${window.id}`));
   const items: MenuSpec = [
-    {
-      kind: "action",
-      id: "minimize",
-      label: "Minimize",
-      shortcut: "⌘M",
-      disabled: keyWindow === undefined,
-      onSelect: keyWindow === undefined
-        ? undefined
-        : command("minimize", "Minimize", () => manager.minimizeWindow(keyWindow.id)),
-    },
-    {
-      kind: "action",
-      id: "zoom",
-      label: "Zoom",
-      disabled: keyWindow === undefined,
-      onSelect: keyWindow === undefined
-        ? undefined
-        : command("zoom", "Zoom", () => manager.toggleZoom(keyWindow.id)),
-    },
-    { kind: "separator", id: "window-separator-1" },
-    {
-      kind: "action",
-      id: "bring-all-to-front",
-      label: "Bring All to Front",
-      disabled: manager.keyAppId === null,
-      onSelect: manager.keyAppId === null
-        ? undefined
-        : command("bring-all-to-front", "Bring All to Front", () => manager.bringAllToFront(manager.keyAppId ?? undefined)),
-    },
-    ...(keyAppWindows.length === 0 ? [] : [{ kind: "separator" as const, id: "window-separator-2" }]),
-    ...keyAppWindows.map((window) => ({
+    ...managedItems,
+    ...(managedItems.length === 0 || managedWindows.length === 0
+      ? []
+      : [{ kind: "separator" as const, id: "managed-window-list-separator" }]),
+    ...managedWindows.map((window) => ({
       kind: "action" as const,
       id: `window-${window.id}`,
       label: window.label,

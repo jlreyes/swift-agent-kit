@@ -116,6 +116,42 @@ export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }:
 
 type WindowOffset = { readonly x: number; readonly y: number };
 
+type ContainmentRect = {
+  readonly bottom: number;
+  readonly height: number;
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly width: number;
+};
+
+function elementContainmentRect(element: HTMLElement): ContainmentRect {
+  const canvas = element.closest<HTMLElement>(".desktop-canvas");
+  if (canvas !== null) return canvas.getBoundingClientRect();
+  return {
+    bottom: window.innerHeight,
+    height: window.innerHeight,
+    left: 0,
+    right: window.innerWidth,
+    top: 0,
+    width: window.innerWidth,
+  };
+}
+
+function proportionallyContractedInsets(
+  length: number,
+  leading: number,
+  trailing: number,
+): readonly [number, number] {
+  const total = leading + trailing;
+  if (length <= 0 || total <= 0) return [0, 0];
+  /* Leave at least half of a tiny canvas usable rather than letting the
+     reserves consume the entire axis. At ordinary sizes the declared insets
+     remain unchanged. */
+  const scale = Math.min(1, length / (total * 2));
+  return [leading * scale, trailing * scale];
+}
+
 export function useWindowDrag<T extends HTMLElement>(
   enabled: boolean,
   handleSelector: string = "[data-window-drag-handle]",
@@ -149,13 +185,20 @@ export function useWindowDrag<T extends HTMLElement>(
     });
   }
 
-  /* Keep at least 120px of the window on-screen horizontally, the title bar
-     below the menu bar (24px) and above the dock reserve (52px). */
+  /* Keep at least 120px of the window reachable horizontally, the title bar
+     below the menu bar (24px), and above the Dock reserve (52px). The nearest
+     desktop canvas is the coordinate space; viewport bounds are only the
+     standalone fallback. */
   function clampedOffset(origin: WindowOffset, rect: DOMRect, x: number, y: number): WindowOffset {
-    const minimumX = origin.x + 120 - rect.right;
-    const maximumX = origin.x + window.innerWidth - 120 - rect.left;
-    const minimumY = origin.y + 24 - rect.top;
-    const maximumY = origin.y + window.innerHeight - 52 - rect.top;
+    const element = windowRef.current;
+    if (element === null) return origin;
+    const bounds = elementContainmentRect(element);
+    const horizontalReach = Math.min(120, bounds.width / 2);
+    const [topInset, bottomInset] = proportionallyContractedInsets(bounds.height, 24, 52);
+    const minimumX = origin.x + bounds.left + horizontalReach - rect.right;
+    const maximumX = origin.x + bounds.right - horizontalReach - rect.left;
+    const minimumY = origin.y + bounds.top + topInset - rect.top;
+    const maximumY = origin.y + bounds.bottom - bottomInset - rect.top;
     return {
       x: Math.min(Math.max(x, minimumX), maximumX),
       y: Math.min(Math.max(y, minimumY), maximumY),
@@ -164,14 +207,24 @@ export function useWindowDrag<T extends HTMLElement>(
 
   useEffect(() => {
     if (!enabled) return;
-    const handleResize = () => {
+    const element = windowRef.current;
+    if (element === null) return;
+    const contain = () => {
       const element = windowRef.current;
       if (!element) return;
       const current = offsetRef.current;
       commitOffset(clampedOffset(current, element.getBoundingClientRect(), current.x, current.y));
     };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const canvas = element.closest<HTMLElement>(".desktop-canvas");
+    const observer = canvas === null || typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(contain);
+    if (canvas !== null) observer?.observe(canvas);
+    window.addEventListener("resize", contain);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", contain);
+    };
   }, [enabled]);
 
   useEffect(() => () => {
@@ -222,7 +275,9 @@ export function useWindowDrag<T extends HTMLElement>(
     }
   }
 
-  const style: CSSProperties = { transform: `translate3d(${offset.x}px, ${offset.y}px, 0)` };
+  /* Individual translate composes with a consumer's transform instead of
+     replacing it or requiring string concatenation in either spread order. */
+  const style: CSSProperties = { translate: `${offset.x}px ${offset.y}px` };
   return { windowRef, style, onPointerDown, onPointerMove, onPointerUp: finishDrag, onPointerCancel: finishDrag };
 }
 
@@ -264,14 +319,22 @@ function safeBounds(width: number, height: number, minSize: WindowSize): WindowB
   /* On a very small embedded canvas, contract the reserves proportionally.
      That makes the declared minimum advisory rather than allowing chrome to
      become unreachable when less space is physically available. */
-  const horizontalScale = Math.min(1, width / (windowSafeInsets.left + windowSafeInsets.right));
-  const verticalScale = Math.min(1, height / (windowSafeInsets.top + windowSafeInsets.bottom));
-  const left = windowSafeInsets.left * horizontalScale;
-  const right = width - windowSafeInsets.right * horizontalScale;
-  const top = windowSafeInsets.top * verticalScale;
-  const bottom = height - windowSafeInsets.bottom * verticalScale;
-  const availableWidth = Math.max(0, right - left);
-  const availableHeight = Math.max(0, bottom - top);
+  const [leftInset, rightInset] = proportionallyContractedInsets(
+    width,
+    windowSafeInsets.left,
+    windowSafeInsets.right,
+  );
+  const [topInset, bottomInset] = proportionallyContractedInsets(
+    height,
+    windowSafeInsets.top,
+    windowSafeInsets.bottom,
+  );
+  const left = leftInset;
+  const right = width - rightInset;
+  const top = topInset;
+  const bottom = height - bottomInset;
+  const availableWidth = right - left;
+  const availableHeight = bottom - top;
 
   return {
     left,
@@ -328,6 +391,36 @@ function numericInlineLength(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function untransformedClientRect(element: HTMLElement): DOMRect {
+  const properties = ["transform", "translate", "rotate", "scale"] as const;
+  const previous = properties.map((property) => ({
+    priority: element.style.getPropertyPriority(property),
+    property,
+    value: element.style.getPropertyValue(property),
+  }));
+
+  try {
+    for (const { property } of previous) element.style.setProperty(property, "none", "important");
+    return element.getBoundingClientRect();
+  } finally {
+    for (const { priority, property, value } of previous) {
+      if (value === "") element.style.removeProperty(property);
+      else element.style.setProperty(property, value, priority);
+    }
+  }
+}
+
+type WindowInteraction = {
+  readonly kind: "drag" | "resize";
+  readonly edge?: WindowResizeEdge;
+  readonly pointerId: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly lastX: number;
+  readonly lastY: number;
+  readonly origin: WindowGeometry;
+};
+
 function useWindowGeometry({
   draggable,
   dragHandleSelector = "[data-window-drag-handle]",
@@ -346,14 +439,7 @@ function useWindowGeometry({
   const windowRef = useRef<HTMLElement>(null);
   const [geometry, setGeometry] = useState<WindowGeometry | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
-  const interactionRef = useRef<{
-    readonly kind: "drag" | "resize";
-    readonly edge?: WindowResizeEdge;
-    readonly pointerId: number;
-    readonly startX: number;
-    readonly startY: number;
-    readonly origin: WindowGeometry;
-  } | null>(null);
+  const interactionRef = useRef<WindowInteraction | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const containmentTaskRef = useRef<number | null>(null);
   const pendingGeometryRef = useRef<WindowGeometry | null>(null);
@@ -374,22 +460,24 @@ function useWindowGeometry({
     });
   }
 
-  function geometryContext(element: HTMLElement, requireCanvas: boolean) {
+  function geometryContext(element: HTMLElement) {
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
     if (canvas !== null) {
       const canvasRect = canvas.getBoundingClientRect();
       const bounds = safeBounds(canvasRect.width, canvasRect.height, minSize);
       return bounds === null ? null : { bounds, originLeft: canvasRect.left, originTop: canvasRect.top };
     }
-    if (requireCanvas) return null;
     const bounds = safeBounds(window.innerWidth, window.innerHeight, minSize);
     return bounds === null ? null : { bounds, originLeft: 0, originTop: 0 };
   }
 
-  function captureGeometry(element: HTMLElement, requireCanvas: boolean): WindowGeometry | null {
-    const context = geometryContext(element, requireCanvas);
+  function captureGeometry(element: HTMLElement): WindowGeometry | null {
+    const context = geometryContext(element);
     if (context === null) return null;
-    const rect = element.getBoundingClientRect();
+    /* Interactive geometry is layout geometry. Measuring with caller-owned
+       transforms disabled prevents translate/scale from being baked into
+       left/top/size and then applied a second time by composedStyle. */
+    const rect = untransformedClientRect(element);
     const captured = {
       left: rect.left - context.originLeft,
       top: rect.top - context.originTop,
@@ -403,7 +491,7 @@ function useWindowGeometry({
     if (geometryRef.current !== null) return geometryRef.current;
     const element = windowRef.current;
     if (element === null) return null;
-    const captured = captureGeometry(element, false);
+    const captured = captureGeometry(element);
     if (captured !== null) commitGeometry(captured);
     return captured;
   }
@@ -413,22 +501,40 @@ function useWindowGeometry({
     const element = windowRef.current;
     if (element === null) return;
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
-    if (canvas === null) return;
 
     function containedGeometry() {
       const currentElement = windowRef.current;
       if (currentElement === null) return null;
-      const context = geometryContext(currentElement, true);
+      const context = geometryContext(currentElement);
       if (context === null) return null;
       const current = geometryRef.current;
       return current === null
-        ? captureGeometry(currentElement, true)
+        ? captureGeometry(currentElement)
         : clampedGeometry(current, context.bounds);
     }
 
-    const initialGeometry = containedGeometry();
-    if (initialGeometry !== null) commitGeometry(initialGeometry);
-    const observer = new ResizeObserver(() => {
+    function commitContainment(next: WindowGeometry) {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      pendingGeometryRef.current = null;
+      commitGeometry(next);
+      const interaction = interactionRef.current;
+      if (interaction !== null) {
+        /* Rebase an active gesture at its last pointer sample. A later move
+           then continues from the contained frame rather than reviving an
+           out-of-bounds opposite edge captured before the canvas changed. */
+        interactionRef.current = {
+          ...interaction,
+          origin: next,
+          startX: interaction.lastX,
+          startY: interaction.lastY,
+        };
+      }
+    }
+
+    function scheduleContainment() {
       if (containmentTaskRef.current !== null) return;
       /* ResizeObserver delivery and animation frames can still share the
          browser's layout-update cycle. Re-read and commit in a deduplicated
@@ -437,12 +543,25 @@ function useWindowGeometry({
       containmentTaskRef.current = window.setTimeout(() => {
         containmentTaskRef.current = null;
         const next = containedGeometry();
-        if (next !== null) commitGeometry(next);
+        if (next !== null) commitContainment(next);
       }, 0);
-    });
-    observer.observe(canvas);
+    }
+
+    /* Canvas windows are captured immediately so their coordinates become
+       canvas-relative before paint. A standalone viewport window keeps its
+       authored CSS placement until interaction or the first viewport resize. */
+    if (canvas !== null) {
+      const initialGeometry = containedGeometry();
+      if (initialGeometry !== null) commitContainment(initialGeometry);
+    }
+    const observer = canvas === null || typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(scheduleContainment);
+    if (canvas !== null) observer?.observe(canvas);
+    window.addEventListener("resize", scheduleContainment);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener("resize", scheduleContainment);
       if (containmentTaskRef.current !== null) {
         window.clearTimeout(containmentTaskRef.current);
         containmentTaskRef.current = null;
@@ -467,6 +586,8 @@ function useWindowGeometry({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
       origin,
     };
     if (typeof element.setPointerCapture === "function") element.setPointerCapture(event.pointerId);
@@ -485,6 +606,8 @@ function useWindowGeometry({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
       origin,
     };
     if (typeof element.setPointerCapture === "function") element.setPointerCapture(event.pointerId);
@@ -494,7 +617,8 @@ function useWindowGeometry({
     const interaction = interactionRef.current;
     const element = windowRef.current;
     if (interaction === null || element === null || interaction.pointerId !== event.pointerId) return;
-    const context = geometryContext(element, false);
+    interactionRef.current = { ...interaction, lastX: event.clientX, lastY: event.clientY };
+    const context = geometryContext(element);
     if (context === null) return;
     const deltaX = event.clientX - interaction.startX;
     const deltaY = event.clientY - interaction.startY;

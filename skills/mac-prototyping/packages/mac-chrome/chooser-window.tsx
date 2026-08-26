@@ -148,7 +148,15 @@ function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
     if (section.label !== undefined) {
       items.push({ kind: "section", id: `chooser:${section.id}`, label: section.label });
     }
-    for (const command of section.commands) {
+    let previousIsRadio: boolean | undefined;
+    for (const [commandIndex, command] of section.commands.entries()) {
+      const isRadio = command.checked !== undefined;
+      // MacMenu intentionally gives every entry in a checked group radio
+      // semantics. Split mixed command/radio runs so an ordinary command never
+      // inherits menuitemradio merely because a sibling has `checked` state.
+      if (commandIndex > 0 && isRadio !== previousIsRadio) {
+        items.push({ kind: "separator", id: `chooser:${section.id}:semantic-boundary:${command.id}` });
+      }
       items.push({
         kind: "action",
         id: `chooser:${section.id}:${command.id}`,
@@ -158,6 +166,7 @@ function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
         icon: command.checked === true || command.symbol === undefined ? undefined : <SystemSymbol name={command.symbol} />,
         onSelect: command.onSelect,
       });
+      previousIsRadio = isRadio;
     }
   }
   return items;

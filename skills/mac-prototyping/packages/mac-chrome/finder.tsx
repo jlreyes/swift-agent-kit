@@ -78,19 +78,35 @@ export type FinderSearch = {
 };
 
 /* Finder's callback-per-row compatibility model adapts into MacSourceList's
-   collection-level controlled selection. Prefix both kinds so consumer ids
-   can safely overlap between sections and items. */
+   collection-level controlled selection. Hex-encode tuple parts rather than
+   joining unrestricted consumer ids with a delimiter: ("a:b", "c") and
+   ("a", "b:c") must remain distinct. The restricted alphabet also keeps the
+   resulting react-aria DOM ids safe to use in selectors and ARIA references. */
+function finderSidebarIdPart(id: string): string {
+  let encoded = "";
+  for (let index = 0; index < id.length; index += 1) {
+    encoded += id.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return encoded;
+}
+
 function finderSidebarSectionId(id: string): string {
-  return `finder-section:${id}`;
+  return `finder-section-${finderSidebarIdPart(id)}`;
 }
 
 function finderSidebarItemId(sectionId: string, itemId: string): string {
-  return `finder-item:${sectionId}:${itemId}`;
+  return `finder-item-${finderSidebarIdPart(sectionId)}-${finderSidebarIdPart(itemId)}`;
 }
 
-function selectedFinderSidebarId(sections: readonly SidebarSection[]): string | null {
+function selectedFinderSidebarSectionId(sections: readonly SidebarSection[]): string | null {
   for (const section of sections) {
     if (section.title !== undefined && section.selected) return finderSidebarSectionId(section.id);
+  }
+  return null;
+}
+
+function selectedFinderSidebarItemId(sections: readonly SidebarSection[]): string | null {
+  for (const section of sections) {
     const selectedItem = section.items.find((item) => item.selected);
     if (selectedItem !== undefined) return finderSidebarItemId(section.id, selectedItem.id);
   }
@@ -263,6 +279,7 @@ export function FinderWindow({
   const sourceListSections: readonly MacSourceListSection[] = sidebar.map((section) => ({
     id: finderSidebarSectionId(section.id),
     title: section.title,
+    selectable: section.selected === true || section.onTitleSelect !== undefined,
     collapsible: section.collapsible,
     count: section.count,
     action: section.action,
@@ -275,7 +292,8 @@ export function FinderWindow({
       indent: item.indent,
     })),
   }));
-  const sourceListSelectedId = selectedFinderSidebarId(sidebar);
+  const sourceListSelectedSectionId = selectedFinderSidebarSectionId(sidebar);
+  const sourceListSelectedItemId = selectedFinderSidebarItemId(sidebar);
   // Roving tabindex: the grid is one tab stop (the selected entry, else the
   // first); arrow keys rove within it.
   const tabStopId = selectedEntry !== null ? selectedEntry.id : entries[0]?.id;
@@ -459,8 +477,10 @@ export function FinderWindow({
               <nav aria-label="Sidebar">
                 <MacSourceList
                   sections={sourceListSections}
-                  selectedId={sourceListSelectedId}
+                  selectedId={sourceListSelectedItemId}
                   onSelectionChange={handleSourceListSelection}
+                  selectedSectionId={sourceListSelectedSectionId}
+                  onSectionSelectionChange={handleSourceListSelection}
                 />
               </nav>
             </aside>

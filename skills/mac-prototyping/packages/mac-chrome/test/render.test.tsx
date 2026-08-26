@@ -94,7 +94,9 @@ it("renders the native default Dock set when items are omitted", async () => {
     "Trash",
   ]);
   expect(container.querySelectorAll(".p0-dock-divider")).toHaveLength(1);
-  expect(container.querySelector<HTMLImageElement>("img[src='/mac-assets/dock/finder.png']")).toBeTruthy();
+  expect(container.querySelectorAll(".p0-app-icon--tile")).toHaveLength(5);
+  expect(container.querySelectorAll(".p0-app-icon-image")).toHaveLength(0);
+  expect(container.querySelector("[aria-label='Finder'] [data-system-symbol='face.smiling']")).toBeTruthy();
   await act(async () => root.unmount());
   container.remove();
 });

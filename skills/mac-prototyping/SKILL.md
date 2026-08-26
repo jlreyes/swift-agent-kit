@@ -68,7 +68,7 @@ copy a showcase layout or private component into product code.
 | --- | --- | --- |
 | Desktop stage, app menus, status items | `DesktopShell` | menu bar + desktop |
 | Windowed or menu-bar app identity, key-window focus, z-order, launch/restore/quit | `MacWindowManager` + `MacApp` (`presentation="windowed" | "menuBar"`) | `NSApplication` + `NSWindow` scene ownership |
-| Managed app launcher and running state | `MacAppDock` + typed `DockIcon` / `MacDockAppIcon` | Dock tile |
+| Managed app launcher and running state | `MacAppDock` + `MacDockAppIcon` (typed `DockIcon` data) | Dock tile |
 | Standalone decorative Dock | `MacDock` | Dock-like launcher without app lifecycle |
 | Two- or three-column navigation | `MacNavigationSplitView` | `NavigationSplitView` |
 | Supplementary metadata or controls | `MacInspector` beside the split view | inspector / preview pane |
@@ -85,9 +85,9 @@ copy a showcase layout or private component into product code.
 navigation columns (sidebar + content + detail). Its optional middle column
 represents a selection hierarchy. `MacInspector` is deliberately a separate,
 supplementary trailing pane; do not treat it as the third navigation column.
-The shared split view normalizes its panel defaults for SSR; use this primitive
-rather than assembling local panel layouts, so hydration does not shift its
-children.
+When its panel defaults use compatible CSS units, the shared split view
+normalizes them for SSR. Use this primitive rather than assembling local panel
+layouts, so hydration does not shift its children.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;

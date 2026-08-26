@@ -2,6 +2,7 @@
 
 import type { CSSProperties, DragEvent as ReactDragEvent, ReactNode } from "react";
 
+import { SystemSymbol } from "./system-symbol.tsx";
 import type { MacWindowThumbnail } from "./window-transition.ts";
 import "./styles/tokens.css";
 import "./styles/dock.css";
@@ -106,11 +107,37 @@ export interface DockItem {
 }
 
 export const defaultDockItems: readonly DockItem[] = [
-  { id: "finder", label: "Finder", icon: "/mac-assets/dock/finder.png", running: true, group: "apps" },
-  { id: "app-store", label: "App Store", icon: "/mac-assets/dock/app-store.png", group: "apps" },
-  { id: "chrome", label: "Google Chrome", icon: "/mac-assets/dock/chrome.png", group: "apps" },
-  { id: "downloads", label: "Downloads", icon: "/mac-assets/dock/downloads.png", group: "places" },
-  { id: "trash", label: "Trash", icon: "/mac-assets/dock/trash.png", group: "places" },
+  {
+    id: "finder",
+    label: "Finder",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" },
+    running: true,
+    group: "apps",
+  },
+  {
+    id: "app-store",
+    label: "App Store",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" },
+    group: "apps",
+  },
+  {
+    id: "chrome",
+    label: "Google Chrome",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="globe" />, background: "#4385f5" },
+    group: "apps",
+  },
+  {
+    id: "downloads",
+    label: "Downloads",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="folder.fill" />, background: "#58baf5" },
+    group: "places",
+  },
+  {
+    id: "trash",
+    label: "Trash",
+    icon: { kind: "symbol", symbol: <SystemSymbol name="trash.fill" />, background: "#8e969e" },
+    group: "places",
+  },
 ];
 
 export function MacDock({ items = defaultDockItems, label = "Dock" }: {

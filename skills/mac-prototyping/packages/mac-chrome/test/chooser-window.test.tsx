@@ -102,3 +102,60 @@ it("routes secondary chooser commands through the shared Mac menu system", async
   await act(async () => root.unmount());
   container.remove();
 });
+
+it("keeps ordinary commands out of a sibling radio group", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(
+      <ChooserWindow
+        title="Create a project"
+        subtitle="Choose a starting point"
+        choices={[{ id: "starter", symbol: "doc.text.fill", title: "Starter", caption: "A standard project" }]}
+        selected="starter"
+        onSelect={() => {}}
+        secondaryGroup={{
+          label: "More Options",
+          sections: [
+            {
+              id: "mixed",
+              label: "OPTIONS",
+              commands: [
+                {
+                  id: "recommended",
+                  title: "Recommended template",
+                  checked: true,
+                  onSelect: () => {},
+                },
+                {
+                  id: "import",
+                  title: "Import File…",
+                  onSelect: () => {},
+                },
+              ],
+            },
+          ],
+        }}
+        footer={<button type="button">Continue</button>}
+      />,
+    );
+  });
+
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>("button[aria-label='More Options']")?.click();
+  });
+
+  const menu = document.querySelector<HTMLElement>("[role='menu'][aria-label='More Options']");
+  const radio = menu?.querySelector<HTMLElement>("[data-key='chooser:mixed:recommended']");
+  const command = menu?.querySelector<HTMLElement>("[data-key='chooser:mixed:import']");
+  expect(radio?.getAttribute("role")).toBe("menuitemradio");
+  expect(radio?.getAttribute("aria-checked")).toBe("true");
+  expect(command?.getAttribute("role")).toBe("menuitem");
+  expect(command?.hasAttribute("aria-checked")).toBe(false);
+  expect(menu?.querySelectorAll(".menu-separator")).toHaveLength(1);
+
+  await act(async () => root.unmount());
+  container.remove();
+});

@@ -772,7 +772,11 @@ function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
   );
 }
 
-function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
+function SetupRecipe({ onCancel, onClose, onComplete }: {
+  readonly onCancel: () => void;
+  readonly onClose: () => void;
+  readonly onComplete: () => void;
+}) {
   const [stepIndex, setStepIndex] = useState(0);
   const [furthestIndex, setFurthestIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -789,8 +793,22 @@ function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
       currentStep={step.id}
       furthestIndex={furthestIndex}
       onSelectStep={(id) => { const index = setupSteps.findIndex((candidate) => candidate.id === id); if (index >= 0 && index <= furthestIndex) setStepIndex(index); }}
-      onBack={() => setStepIndex((current) => Math.max(0, current - 1))}
-      onContinue={() => { const next = Math.min(setupSteps.length - 1, stepIndex + 1); setFurthestIndex((current) => Math.max(current, next)); setStepIndex(next); }}
+      onBack={() => {
+        if (stepIndex === 0) {
+          onCancel();
+          return;
+        }
+        setStepIndex((current) => current - 1);
+      }}
+      onContinue={() => {
+        if (stepIndex === setupSteps.length - 1) {
+          onComplete();
+          return;
+        }
+        const next = stepIndex + 1;
+        setFurthestIndex((current) => Math.max(current, next));
+        setStepIndex(next);
+      }}
       backLabel={stepIndex === 0 ? "Not Now" : "Back"}
       continueLabel={stepIndex === setupSteps.length - 1 ? "Finish" : "Continue"}
       onClose={onClose}
@@ -818,7 +836,7 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
   const [activeConversationId, setActiveConversationId] = useState("project");
   const [composerValue, setComposerValue] = useState("");
   const [query, setQuery] = useState("");
-  const [sentMessages, setSentMessages] = useState<readonly ChatMessage[]>([]);
+  const [sentMessages, setSentMessages] = useState<Readonly<Record<string, readonly ChatMessage[]>>>({});
   const owner = useMemo(() => ({ name: "You", role: "owner" as const }), []);
   const agent = useMemo(() => ({ name: "Assistant", role: "agent" as const, icon: <SystemSymbol name="sparkles" /> }), []);
   const conversations = [
@@ -826,9 +844,12 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
       { id: "one", author: owner, at: "9:41 AM", body: "Can you summarize the open decisions?" },
       { id: "two", author: agent, at: "9:42 AM", body: "There are three decisions ready for review." },
       { id: "system", author: { name: "System", role: "system" as const }, at: "9:43 AM", body: "Draft saved locally." },
-      ...sentMessages,
+      ...(sentMessages.project ?? []),
     ] },
-    { id: "research", title: "Research", icon: <SystemSymbol name="magnifyingglass" />, messages: [{ id: "research-one", author: agent, at: "Yesterday", body: "The reference set is ready." }] },
+    { id: "research", title: "Research", icon: <SystemSymbol name="magnifyingglass" />, messages: [
+      { id: "research-one", author: agent, at: "Yesterday", body: "The reference set is ready." },
+      ...(sentMessages.research ?? []),
+    ] },
   ];
   const normalizedQuery = query.trim().toLowerCase();
   const visibleConversations = normalizedQuery.length === 0 ? conversations : conversations.flatMap((conversation) => {
@@ -849,7 +870,21 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
       onSidebarVisibleChange={onSidebarVisibleChange}
       toolbarExtras={<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu>}
       emptyTranscript={<MacContentUnavailable title="No matching conversations" description="Try a different search." />}
-      composer={{ value: composerValue, onChange: setComposerValue, placeholder: "Message", accessory: <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>, onSend: () => { const body = composerValue.trim(); if (!body) return; setSentMessages((current) => [...current, { id: `sent-${current.length}`, author: owner, at: "Now", body, status: "Sent" }]); setComposerValue(""); } }}
+      composer={{ value: composerValue, onChange: setComposerValue, placeholder: "Message", accessory: <ToolbarButton label="Add attachment" onClick={() => setComposerValue((current) => `${current}${current ? " " : ""}[Attachment]`)}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>, onSend: () => {
+        const body = composerValue.trim();
+        if (!body) return;
+        setSentMessages((current) => {
+          const conversationMessages = current[visibleActiveConversationId] ?? [];
+          return {
+            ...current,
+            [visibleActiveConversationId]: [
+              ...conversationMessages,
+              { id: `sent-${visibleActiveConversationId}-${conversationMessages.length}`, author: owner, at: "Now", body, status: "Sent" },
+            ],
+          };
+        });
+        setComposerValue("");
+      } }}
       onClose={onClose}
     />
   );
@@ -992,6 +1027,14 @@ function ManagedShowcaseDesktop() {
     setStatus(`${app?.name ?? recipe} ${app?.running ? "activated" : "launched"}.`);
   }
 
+  function closeSetup(statusMessage: string) {
+    const setupWindow = windowManager.windows.find((window) =>
+      window.appId === showcaseApps.setup.id && window.state === "open",
+    );
+    if (setupWindow !== undefined) windowManager.closeWindow(setupWindow.id);
+    setStatus(statusMessage);
+  }
+
   const showcaseMenu: MenuBarMenu = {
     title: "Showcase",
     items: storyGroups.flatMap((group, groupIndex) => [
@@ -1126,7 +1169,11 @@ function ManagedShowcaseDesktop() {
         <ChooserRecipe onClose={() => setStatus("Chooser window closed.")} />
       </MacApp>
       <MacApp {...showcaseApps.setup}>
-        <SetupRecipe onClose={() => setStatus("Setup Assistant window closed.")} />
+        <SetupRecipe
+          onCancel={() => closeSetup("Setup Assistant cancelled.")}
+          onClose={() => setStatus("Setup Assistant window closed.")}
+          onComplete={() => closeSetup("Setup Assistant completed.")}
+        />
       </MacApp>
       <MacApp {...showcaseApps.chat}>
         <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />

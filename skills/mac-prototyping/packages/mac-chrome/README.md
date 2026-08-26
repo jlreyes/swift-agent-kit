@@ -67,7 +67,7 @@ not the only way to build an app.
 | Standard controls and structured settings | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
 | No-content state | `MacContentUnavailable` | Optional system-style icon, description, and actions. |
 | Window feedback and modal decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | Status bar, short alert, or attached modal task. |
-| Dock artwork | `DockIcon` + `MacDockAppIcon` | One shared optical-size contract. |
+| Dock artwork | `MacDockAppIcon` + `DockIcon` data | One shared optical-size contract. |
 
 This is intentionally an 80/20 library, not a web reimplementation of all
 SwiftUI. Tables, outline views, grid collections, and full SwiftUI
@@ -147,7 +147,7 @@ Inside a `WindowChrome`, the three controls are functional with no props: hoveri
 ### useWindowDrag
 maps to: `NSWindow.performDrag(with:)` / `isMovableByWindowBackground`.
 `useWindowDrag<T extends HTMLElement>(enabled: boolean, handleSelector: string = "[data-window-drag-handle]")`
-Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }` to spread onto the window element. Pointer-downs on `button/input/textarea/select/a/[role='button']/.traffic-lights/[data-no-window-drag]` never start a drag.
+Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }` to spread onto the window element. Its `style` uses the individual CSS `translate` property, so a caller-owned `transform` remains independent in either spread order. Drag reachability uses the nearest `.desktop-canvas`, falling back to the viewport only when no canvas exists. Pointer-downs on `button/input/textarea/select/a/[role='button']/.traffic-lights/[data-no-window-drag]` never start a drag.
 
 ### WindowChrome
 maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGroup` scene.
@@ -156,7 +156,7 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 `type WindowSize = { readonly width: number; readonly height: number }`
 - **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`). The desktop contracts below its 1200px reference width and window CSS has a final canvas-containment guard. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
-- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller canvas wins so the complete window remains reachable. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas rather than the browser viewport. Set `resizable={false}` for intentionally fixed-size utility windows.
+- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller canvas wins so a positive, reachable frame remains even when the canvas is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. An active gesture rebases when its canvas changes size. Set `resizable={false}` for intentionally fixed-size utility windows.
 - **Nested split-view observation**: the shared ResizeObserver compatibility adapter defers and coalesces only observations whose target is a `react-resizable-panels` `[data-group]` to the following task. Ordinary ResizeObserver delivery remains synchronous. This prevents the feedback cycle at its source; it does not suppress browser error events or hide unrelated failures.
 - **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, managed minimize captures the window and transitions it to a separate Dock thumbnail (reduced motion skips the animation), and zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows retain the local ~220ms hide fallback. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock, thumbnail, or Window menu can restore them.
 
@@ -308,9 +308,12 @@ The required `sidebar` and `detail` create a two-column navigation split. Add
 column accepts an optional min/default/max `MacNavigationColumnSizing` object;
 the built-in separators are keyboard-operable ARIA window splitters. Keep
 supplementary settings or metadata outside this hierarchy in `MacInspector`.
-The primitive derives a normalized `defaultLayout` from those panel defaults
-for SSR, so hydration starts with final proportions instead of replacing raw
-pixel flex-bases. Use `MacNavigationSplitView`, not a local panel layout.
+When every panel default uses the same CSS unit, the primitive derives a
+normalized `defaultLayout` for SSR, so hydration starts with final proportions
+instead of replacing raw pixel flex-bases. Unlike units cannot be resolved
+without live group geometry; those values pass through to the panels verbatim
+rather than incorrectly treating, for example, `50%` and `500px` as weights.
+Use `MacNavigationSplitView`, not a local panel layout.
 
 ### MacInspector
 maps to: SwiftUI `.inspector` / an AppKit inspector pane.
@@ -318,14 +321,19 @@ maps to: SwiftUI `.inspector` / an AppKit inspector pane.
 A separate trailing supplementary pane with an accessible leading-edge
 separator: drag it, or focus it and use Left/Right (Home/End reaches the
 limits). Pass `width` with `onWidthChange` for controlled sizing, or omit
-`width` and optionally pass `defaultWidth` for internal sizing. It does not
-turn a two-column navigation split into a three-column navigation split and
+`width` and optionally pass `defaultWidth` for internal sizing. CSS-string
+controlled widths are measured from the rendered pane and kept in sync via
+`ResizeObserver`, so the separator's `aria-valuenow` reports actual pixels. It
+does not turn a two-column navigation split into a three-column navigation split and
 does not invent the toolbar toggle or persistence policy; the surface owner
 keeps visibility and any persisted width in agreement.
 
 ### MacSourceList
 maps to: SwiftUI `List` with `.listStyle(.sidebar)` / Finder source list.
-`MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange, expandedSectionIds, onExpandedSectionIdsChange }: MacSourceListProps)`
+`MacSourceList({ sections, label = "Sidebar", className = "", selectedId, onSelectionChange, selectedSectionId, onSectionSelectionChange, expandedSectionIds, onExpandedSectionIdsChange }: MacSourceListProps)`
+A titled section may opt into application selection with `selectable: true`;
+its controlled selection uses `selectedSectionId` / `onSectionSelectionChange`.
+Disclosure remains a separate chevron action and does not select the section.
 `MacSourceListItem` is an id, label, optional icon/badge, and optional
 indent. `MacSourceListSection` groups items under an optional title and can be
 collapsible. Selection is controlled; expansion is controlled when the

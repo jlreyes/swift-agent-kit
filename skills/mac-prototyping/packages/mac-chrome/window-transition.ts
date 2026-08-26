@@ -9,9 +9,13 @@ export interface MacWindowThumbnail {
   readonly height: number;
 }
 
+/** Fixed-width UTF-16 encoding keeps every JavaScript window id distinct. */
 export function macWindowViewTransitionName(windowId: string): string {
-  const safeId = windowId.replace(/[^a-zA-Z0-9_-]/g, (character) => `-${character.codePointAt(0)?.toString(16) ?? "0"}-`);
-  return `mc-window-${safeId}`;
+  let encodedId = "";
+  for (let index = 0; index < windowId.length; index += 1) {
+    encodedId += windowId.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return `mc-window-${windowId.length.toString(16)}-${encodedId}`;
 }
 
 export async function captureMacWindowThumbnail(element: HTMLElement | null): Promise<MacWindowThumbnail | undefined> {

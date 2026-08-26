@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toPng } from "html-to-image";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -15,8 +16,17 @@ vi.mock("html-to-image", () => ({
 
 afterEach(() => {
   cleanup();
+  vi.mocked(toPng).mockReset().mockResolvedValue("data:image/png;base64,d2luZG93");
   Reflect.deleteProperty(document, "startViewTransition");
 });
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function ManagedDesktop() {
   return (
@@ -34,6 +44,9 @@ function ManagedDesktopContents() {
       <output aria-label="Key window">{manager.keyWindowId ?? "none"}</output>
       <button type="button" onClick={() => manager.toggleZoom("notes:main")}>Menu Zoom</button>
       <button type="button" onClick={() => manager.minimizeWindow("notes:main")}>Menu Minimize</button>
+      <button type="button" onClick={() => manager.activateWindow("notes:main")}>Menu Activate</button>
+      <button type="button" onClick={() => manager.openWindow("notes:main")}>Menu Open</button>
+      <button type="button" onClick={() => manager.restoreWindow("notes:main")}>Menu Restore</button>
       <MacApp id="showcase" name="Showcase" icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> }}>
         <WindowChrome label="Showcase window">
           <div data-window-drag-handle="">
@@ -166,6 +179,45 @@ describe("Mac app and window management", () => {
     fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
     await waitFor(() => expect(managedWindow("notes")).toBeNull());
     expect(managedDockButton("Notes window")).toBeTruthy();
+  });
+
+  it.each(["Menu Activate", "Menu Open", "Menu Restore"])(
+    "discards a pending thumbnail when %s supersedes minimization",
+    async (commandLabel) => {
+      const capture = deferred<string>();
+      vi.mocked(toPng).mockReturnValueOnce(capture.promise);
+      render(<ManagedDesktop />);
+      await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main"));
+      fireEvent.click(managedDockButton("Notes"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+      await waitFor(() => expect(toPng).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("button", { name: commandLabel }));
+      await act(async () => capture.resolve("data:image/png;base64,c3RhbGU="));
+
+      expect(managedWindow("notes")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Notes window" })).toBeNull();
+    },
+  );
+
+  it("discards a pending thumbnail across close and reopen", async () => {
+    const capture = deferred<string>();
+    vi.mocked(toPng).mockReturnValueOnce(capture.promise);
+    render(<ManagedDesktop />);
+    await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main"));
+    fireEvent.click(managedDockButton("Notes"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+    await waitFor(() => expect(toPng).toHaveBeenCalledTimes(1));
+    const notesWindow = managedWindow("notes");
+    expect(notesWindow).toBeTruthy();
+    if (!notesWindow) return;
+    fireEvent.click(within(notesWindow).getByRole("button", { name: "Close window" }));
+    fireEvent.click(managedDockButton("Notes"));
+    await act(async () => capture.resolve("data:image/png;base64,c3RhbGU="));
+
+    expect(managedWindow("notes")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Notes window" })).toBeNull();
   });
 
   it("routes the standard File and Window menus to the key managed window", async () => {

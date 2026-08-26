@@ -225,6 +225,53 @@ describe("FinderWindow sidebar source list", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves selectable section titles independently from disclosure", () => {
+    const onLibrarySelect = vi.fn();
+    const onFavoritesSelect = vi.fn();
+    render(
+      <FinderWindow
+        title="Vault"
+        sidebar={[
+          {
+            id: "library",
+            title: "Library",
+            selected: true,
+            onTitleSelect: onLibrarySelect,
+            items: [],
+          },
+          {
+            id: "favorites",
+            title: "Favorites",
+            collapsible: true,
+            onTitleSelect: onFavoritesSelect,
+            items: [{ id: "all", label: "All Files", onSelect: () => undefined }],
+          },
+        ]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: null, onSelect: () => undefined }}
+        onOpen={() => undefined}
+        iconColumns={3}
+      />,
+    );
+
+    const library = screen.getByRole("row", { name: "Library" });
+    expect(library.getAttribute("aria-selected")).toBe("true");
+    expect(library.className).toContain("mc-selected");
+
+    const favorites = screen.getByRole("row", { name: /Favorites/ });
+    fireEvent.click(favorites);
+    expect(onFavoritesSelect).toHaveBeenCalledTimes(1);
+    expect(onLibrarySelect).not.toHaveBeenCalled();
+    expect(favorites.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(screen.getByRole("button", { name: /Collapse Favorites/ }));
+    expect(favorites.getAttribute("aria-expanded")).toBe("false");
+    expect(onFavoritesSelect).toHaveBeenCalledTimes(1);
+  });
+
   it("passes SidebarSection.className through to the section root", () => {
     const { container } = render(
       <FinderWindow
@@ -240,6 +287,33 @@ describe("FinderWindow sidebar source list", () => {
       />,
     );
     expect(container.querySelector(".mc-sidebar-section.demo-anchored")).toBeTruthy();
+  });
+
+  it("routes adversarial section and item ids without composite-key collisions", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { container } = render(
+      <FinderWindow
+        title="Vault"
+        sidebar={[
+          { id: "a:b", title: "First", items: [{ id: "c", label: "First item", onSelect: first }] },
+          { id: "a", title: "Second", items: [{ id: "b:c", label: "Second item", onSelect: second }] },
+        ]}
+        entries={entries}
+        mode="icons"
+        onModeChange={() => undefined}
+        search={{ value: "", onChange: () => undefined }}
+        selection={{ selectedId: null, onSelect: () => undefined }}
+        onOpen={() => undefined}
+        iconColumns={3}
+      />,
+    );
+
+    const keys = Array.from(container.querySelectorAll<HTMLElement>("[data-key]"), (row) => row.dataset["key"]);
+    expect(new Set(keys).size).toBe(keys.length);
+    fireEvent.click(screen.getByRole("row", { name: "Second item" }));
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
   });
 });
 

@@ -177,10 +177,11 @@ maps to: an app's normalized `NSDockTile` artwork; no SwiftUI counterpart — sy
 `interface MacDockAppIconProps { readonly icon: DockIconSource; readonly label?: string }`
 This is the Dock's shared optical-size boundary. Prefer typed `DockIcon`:
 `asset` preserves a supplied app icon's intrinsic safe area; `symbol` draws a
-generated icon in the shared tile and glyph boxes. String and `ReactNode`
-inputs remain shorthand for assets and symbols. Do not wrap a local full-size
-tile in `MacDock` or compensate for one icon with local scale CSS — all app
-icons must enter through this normalizer.
+generated icon in its 50px canvas, 42px tile, and 26px glyph boundary. String
+and `ReactNode` inputs remain shorthand for assets and symbols. Do not wrap a
+local full-size tile in `MacDock`, compensate for one icon with local scale or
+offset CSS, or let generated ink escape the boundary. Clipping is only a
+safety net; all app icons must enter through this normalizer.
 
 ### SystemSymbol
 maps to: SwiftUI `Image(systemName:)` (SF Symbols).
@@ -189,9 +190,17 @@ maps to: SwiftUI `Image(systemName:)` (SF Symbols).
 renders the corresponding private-use codepoint using the macOS system SF
 font; it ships no Apple font or exported symbol artwork. It is therefore
 faithful on a Mac client and should receive an explicit fallback only when a
-non-Mac client is in scope. Do not substitute bespoke SVG approximations.
-The template retains `components/SFSymbol.tsx` as a deprecated compatibility
-alias; package consumers import `SystemSymbol`.
+non-Mac client is in scope. The component measures each `symbolist`/system-SF
+glyph's rendered text/content bounds and uniformly scales/translates it into
+its assigned square optical frame; private-use glyph advance width and
+`font-size` do not describe the visible geometry. Do not supply per-symbol
+CSS transforms or offsets, and do not substitute bespoke SVG approximations.
+In a live audit,
+every visible symbol's content bounds must remain in its assigned frame,
+including wide symbols such as `laptopcomputer` and `person.2.fill`, after
+initial and dynamic mount. The template retains
+`components/SFSymbol.tsx` as a deprecated compatibility alias; package
+consumers import `SystemSymbol`.
 
 ### MacToolbar
 maps to: SwiftUI `.toolbar { ... }` / `NSToolbar` — rendered as a react-aria `Toolbar` (`role="toolbar"`), so arrow keys move focus between the controls.

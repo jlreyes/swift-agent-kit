@@ -170,9 +170,16 @@ and `.inspector`.)
   in addition to the default system set.
 - Audit Dock icons as one optical system, not just equal CSS dimensions. Each
   item enters through `MacDockAppIcon`: hydrated asset art retains its safe
-  area, while generated art uses the shared tile/glyph geometry. A nested
-  custom 50px tile, per-icon `transform: scale`, or one icon that is visibly
-  larger than its neighbors is P1.
+  area, while generated art uses the shared 50/42/26px canvas/tile/glyph
+  geometry. `SystemSymbol` measures rendered glyph/content bounds and maps
+  them into its frame; never assume `font-size` equals visible geometry or
+  correct one glyph with an offset or transform. A nested custom 50px tile,
+  per-icon transform or offset, uncontained generated Dock ink, or one icon
+  that is visibly larger
+  than its neighbors is P1. Audit live bounds for every visible
+  `SystemSymbol` after dynamic mount, including wide glyphs such as
+  `laptopcomputer` and `person.2.fill`; clipping may be a safety net, never
+  the means of containment.
 
 ## Control roles & emphasis
 

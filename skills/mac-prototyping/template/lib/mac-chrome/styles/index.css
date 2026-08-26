@@ -200,14 +200,67 @@
 }
 
 .p0-dock-item:hover {
-  transform: translateY(-7px) scale(1.1);
+  transform: translateY(-7px);
 }
 
-.p0-dock-item img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
+.p0-app-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  flex: 0 0 50px;
+  place-items: center;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.24));
+  pointer-events: none;
+  user-select: none;
+}
+
+.p0-app-icon-artwork {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.p0-app-icon--asset .p0-app-icon-artwork,
+.p0-app-icon-image {
+  width: 50px;
+  height: 50px;
+}
+
+.p0-app-icon-image {
+  display: block;
+  object-fit: contain;
+}
+
+.p0-app-icon--tile .p0-app-icon-artwork {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  color: white;
+  background: #087cff;
+}
+
+.p0-app-icon-glyph {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.p0-app-icon-glyph > * {
+  max-width: 26px;
+  max-height: 26px;
+}
+
+.p0-app-icon-glyph > :is(svg, .mc-system-symbol) {
+  width: 26px;
+  height: 26px;
+  font-size: 26px;
+}
+
+.p0-app-icon-glyph > svg {
+  display: block;
 }
 
 .p0-dock-running-dot {
@@ -261,8 +314,12 @@
 }
 
 .mc-system-symbol {
-  display: inline-block;
+  position: relative;
+  width: 1em;
+  height: 1em;
+  display: inline-grid;
   flex: 0 0 auto;
+  place-items: center;
   font-family: var(--font-sf-symbols, "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif);
   font-size: 1em;
   font-style: normal;
@@ -270,6 +327,16 @@
   line-height: 1;
   text-align: center;
   text-rendering: optimizeLegibility;
+  vertical-align: -0.125em;
+  white-space: nowrap;
+}
+
+.mc-system-symbol-glyph {
+  display: inline-block;
+  font: inherit;
+  line-height: 1;
+  transform: translate3d(var(--mc-symbol-fit-x, 0), var(--mc-symbol-fit-y, 0), 0) scale(var(--mc-symbol-fit-scale, 1));
+  transform-origin: 0 0;
   white-space: nowrap;
 }
 

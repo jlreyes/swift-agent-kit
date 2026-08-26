@@ -6,7 +6,7 @@
 // names, and default window geometry mirror the real package so pages written
 // against the stub keep working after vendoring. Full drag, focus, overlay,
 // and keyboard behavior exists only in the real package.
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import { getSymbol, type SymbolName } from "symbolist";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
@@ -1643,5 +1643,45 @@ export function SystemSymbol({ className = "", name, size }: {
   readonly name: SystemSymbolName;
   readonly size?: number;
 }) {
-  return <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>{getSymbol(name) ?? ""}</span>;
+  const frameRef = useRef<HTMLSpanElement>(null);
+  const glyphRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    const glyph = glyphRef.current;
+    if (frame === null || glyph === null) return;
+    let disposed = false;
+    const fit = () => {
+      if (disposed) return;
+      glyph.style.removeProperty("--mc-symbol-fit-scale");
+      glyph.style.removeProperty("--mc-symbol-fit-x");
+      glyph.style.removeProperty("--mc-symbol-fit-y");
+      const frameBounds = frame.getBoundingClientRect();
+      if (frameBounds.width <= 0 || frameBounds.height <= 0) return;
+      const range = document.createRange();
+      range.selectNodeContents(glyph);
+      if (typeof range.getBoundingClientRect !== "function") return;
+      const contentBounds = range.getBoundingClientRect();
+      if (contentBounds.width <= 0 || contentBounds.height <= 0) return;
+      const glyphBounds = glyph.getBoundingClientRect();
+      const scale = Math.min(1, frameBounds.width / contentBounds.width, frameBounds.height / contentBounds.height);
+      const targetLeft = frameBounds.left + (frameBounds.width - contentBounds.width * scale) / 2;
+      const targetTop = frameBounds.top + (frameBounds.height - contentBounds.height * scale) / 2;
+      glyph.style.setProperty("--mc-symbol-fit-scale", `${scale}`);
+      glyph.style.setProperty("--mc-symbol-fit-x", `${targetLeft - glyphBounds.left - (contentBounds.left - glyphBounds.left) * scale}px`);
+      glyph.style.setProperty("--mc-symbol-fit-y", `${targetTop - glyphBounds.top - (contentBounds.top - glyphBounds.top) * scale}px`);
+    };
+    fit();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    observer?.observe(frame);
+    void document.fonts?.ready.then(fit);
+    return () => {
+      disposed = true;
+      observer?.disconnect();
+    };
+  }, [name, size]);
+  return (
+    <span ref={frameRef} aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>
+      <span className="mc-system-symbol-glyph" ref={glyphRef}>{getSymbol(name) ?? ""}</span>
+    </span>
+  );
 }

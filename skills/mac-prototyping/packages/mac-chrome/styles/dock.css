@@ -80,6 +80,7 @@
 .p0-app-icon-artwork {
   display: grid;
   place-items: center;
+  overflow: hidden;
 }
 
 .p0-app-icon--asset .p0-app-icon-artwork,
@@ -109,6 +110,7 @@
   height: 26px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   line-height: 0;
 }
 
@@ -121,6 +123,10 @@
   width: 26px;
   height: 26px;
   font-size: 26px;
+}
+
+.p0-app-icon-glyph > svg {
+  display: block;
 }
 
 .p0-window-thumbnail {

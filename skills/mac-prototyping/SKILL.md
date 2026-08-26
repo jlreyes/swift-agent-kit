@@ -114,9 +114,9 @@ modal host clean up background isolation and restore status-trigger focus.
 
 The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
 asset artwork retains its own safe area, while generated symbol artwork is
-drawn in the shared tile and glyph boxes. Do not create a local 50px tile,
-wrap it in a Dock item, or tune one app icon with ad-hoc scale CSS — that
-breaks the shared optical-size contract.
+drawn in `MacDockAppIcon`'s shared 50/42/26px canvas/tile/glyph boundary.
+Do not create a local 50px tile, wrap it in a Dock item, or tune one app icon
+with ad-hoc scale CSS — that breaks the shared optical-size contract.
 
 The library deliberately does not promise full SwiftUI parity. Tables,
 outline views, grid collections, and other specialized patterns stay
@@ -148,8 +148,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   typed `symbolist` private-use codepoints and the macOS system SF font at
   render time. The template's `SFSymbol` is a deprecated compatibility alias;
   new chrome code imports `SystemSymbol`. Do not draw or ship bespoke SVG
-  approximations of SF Symbols. This path intentionally depends on a Mac
-  client resolving the installed system font. Third-party brand marks (Drive,
+  approximations of SF Symbols. `SystemSymbol` measures each
+  `symbolist`/system-SF glyph's rendered content bounds and uniformly maps it
+  into its assigned square optical frame: private-use glyph advance widths
+  vary, so `font-size` is not the visible geometry. Never add per-icon CSS
+  transforms or offsets. This path intentionally depends on a Mac client
+  resolving the installed system font. Third-party brand marks (Drive,
   Notion, GitHub…):
   `simple-icons` via the `BrandIcon` wrapper — committable. Verify the slug
   exists — `BrandIcon` warns in dev on unknown slugs; brands missing from
@@ -164,6 +168,10 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   Symbol SVGs, no macOS app-icon bitmaps.
 - **No Unicode stand-ins for system glyphs** (`▦ ☷ ⌕` etc.) — SVG or
   symbolist only.
+- **Generated Dock ink stays contained.** `MacDockAppIcon` remains the shared
+  50/42/26px canvas/tile/glyph boundary; its clipping is only a safety net,
+  not layout. Do not rely on clipping or per-icon adjustments to contain a
+  generated symbol.
 - **Fidelity before effect.** Default chrome to restrained opaque or
   near-opaque system materials with a hairline and a subtle system-like
   shadow. Do not emulate Liquid Glass or introduce custom
@@ -212,7 +220,10 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    screenshot or click the changed flow at the served URL. Automate
    multi-path checks (Playwright/console) instead of hand-stepping. For
    component discovery or a broad chrome audit, begin at `/showcase` before
-   checking the product surface.
+   checking the product surface. Audit live geometry: every visible
+   `SystemSymbol`'s content bounds must remain inside its assigned frame,
+   including wide symbols such as `laptopcomputer` and `person.2.fill`, and
+   after dynamic mount.
 2. Deploy/serve first and share the URL; reviews run after, not before.
 3. For direction decisions, new surfaces, or a final pass, convene the
    `mac-design-audit` agent with exactly: the pattern rubric, the diff or

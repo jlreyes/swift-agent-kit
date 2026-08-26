@@ -10,7 +10,7 @@ export {
   type MacWindowManagerValue,
   type MacWindowState,
 } from "./app.tsx";
-export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame } from "./window.tsx";
+export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame, type WindowSize } from "./window.tsx";
 export {
   defaultDockItems,
   MacDock,
@@ -36,6 +36,8 @@ export {
   MacPopover,
   type MenuAction,
   type MenuEntry,
+  type MacPopoverContentInset,
+  type MacPopoverLayout,
   type MenuPopoverConfig,
   type MenuSpec,
 } from "./menu.tsx";
@@ -74,9 +76,14 @@ export {
 export { MacContentUnavailable } from "./content-state.tsx";
 export {
   MacAlert,
+  MacSheet,
+  Sheet,
   MacWindowStatusBar,
   type MacAlertAction,
   type MacAlertActionRole,
+  type MacAlertPresentationScope,
+  type MacDialogAction,
+  type MacDialogActionRole,
 } from "./presentation.tsx";
 export {
   FinderWindow,
@@ -98,7 +105,7 @@ export {
   type ChooserSecondaryGroup,
   type StoredIdList,
 } from "./chooser-window.tsx";
-export { SetupAssistant, SetupHeading, Sheet, type SetupStep } from "./setup-assistant.tsx";
+export { SetupAssistant, SetupHeading, type SetupStep } from "./setup-assistant.tsx";
 export {
   ChatWindow,
   type ChatAuthor,

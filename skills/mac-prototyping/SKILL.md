@@ -72,7 +72,7 @@ copy a showcase layout or private component into product code.
 | Collapsible grouped detail | `MacDisclosureGroup` | `DisclosureGroup` |
 | Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
 | No-content state | `MacContentUnavailable` | `ContentUnavailableView` |
-| Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `Sheet` | window status area, `.alert`, `.sheet` |
+| Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
 
@@ -84,19 +84,26 @@ supplementary trailing pane; do not treat it as the third navigation column.
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;
 `MacAppDock` launches, restores, and activates from the same registry.
-`WindowChrome` registers itself with the enclosing app, pointer activation
-brings a background window forward, keyboard navigation can make a window
-key, and inactive traffic lights become quiet. Multiple windows in one app
-must have distinct stable `windowId` values; the single-window default is
-`${appId}:main`. Do not manage product windows by conditional rendering plus
-local z-index counters.
+`WindowChrome` registers itself with the enclosing app. It owns key-window
+focus, click-to-front, traffic lights, contained dragging, ResizeObserver
+recontainment, and the default eight-edge resize affordances. Multiple windows
+in one app must have distinct stable `windowId` values; the single-window
+default is `${appId}:main`. Use `resizable` and `minSize` on `WindowChrome`
+instead of recipe-local geometry. Every full-window recipe composes it and
+must not override `.mac-window` positioning. Do not manage product windows by
+conditional rendering plus local z-index counters.
 
 Use the default `presentation="windowed"` for an app with managed windows and
 a Dock tile. Use `presentation="menuBar"` for an app whose visible surface is
 a `MenuBarExtra`; it remains registered but is intentionally omitted from the
 Dock. Status feedback belongs in `MacWindowStatusBar` inside the owning
 window. A Dock launch should activate a registered app/window, not write a
-description of the Dock item into an unrelated app's status bar.
+description of the Dock item into an unrelated app's status bar. A menu-bar
+app uses `MacAlert presentationScope="desktop"` for a system decision so it
+never attaches to an unrelated key window. If the decision originates in a
+`MenuBarExtra` popover, control it with `isOpen`/`onOpenChange` and a stable
+`triggerRef`, close it, then open the desktop alert; this lets the shared
+modal host clean up background isolation and restore status-trigger focus.
 
 The Dock owns icon normalization. Pass a typed `DockIcon` where possible:
 asset artwork retains its own safe area, while generated symbol artwork is
@@ -130,9 +137,13 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **One CSS file per component/surface.** Never a shared growing global
   stylesheet. Do not add `backdrop-filter` recipes to the default chrome.
 - **The chrome package never imports product code.** Product → chrome only.
-- **Icons come in three tiers.** SF-style glyphs: `SystemSymbol` (original
-  SVGs) or `symbolist` + the `SFSymbol` wrapper (system-font-rendered at
-  view time). Third-party brand marks (Drive, Notion, GitHub…):
+- **Icons come in three tiers.** SF-style glyphs: `SystemSymbol`, backed by
+  typed `symbolist` private-use codepoints and the macOS system SF font at
+  render time. The template's `SFSymbol` is a deprecated compatibility alias;
+  new chrome code imports `SystemSymbol`. Do not draw or ship bespoke SVG
+  approximations of SF Symbols. This path intentionally depends on a Mac
+  client resolving the installed system font. Third-party brand marks (Drive,
+  Notion, GitHub…):
   `simple-icons` via the `BrandIcon` wrapper — committable. Verify the slug
   exists — `BrandIcon` warns in dev on unknown slugs; brands missing from
   simple-icons (Slack and Salesforce are absent from v16) fall back to the
@@ -152,10 +163,22 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `backdrop-filter`/saturation recipes unless the owner explicitly asks for
   that experiment. Menus and status popovers must remain legible over any
   wallpaper.
-- **One menu/popover system.** Commands and anchored disclosures use the
-  shared `MacMenu` or `MacDetailsMenu` primitives. Do not add bespoke overlays
-  or native `<details>` controls to a toolbar or menu bar; they skip the
-  platform dismissal, focus, and geometry contract.
+- **One menu/popover system.** `MacMenu` owns compact 13px/24px command rows;
+  `MacPopover` owns arbitrary anchored content with named layout and content
+  inset choices. `MacDetailsMenu` composes the latter for an account-style
+  summary trigger. Do not conflate commands with content popovers or add
+  bespoke overlays/native `<details>` controls; they skip the shared
+  dismissal, focus, and geometry contract.
+- **One presentation host.** Use `MacSheet` for an attached task with owned
+  title/body/actions/insets and `MacAlert` for a short system decision. Pass
+  `MacDialogAction` data (semantic `cancel`/`destructive` role plus independent
+  `isDefault`) rather than authoring a button row inside a sheet. The legacy
+  `Sheet` is compatibility-only; `SetupHeading` is recipe artwork, not a
+  general dialog API.
+- **One disclosure contract.** Use `MacDisclosureGroup` for grouped detail and
+  `MacSourceList` for navigable sidebar sections. The shared indicator is a
+  `SystemSymbol`; source-list section headers are structural, never selection
+  destinations. Do not draw chevrons in CSS or animate a reveal by scaling it.
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small
@@ -191,7 +214,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    re-verify round; findings it can't prove live are hypotheses, not blocks.
    With no owner to send a URL to and no audit agent (CI, cold-start
    sessions), the loop degrades to: serve → DOM/content checks against the
-   served pages → a rubric self-pass; screenshots optional.
+   served pages → a rubric self-pass; screenshots optional. The showcase must
+   dogfood public primitives, demonstrate both windowed and menu-bar apps, and
+   cover window containment/focus/resize plus attached and desktop modal
+   scopes. Do not fix a catalog defect with story-local geometry, padding, or
+   icon code.
 4. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md`, not in
    long-lived reviewer conversations — one line per finding
    (date · finder · [Pn] finding — file:line → resolution):
@@ -199,7 +226,7 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    ```text
    2026-08-11 · mac-design-audit · [P1] centered two-line toolbar title — app/files/page.tsx:24 → left-aligned single line
    2026-08-11 · owner · [P2] glass on content background — app/files/files-surface.tsx:58 → blur moved to toolbar capsule
-   2026-08-12 · self · [P3] Unicode ⌕ in search bubble — app/files/files-surface.tsx:71 → SFSymbol magnifyingglass
+   2026-08-12 · self · [P3] Unicode ⌕ in search bubble — app/files/files-surface.tsx:71 → SystemSymbol magnifyingglass
    ```
 
 ## When a rule fights you

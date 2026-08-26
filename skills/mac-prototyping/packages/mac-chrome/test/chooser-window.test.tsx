@@ -52,7 +52,7 @@ it("routes secondary chooser commands through the shared Mac menu system", async
               commands: [
                 {
                   id: "file",
-                  symbol: "doc.badge.arrow.down",
+                  symbol: "arrow.down.doc",
                   title: "Import File…",
                   caption: "Open an existing document.",
                   onSelect: () => { picked = "file"; },
@@ -65,6 +65,12 @@ it("routes secondary chooser commands through the shared Mac menu system", async
       />,
     );
   });
+
+  const window = container.querySelector<HTMLElement>(".mac-window.mc-chooser-window");
+  expect(window).toBeTruthy();
+  expect(window?.querySelector(".mc-chooser-toolbar[data-window-drag-handle]")).toBeTruthy();
+  expect(window?.querySelectorAll(".traffic-lights button")).toHaveLength(3);
+  expect(window?.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
 
   const trigger = container.querySelector<HTMLButtonElement>("button[aria-label='More Options']");
   expect(trigger).toBeTruthy();

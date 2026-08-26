@@ -56,10 +56,10 @@
   /* Radii */
   --radius-window: 12px;
   --radius-control: 7px;
-  --radius-menu-item: 5px;
+  --radius-menu-item: 6px;
   --radius-menu-popover: 10px;
   --radius-capsule: 999px;
-  --radius-popover: 11px;
+  --radius-popover: 12px;
   /* Aliases kept for extracted CSS written against the older names */
   --window-radius: var(--radius-window);
   --control-radius: var(--radius-control);
@@ -107,6 +107,15 @@
   --blur-soft: 14px;
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.08);
 
-  --font-mac: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  /* Native typography contract. Browsers on macOS resolve the system aliases
+     to San Francisco; no bundled font asset or smoothing override is needed. */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --font-mac: var(--font-system);
+  --font-size-menu: 13px;
+  --font-size-secondary: 11px;
+  --line-height-menu: 16px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-sf-symbols: "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif;
   color-scheme: light;
 }

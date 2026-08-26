@@ -19,7 +19,7 @@ import {
 } from "react-aria-components";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
-import { SystemSymbol } from "./system-symbol.tsx";
+import { DisclosureIndicator } from "./disclosure-indicator.tsx";
 import "./styles/tokens.css";
 import "./styles/navigation.css";
 
@@ -369,7 +369,7 @@ export type MacSourceListProps = {
   readonly sections: readonly MacSourceListSection[];
   readonly label?: string;
   readonly className?: string;
-  /** Item and titled-section ids share one collection-level selection space. */
+  /** Selected item id. Section headings are focusable disclosure controls, not app selections. */
   readonly selectedId: string | null;
   readonly onSelectionChange: (id: string) => void;
   /** Controlled expanded section ids. Omit to start every section expanded. */
@@ -377,7 +377,6 @@ export type MacSourceListProps = {
   readonly onExpandedSectionIdsChange?: (ids: ReadonlySet<string>) => void;
 };
 
-/* Consumer section/item ids share one React Aria keyspace. */
 function sectionKey(id: string): string {
   return `section:${id}`;
 }
@@ -412,10 +411,6 @@ export function MacSourceList({
 
   let selectedKey: Key | undefined;
   for (const section of sections) {
-    if (section.title !== undefined && section.id === selectedId) {
-      selectedKey = sectionKey(section.id);
-      break;
-    }
     const selectedItem = section.items.find((item) => item.id === selectedId);
     if (selectedItem !== undefined) {
       selectedKey = itemKey(selectedItem.id);
@@ -427,10 +422,6 @@ export function MacSourceList({
     if (selection === "all") return;
     const key = [...selection][0];
     for (const section of sections) {
-      if (key === sectionKey(section.id)) {
-        onSelectionChange(section.id);
-        return;
-      }
       for (const item of section.items) {
         if (key === itemKey(item.id)) {
           onSelectionChange(item.id);
@@ -503,7 +494,7 @@ export function MacSourceList({
             key={`section-${section.id}`}
             id={sectionKey(section.id)}
             textValue={title}
-            className={`mc-sidebar-section mc-sidebar-section-header${selectedId === section.id ? " mc-selected" : ""}${extraClass}`}
+            className={`mc-sidebar-section mc-sidebar-section-header${extraClass}`}
             onPress={(event) => {
               if (event.pointerType !== "keyboard" && event.target instanceof HTMLElement) {
                 event.target.focus();
@@ -522,9 +513,7 @@ export function MacSourceList({
                   className="mc-sidebar-disclosure-button"
                   aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
                 >
-                  <span className={`mc-sidebar-disclosure${expanded ? " mc-open" : ""}`}>
-                    <SystemSymbol name="chevron.right" />
-                  </span>
+                  <DisclosureIndicator className="mc-sidebar-disclosure" expanded={expanded} />
                 </Button>
               ) : null}
             </TreeItemContent>

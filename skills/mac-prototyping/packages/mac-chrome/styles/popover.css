@@ -16,13 +16,16 @@
   max-width: min(300px, calc(100vw - 16px));
   max-height: 392px;
   overflow: auto;
-  padding: 4px;
+  padding: 4px 6px;
   border: 0.5px solid var(--popover-border);
   border-radius: var(--radius-menu-popover);
   background: var(--popover-surface);
   box-shadow: var(--shadow-popover);
   color: var(--ink);
   font-family: var(--font-mac);
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-menu);
   text-shadow: none;
   outline: none;
 }
@@ -37,9 +40,9 @@
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  min-height: 27px;
-  padding: 3px 8px 3px 5px;
+  gap: 8px;
+  min-height: 24px;
+  padding: 4px 8px;
   border: 0;
   border-radius: var(--radius-menu-item);
   background: transparent;
@@ -62,9 +65,10 @@
   min-width: 0;
 }
 
-.mc-menu-popover .mc-menu-icon > svg {
+.mc-menu-popover .mc-menu-icon > :is(svg, .mc-system-symbol) {
   width: 15px;
   height: 15px;
+  font-size: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.65;
@@ -72,16 +76,18 @@
   stroke-linejoin: round;
 }
 
-.mc-menu-popover .mc-menu-trailing > svg {
+.mc-menu-popover .mc-menu-trailing > :is(svg, .mc-system-symbol) {
   width: 13px;
   height: 13px;
+  font-size: 13px;
 }
 
 .mc-menu-shortcut {
   color: inherit;
-  font: inherit;
-  font-size: 12.5px;
-  letter-spacing: 0.01em;
+  font-family: var(--font-mac);
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-menu);
   white-space: nowrap;
 }
 
@@ -98,19 +104,19 @@
   color: var(--faint);
 }
 
-.mc-menu-popover strong {
+.mc-menu-popover .mc-menu-label {
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 450;
-  line-height: 1.15;
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-menu);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mc-menu-popover small {
   color: var(--muted);
-  font-size: 10.5px;
-  line-height: 1.2;
+  font-size: var(--font-size-secondary);
+  line-height: 14px;
 }
 
 .mc-menu-popover .mc-menu-item[data-focused] small,
@@ -121,14 +127,14 @@
 .menu-section-label {
   padding: 7px 7px 3px;
   color: var(--faint);
-  font-size: 10px;
-  font-weight: 660;
+  font-size: var(--font-size-secondary);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0.055em;
 }
 
 .menu-separator {
   height: 1px;
-  margin: 3px 6px;
+  margin: 3px 2px;
   background: var(--line);
 }
 
@@ -143,6 +149,8 @@
   box-shadow: var(--shadow-popover);
   color: var(--ink);
   font-family: var(--font-mac);
+  font-size: var(--font-size-menu);
+  line-height: 1.35;
   text-shadow: none;
 }
 
@@ -151,7 +159,16 @@
 }
 
 .mc-popover-dialog {
+  padding: 14px;
   outline: none;
+}
+
+.mc-popover-dialog[data-content-inset="compact"] {
+  padding: 10px;
+}
+
+.mc-popover-dialog[data-content-inset="flush"] {
+  padding: 0;
 }
 
 .mc-details-menu {
@@ -180,9 +197,10 @@
   background: #ececee;
 }
 
-.mc-details-menu-trigger > svg {
+.mc-details-menu-trigger > :is(svg, .mc-system-symbol) {
   width: 16px;
   height: 16px;
+  font-size: 16px;
 }
 
 .mc-details-menu-popover {
@@ -192,7 +210,6 @@
 .mc-details-menu-popover .mc-popover-dialog {
   display: grid;
   gap: 2px;
-  padding: 10px;
 }
 
 .mc-details-menu-popover b,
@@ -268,9 +285,10 @@
   filter: invert(1);
 }
 
-.mc-menubar-trigger svg {
+.mc-menubar-trigger :is(svg, .mc-system-symbol) {
   width: 15px;
   height: 15px;
+  font-size: 15px;
 }
 
 .mc-menubar-badge {
@@ -292,11 +310,11 @@
   text-shadow: none;
 }
 
-.mc-menubar-popover {
+.mc-popover-surface[data-popover-layout="status"] {
   width: min(280px, calc(100vw - 16px));
 }
 
-.mc-menubar-popover .mc-popover-dialog {
+.mc-popover-surface[data-popover-layout="status"] .mc-popover-dialog {
   display: flex;
   flex-direction: column;
 }
@@ -316,9 +334,10 @@
   object-fit: contain;
 }
 
-.mc-menubar-popover header svg {
+.mc-menubar-popover header :is(svg, .mc-system-symbol) {
   width: 26px;
   height: 26px;
+  font-size: 26px;
 }
 
 .mc-menubar-popover header span {
@@ -327,8 +346,16 @@
   gap: 1px;
 }
 
-.mc-menubar-popover header strong { color: var(--ink); font-size: 11.5px; }
-.mc-menubar-popover header small { color: var(--muted); font-size: 9px; }
+.mc-menubar-popover header strong {
+  color: var(--ink);
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-semibold);
+}
+
+.mc-menubar-popover header small {
+  color: var(--muted);
+  font-size: var(--font-size-secondary);
+}
 
 .mc-menubar-popover header button {
   width: 27px;
@@ -354,7 +381,7 @@
   border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
-  font-size: 8.5px;
+  font-size: var(--font-size-secondary);
 }
 
 .mc-menubar-popover footer button:hover {

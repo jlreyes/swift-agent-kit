@@ -117,9 +117,10 @@
   max-height: 26px;
 }
 
-.p0-app-icon-glyph > svg {
+.p0-app-icon-glyph > :is(svg, .mc-system-symbol) {
   width: 26px;
   height: 26px;
+  font-size: 26px;
 }
 
 .p0-dock-tooltip {

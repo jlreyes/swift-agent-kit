@@ -16,6 +16,7 @@ import "./styles/chooser.css";
 
 /* Default geometry (welcome/chooser rubric: ~820x520, centered). */
 const chooserDefaultSize = { width: 820, height: 520 } as const;
+const chooserMinSize = { width: 600, height: 420 } as const;
 
 export type ChooserChoice = {
   readonly id: string;
@@ -270,6 +271,7 @@ export function ChooserWindow({
       label={label ?? title}
       frame={frame}
       defaultSize={chooserDefaultSize}
+      minSize={chooserMinSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}

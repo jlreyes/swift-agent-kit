@@ -2,7 +2,6 @@
    welcome/chooser shell; keep it if editing. */
 
 .mc-chooser-window {
-  position: relative;
   display: grid;
   grid-template-rows: 48px 92px minmax(0, 1fr) 58px;
   overflow: hidden;
@@ -127,10 +126,11 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-.mc-chooser-choice > svg {
+.mc-chooser-choice > :is(svg, .mc-system-symbol) {
   width: 27px;
   height: 27px;
   color: var(--text-soft);
+  font-size: 27px;
 }
 
 .mc-chooser-choice-copy {
@@ -188,16 +188,18 @@
   background: rgba(255, 255, 255, 0.78);
 }
 
-.mc-chooser-secondary-trigger > svg {
+.mc-chooser-secondary-trigger > :is(svg, .mc-system-symbol) {
   width: 19px;
   height: 19px;
   color: var(--text-soft);
+  font-size: 19px;
 }
 
-.mc-chooser-secondary-trigger > svg:last-child {
+.mc-chooser-secondary-trigger > :is(svg, .mc-system-symbol):last-child {
   width: 11px;
   height: 11px;
   color: var(--text-faint);
+  font-size: 11px;
 }
 
 .mc-chooser-secondary-trigger > span {

@@ -1,7 +1,6 @@
 /* ChatWindow chrome: frame, sidebar, toolbar, transcript grammar, composer. */
 
 .mc-chat-window {
-  position: relative;
   display: block;
   overflow: hidden;
   border: 0.5px solid var(--glass-strong);
@@ -284,9 +283,10 @@
   background: var(--accent);
 }
 
-.mc-chat-send svg {
+.mc-chat-send :is(svg, .mc-system-symbol) {
   width: 13px;
   height: 13px;
+  font-size: 13px;
 }
 
 .mc-chat-send:disabled {

@@ -15,6 +15,7 @@ import "./styles/chat.css";
 
 /* Default geometry (Messages-ish proportions on the 1200px canvas). */
 const chatDefaultSize = { width: 760, height: 540 } as const;
+const chatMinSize = { width: 520, height: 360 } as const;
 
 export type ChatRole = "owner" | "agent" | "system";
 
@@ -172,6 +173,7 @@ export function ChatWindow({
       label={label ?? active?.title ?? "Chat"}
       frame={frame}
       defaultSize={chatDefaultSize}
+      minSize={chatMinSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}

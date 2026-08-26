@@ -13,6 +13,7 @@ import {
   type Selection,
 } from "react-aria-components";
 
+import { DisclosureIndicator } from "./disclosure-indicator.tsx";
 import "./styles/tokens.css";
 import "./styles/collections.css";
 
@@ -122,7 +123,7 @@ export function MacDisclosureGroup({
     >
       <h3 className="mc-disclosure-heading">
         <AriaButton slot="trigger" className="mc-disclosure-trigger">
-          <span className="mc-disclosure-chevron" aria-hidden="true" />
+          <DisclosureIndicator expanded={expanded} />
           <span>{title}</span>
         </AriaButton>
       </h3>

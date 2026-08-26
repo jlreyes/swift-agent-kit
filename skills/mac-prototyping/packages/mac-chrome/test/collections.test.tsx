@@ -66,8 +66,30 @@ it("uses controlled disclosure state and an accessible content-unavailable headi
 
   const trigger = container.querySelector<HTMLButtonElement>(".mc-disclosure-trigger");
   expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+  expect(
+    container.querySelector(".mc-disclosure-indicator .mc-system-symbol")?.getAttribute("data-system-symbol"),
+  ).toBe("chevron.right");
+  expect(container.querySelector(".mc-disclosure-indicator svg")).toBeNull();
   await act(async () => trigger?.click());
   expect(expanded).toBe(true);
+  await act(async () => {
+    root.render(
+      <>
+        <MacDisclosureGroup expanded={expanded} title="Advanced" onExpandedChange={(value) => { expanded = value; }}>
+          <p>Advanced content</p>
+        </MacDisclosureGroup>
+        <MacContentUnavailable
+          icon={<span>!</span>}
+          title="No Selection"
+          description="Choose an item in the list."
+          actions={<button type="button">Refresh</button>}
+        />
+      </>,
+    );
+  });
+  expect(
+    container.querySelector(".mc-disclosure-indicator .mc-system-symbol")?.getAttribute("data-system-symbol"),
+  ).toBe("chevron.down");
   const emptyState = container.querySelector<HTMLElement>(".mc-content-unavailable");
   const heading = container.querySelector<HTMLElement>(".mc-content-unavailable h2");
   expect(emptyState?.getAttribute("aria-labelledby")).toBe(heading?.id);

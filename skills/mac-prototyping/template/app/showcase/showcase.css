@@ -251,15 +251,17 @@
   background: var(--selection-tint);
 }
 
-.showcase-library-items svg {
+.showcase-library-items :is(svg, .mc-system-symbol) {
   width: 38px;
   height: 38px;
   color: #4e82b4;
+  font-size: 38px;
 }
 
-.showcase-library-items.is-list svg {
+.showcase-library-items.is-list :is(svg, .mc-system-symbol) {
   width: 21px;
   height: 21px;
+  font-size: 21px;
 }
 
 .showcase-inline-status {
@@ -306,10 +308,11 @@
   text-align: center;
 }
 
-.showcase-navigation-detail > svg {
+.showcase-navigation-detail > :is(svg, .mc-system-symbol) {
   width: 48px;
   height: 48px;
   color: #5487b8;
+  font-size: 48px;
 }
 
 .showcase-navigation-detail h3 {
@@ -394,14 +397,21 @@
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
 }
 
-.showcase-control-row svg {
+.showcase-control-row :is(svg, .mc-system-symbol) {
   width: 15px;
   height: 15px;
+  font-size: 15px;
 }
 
 .showcase-popover-copy,
-.showcase-extra-popover,
 .showcase-conversation-details {
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.showcase-extra-popover {
   min-width: 210px;
   padding: 12px;
   display: flex;
@@ -423,16 +433,10 @@
   background: var(--accent);
 }
 
-.showcase-sheet-form {
-  max-width: 420px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.showcase-sheet-form .showcase-form-actions {
-  justify-content: flex-end;
+.showcase-sheet-copy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.45;
 }
 
 .showcase-recipe-summary {
@@ -443,10 +447,11 @@
   background: #ffffff;
 }
 
-.showcase-recipe-summary > svg {
+.showcase-recipe-summary > :is(svg, .mc-system-symbol) {
   width: 44px;
   height: 44px;
   color: #5487b8;
+  font-size: 44px;
 }
 
 .showcase-recipe-summary h3 {
@@ -478,9 +483,10 @@
   font-size: 13px;
 }
 
-.showcase-component-inspector > header svg {
+.showcase-component-inspector > header :is(svg, .mc-system-symbol) {
   width: 15px;
   height: 15px;
+  font-size: 15px;
 }
 
 .showcase-component-inspector dl {
@@ -505,10 +511,11 @@
   text-align: center;
 }
 
-.showcase-preview-card > svg {
+.showcase-preview-card > :is(svg, .mc-system-symbol) {
   width: 54px;
   height: 54px;
   color: #5185b6;
+  font-size: 54px;
 }
 
 .showcase-preview-card p {
@@ -557,20 +564,6 @@
 .showcase-conversation-details span {
   color: var(--text-soft);
   font-size: 12px;
-}
-
-.mc-sheet > p {
-  max-width: 440px;
-  margin: 0 auto;
-  color: var(--text-soft);
-  line-height: 1.5;
-  text-align: center;
-}
-
-.mc-sheet > footer {
-  margin-top: 28px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 @media (max-width: 900px) {

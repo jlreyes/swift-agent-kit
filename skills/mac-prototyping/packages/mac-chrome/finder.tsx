@@ -25,6 +25,7 @@ import "./styles/finder.css";
 
 /* Default geometry (macOS Finder-ish proportions on the 1200px canvas). */
 const finderDefaultSize = { width: 940, height: 580 } as const;
+const finderMinSize = { width: 660, height: 380 } as const;
 
 export type FinderEntry = {
   readonly id: string;
@@ -437,6 +438,7 @@ export function FinderWindow({
       label={label ?? title ?? "Finder"}
       frame={frame}
       defaultSize={finderDefaultSize}
+      minSize={finderMinSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}

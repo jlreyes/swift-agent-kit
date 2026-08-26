@@ -246,6 +246,11 @@ describe("FinderWindow sidebar source list", () => {
 describe("FinderWindow toolbar", () => {
   it("renders view modes as a divided, exclusive segmented control", () => {
     const { container } = render(<Harness withPreview />);
+    const window = container.querySelector<HTMLElement>(".mac-window.mc-finder-window");
+    expect(window).toBeTruthy();
+    expect(window?.querySelector(".mc-finder-sidebar-top[data-window-drag-handle]")).toBeTruthy();
+    expect(window?.querySelectorAll(".traffic-lights button")).toHaveLength(3);
+    expect(window?.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
     const viewGroup = screen.getByRole("group", { name: "View" });
     expect(viewGroup.classList.contains("mc-capsule")).toBe(true);
     expect(viewGroup.hasAttribute("data-divided")).toBe(true);

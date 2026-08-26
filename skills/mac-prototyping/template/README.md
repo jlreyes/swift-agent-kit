@@ -61,19 +61,39 @@ Build a product surface from public primitives before adding local components:
   a stable `MacApp`, let `WindowChrome` register the app's windows, and use
   `MacAppDock` for launch, activation, running state, and restore. Give every
   additional window in one app an explicit stable `windowId`; do not maintain
-  local z-index or “active window” mount state.
+  local z-index or “active window” mount state. `WindowChrome` owns
+  click-to-front, contained drag, ResizeObserver recontainment, and default
+  eight-edge resizing; set its `minSize`/`resizable` props rather than
+  reimplementing geometry or overriding `.mac-window` positioning.
 - Use `MacApp presentation="windowed"` for ordinary Dock apps and
   `presentation="menuBar"` with `MenuBarExtra` for status-item-only apps.
+- Use `MacAlert presentationScope="desktop"` for a menu-bar app's system
+  alert. Windowed alerts and `MacSheet` attach to their owning window. When a
+  status-item popover launches that alert, control `MenuBarExtra` with
+  `isOpen`/`onOpenChange` and a stable `triggerRef`, close it, then open the
+  alert so the shared modal host can clean up background isolation and restore
+  focus to the status trigger.
 - Use `MacNavigationSplitView` for sidebar/detail (two columns) or
   sidebar/content/detail (three navigation columns). Use `MacInspector` as a
   separate supplementary pane, not as the third navigation column.
 - Use `MacSourceList` for source-list sidebars, `MacList` for selectable
-  rows, and `MacDisclosureGroup` for controlled collapsed detail.
+  rows, and `MacDisclosureGroup` for controlled collapsed detail. Source-list
+  section headers are structural, not navigation destinations; both disclosure
+  surfaces use the shared SF Symbol indicator.
 - Use `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`,
   `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, and
   `MacContentUnavailable` instead of restyling raw controls and empty states.
 - Use `MacWindowStatusBar` for window-owned status, `MacAlert` for short
-  decisions, and `Sheet` for a scoped modal workflow.
+  decisions, and `MacSheet` for a scoped modal workflow. `MacSheet` owns its
+  title, body insets, and action row; pass `MacDialogAction` data instead of
+  composing a heading or button row in the caller. `Sheet` is compatibility
+  only.
+- Use `MacMenu` for 13px/24px command rows and `MacPopover` for arbitrary
+  anchored content (`layout` and `contentInset` are explicit). Do not style
+  arbitrary content as a command menu or build raw overlay/details widgets.
+  Both `MacPopover` and `MenuBarExtra` expose controlled
+  `isOpen`/`onOpenChange` state and `triggerRef` for a popover-to-desktop-alert
+  handoff with stable focus restoration.
 - Use a typed `DockIcon` with `MacDock` for app tiles. Asset icons preserve
   their own safe area; generated symbol icons use the shared tile and glyph
   boxes. Do not create a local full-size Dock icon tile or per-app scaling.
@@ -118,8 +138,11 @@ and first client render aligned, then go live inside `useEffect`; calling
 
 ## Icons — three tiers
 
-1. **SF-style glyphs** — `components/SFSymbol.tsx` (`symbolist`): name →
-   codepoint, rendered by the system font on Macs; no Apple assets ship.
+1. **SF-style glyphs** — `SystemSymbol` (`symbolist`): typed name → private-use
+   codepoint, rendered by the installed system SF font on Macs; no Apple
+   assets ship. `components/SFSymbol.tsx` is a deprecated compatibility alias;
+   new code imports `SystemSymbol`. Do not draw or ship bespoke SVG
+   approximations. Exact glyph rendering therefore depends on a Mac client.
 2. **Third-party service marks** — `components/BrandIcon.tsx`
    (`simple-icons`): inline SVG paths in the brand color (e.g.
    `<BrandIcon slug="notion" />`). Committable.

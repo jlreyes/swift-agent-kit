@@ -45,7 +45,7 @@ describe("DesktopShell menu bar menus", () => {
     expect(getByRole("button", { name: "File" })).toBeTruthy();
     expect(getByRole("button", { name: "Edit" })).toBeTruthy();
     expect(getByRole("button", { name: "View" })).toBeTruthy();
-    expect(container.querySelector(".apple-mark svg")).toBeTruthy();
+    expect(container.querySelector(".apple-mark [data-system-symbol='apple.logo']")).toBeTruthy();
   });
 
   it("uses recognizable shared symbols for the native Apple menu commands", async () => {
@@ -56,7 +56,7 @@ describe("DesktopShell menu bar menus", () => {
     const appleMenu = getByRole("menu", { name: "Apple menu" });
     expect(appleMenu.querySelector("[data-system-symbol='laptopcomputer']")).toBeTruthy();
     expect(appleMenu.querySelector("[data-system-symbol='gear']")).toBeTruthy();
-    expect(appleMenu.querySelector("[data-system-symbol='appstore']")).toBeTruthy();
+    expect(appleMenu.querySelector("[data-system-symbol='app']")).toBeTruthy();
   });
 
   it("routes Apple menu commands through the same explicit command target", async () => {
@@ -222,12 +222,11 @@ describe("DesktopShell menu bar menus", () => {
 });
 
 describe("DesktopShell status items", () => {
-  it("uses self-contained SVG glyphs without the overlapping CSS Wi-Fi artifact", () => {
+  it("uses native symbolist glyphs inside accessible status wrappers", () => {
     const { container } = renderShell();
-    expect(container.querySelector("[data-status-icon='battery']")).toBeTruthy();
-    expect(container.querySelector("[data-status-icon='wifi']")).toBeTruthy();
-    expect(container.querySelector("[data-status-icon='control-center']")).toBeTruthy();
-    expect(container.querySelector(".status-wifi i")).toBeNull();
+    expect(container.querySelector("[data-status-icon='battery'][aria-label='Battery'] [data-system-symbol='battery.100percent']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='wifi'][aria-label='Wi-Fi'] [data-system-symbol='wifi']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='control-center'][aria-label='Control Center'] [data-system-symbol='switch.2']")).toBeTruthy();
   });
 });
 

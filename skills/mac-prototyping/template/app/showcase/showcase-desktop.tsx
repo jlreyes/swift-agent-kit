@@ -26,6 +26,7 @@ import {
   MacMenu,
   MacNavigationSplitView,
   MacPopover,
+  MacSheet,
   MacSegmentedControl,
   MacSourceList,
   MacTextField,
@@ -36,7 +37,6 @@ import {
   MenuBarExtra,
   SetupAssistant,
   SetupHeading,
-  Sheet,
   SystemSymbol,
   ToolbarButton,
   ToolbarCapsule,
@@ -51,12 +51,14 @@ import {
   type FinderEntry,
   type FinderViewMode,
   type MacListSection,
+  type MacDialogAction,
   type MacSourceListSection,
   type MenuBarMenu,
   type MenuSpec,
   type SetupStep,
   type SidebarSection,
   type SystemSymbolName,
+  type WindowSize,
 } from "../../lib/mac-chrome/index.ts";
 
 type StoryId =
@@ -188,6 +190,7 @@ export const coveredExports = [
   "MacMenu",
   "MacNavigationSplitView",
   "MacPopover",
+  "MacSheet",
   "MacSegmentedControl",
   "MacSourceList",
   "MacTextField",
@@ -236,6 +239,8 @@ const recentChoiceIds = createStoredIdList("mac-chrome-showcase-recent-choices",
   chooserChoices.some((choice) => choice.id === id),
 );
 
+const catalogMinimumSize: WindowSize = { width: 680, height: 480 };
+
 function StoryPreview({ detail, symbol, title }: {
   readonly detail: string;
   readonly symbol: SystemSymbolName;
@@ -269,7 +274,7 @@ function AppAnatomyStory() {
     ["MacSourceList", "persistent catalog navigation"],
     ["MacToolbar", "context title and duplicate menu commands"],
     ["MacInspector", "optional supplementary controls, outside navigation"],
-    ["MacAlert + Sheet", "system decisions and attached modal workflows"],
+    ["MacAlert + MacSheet", "system decisions and attached modal workflows"],
     ["MacWindowStatusBar", "feedback owned by the active window"],
   ] as const;
   return (
@@ -473,7 +478,7 @@ function MenusStory() {
       <StoryHeader title="Menus and popovers" description="Menus are command lists. Popovers host small arbitrary interfaces. Both use shared overlay behavior rather than ad hoc dropdown CSS." />
       <section className="showcase-control-row" aria-label="Menu and popover examples">
         <MacMenu trigger={<><SystemSymbol name="list.bullet" /> Actions</>} triggerLabel="Actions" label="Example actions" items={items} />
-        <MacPopover label="Component information" trigger={<><SystemSymbol name="person.crop.circle" /> Info</>}>
+        <MacPopover contentInset="regular" label="Component information" layout="content" trigger={<><SystemSymbol name="person.crop.circle" /> Info</>}>
           <div className="showcase-popover-copy">
             <strong>Popover content</strong>
             <p>Use this for a small amount of transient functionality, not a list of commands.</p>
@@ -497,37 +502,51 @@ function MenusStory() {
 function PresentationStory() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
-  const [alertResult, setAlertResult] = useState("No alert action selected.");
+  const [presentationStatus, setPresentationStatus] = useState("No projects created.");
   const [projectName, setProjectName] = useState("Untitled Project");
   const sheetTriggerRef = useRef<HTMLButtonElement>(null);
   const alertTriggerRef = useRef<HTMLButtonElement>(null);
+  const sheetActions: readonly MacDialogAction[] = [
+    { id: "cancel", label: "Cancel", role: "cancel" },
+    {
+      id: "create",
+      label: "Create",
+      isDefault: true,
+      disabled: projectName.trim().length === 0,
+      onPress: () => setPresentationStatus(`Created ${projectName.trim()}.`),
+    },
+  ];
   return (
     <div className="showcase-story-pane">
-      <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, Sheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
+      <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, MacSheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
       <MacContentUnavailable
         icon={<SystemSymbol name="folder" />}
         title="No projects"
         description="Create a project to see it in this collection. The status belongs in the active window, not on the desktop."
-        actions={<div className="showcase-presentation-actions"><MacButton ref={sheetTriggerRef} className="showcase-sheet-trigger" variant="primary" onPress={() => setSheetOpen(true)}>Create Project…</MacButton><MacButton ref={alertTriggerRef} onPress={() => setAlertOpen(true)}>Show System Alert</MacButton></div>}
+        actions={<div className="showcase-presentation-actions"><MacButton ref={sheetTriggerRef} className="showcase-sheet-trigger" variant="primary" onPress={() => setSheetOpen(true)}>Create Project…</MacButton><MacButton ref={alertTriggerRef} onPress={() => setAlertOpen(true)}>Delete Draft…</MacButton></div>}
       />
-      <MacWindowStatusBar live="polite" trailing="Alert feedback">{alertResult}</MacWindowStatusBar>
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} label="Create Project" fallbackFocusRef={sheetTriggerRef} initialFocusSelector=".mc-field-input">
-        <SetupHeading symbol="folder.badge.plus" title="Create Project" />
-        <div className="showcase-sheet-form">
-          <MacTextField ariaLabel="Project name" value={projectName} onChange={setProjectName} />
-          <div className="showcase-form-actions"><MacButton onPress={() => setSheetOpen(false)}>Cancel</MacButton><MacButton variant="primary" onPress={() => setSheetOpen(false)}>Create</MacButton></div>
-        </div>
-      </Sheet>
+      <MacWindowStatusBar live="polite" trailing="Window status">{presentationStatus}</MacWindowStatusBar>
+      <MacSheet
+        actions={sheetActions}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="Create Project"
+        fallbackFocusRef={sheetTriggerRef}
+        initialFocusSelector=".mc-field-input"
+      >
+        <MacTextField ariaLabel="Project name" value={projectName} onChange={setProjectName} />
+      </MacSheet>
       <MacAlert
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
         fallbackFocusRef={alertTriggerRef}
-        icon={<SystemSymbol name="shield.fill" />}
-        title="Apply the prototype settings?"
-        message="This is the shared system-alert primitive. It stays attached to the active window and restores focus when dismissed."
+        applicationName="Mac Chrome"
+        icon={<SystemSymbol name="trash" />}
+        title="Delete the draft project?"
+        message="This draft will be removed from the prototype. This action cannot be undone."
         actions={[
-          { id: "cancel", label: "Cancel", role: "cancel", onPress: () => setAlertResult("Alert cancelled.") },
-          { id: "apply", label: "Apply", role: "default", onPress: () => setAlertResult("Settings applied.") },
+          { id: "cancel", label: "Cancel", role: "cancel", onPress: () => setPresentationStatus("Kept the draft project.") },
+          { id: "delete", label: "Delete", role: "destructive", isDefault: true, onPress: () => setPresentationStatus("Deleted the draft project.") },
         ]}
       />
     </div>
@@ -539,7 +558,7 @@ function CompositionStory({ story, onOpen }: { readonly story: StoryDefinition; 
   const parts: Record<RecipeId, readonly string[]> = {
     finder: ["MacNavigationSplitView", "MacSourceList", "MacToolbar", "collection + preview", "Quick Look"],
     chooser: ["WindowChrome", "selection collection", "MacMenu", "preview", "action footer"],
-    setup: ["WindowChrome", "step rail", "form content", "Sheet", "fixed actions"],
+    setup: ["WindowChrome", "step rail", "form content", "MacSheet", "fixed actions"],
     chat: ["MacNavigationSplitView", "MacSourceList", "MacToolbar", "transcript", "composer"],
   };
   return (
@@ -602,6 +621,8 @@ function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible,
       className="showcase-catalog-window"
       label="Mac Chrome component showcase"
       frame={{ top: 38, left: "max(16px, calc(50% - 550px))", width: "min(1100px, calc(100% - 32px))", height: "min(632px, calc(100% - 126px))" }}
+      minSize={catalogMinimumSize}
+      resizable
     >
       <div className="showcase-catalog-shell">
         <div className="showcase-catalog-navigation">
@@ -741,7 +762,7 @@ function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
       onSelect={select}
       onActivate={(id) => setStatus(`Opened ${chooserChoices.find((choice) => choice.id === id)?.title ?? id}`)}
       secondaryGroup={{ label: "More Options", caption: "Import or connect instead", activeCaption: "An alternate path is active", sections: [{ id: "other", commands: [
-        { id: "import", title: "Import a workspace…", symbol: "doc.badge.arrow.down", onSelect: () => setStatus("Import selected") },
+        { id: "import", title: "Import a workspace…", symbol: "arrow.down.doc", onSelect: () => setStatus("Import selected") },
         { id: "connect", title: "Connect to a server…", symbol: "network", onSelect: () => setStatus("Connect selected") },
       ] }] }}
       footer={<><span className="showcase-footer-status" aria-live="polite">{status}</span><MacButton variant="primary" disabled={selectedId === null} onPress={() => setStatus("Workspace created")}>Create</MacButton></>}
@@ -756,6 +777,9 @@ function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetFallbackRef = useRef<HTMLButtonElement>(null);
   const step = setupSteps[stepIndex] ?? setupSteps[0];
+  const detailActions: readonly MacDialogAction[] = [
+    { id: "done", label: "Done", role: "cancel", isDefault: true },
+  ];
   return (
     <SetupAssistant
       label="Setup Assistant showcase"
@@ -768,14 +792,19 @@ function SetupRecipe({ onClose }: { readonly onClose: () => void }) {
       onContinue={() => { const next = Math.min(setupSteps.length - 1, stepIndex + 1); setFurthestIndex((current) => Math.max(current, next)); setStepIndex(next); }}
       backLabel={stepIndex === 0 ? "Not Now" : "Back"}
       continueLabel={stepIndex === setupSteps.length - 1 ? "Finish" : "Continue"}
-      modalOpen={sheetOpen}
       onClose={onClose}
     >
       <SetupHeading symbol={step.symbol} title={step.name} />
       <div className="showcase-setup-copy"><p>{step.id === "welcome" ? "A guided path through the standard setup surface." : step.id === "account" ? "Connect an example account when you are ready." : "Review local privacy controls before finishing."}</p><MacButton ref={sheetFallbackRef} onPress={() => setSheetOpen(true)}>Show Details…</MacButton></div>
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} label={`${step.name} details`} fallbackFocusRef={sheetFallbackRef} initialFocusSelector=".mc-button-primary">
-        <SetupHeading symbol={step.symbol} title={`${step.name} Details`} /><p>This attached sheet demonstrates modal focus, Escape dismissal, and focus restoration.</p><footer><MacButton variant="primary" onPress={() => setSheetOpen(false)}>Done</MacButton></footer>
-      </Sheet>
+      <MacSheet
+        actions={detailActions}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title={`${step.name} Details`}
+        fallbackFocusRef={sheetFallbackRef}
+      >
+        <p className="showcase-sheet-copy">This attached sheet demonstrates modal focus, Escape dismissal, and focus restoration.</p>
+      </MacSheet>
     </SetupAssistant>
   );
 }
@@ -866,7 +895,10 @@ function ManagedShowcaseDesktop() {
   const [chatSidebarVisible, setChatSidebarVisible] = useState(true);
   const [query, setQuery] = useState("");
   const [extraCount, setExtraCount] = useState(2);
+  const [activityExtraOpen, setActivityExtraOpen] = useState(false);
+  const [activityAlertOpen, setActivityAlertOpen] = useState(false);
   const [status, setStatus] = useState("Mac Chrome standard library is ready.");
+  const activityTriggerRef = useRef<HTMLButtonElement>(null);
   const activeStoryId = storyHistory[historyIndex] ?? "anatomy";
   const activeStory = stories.find((story) => story.id === activeStoryId) ?? stories[0];
   const viewTarget: RecipeId | "catalog" | "system" = windowManager.keyAppId === "finder"
@@ -959,7 +991,72 @@ function ManagedShowcaseDesktop() {
       appName={keyAppName}
       menuItems={menuItems}
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
-      menuBarExtras={<MacApp id="showcase-activity" name="Showcase Activity" presentation="menuBar" icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}><MenuBarExtra badge={extraCount} icon={<SystemSymbol name="sparkles" />} label="Showcase activity"><div className="showcase-extra-popover"><strong>Showcase activity</strong><p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p><button type="button" disabled={extraCount === 0} onClick={() => { if (extraCount === 0) return; setExtraCount(0); setStatus("Showcase activity marked as read."); }}>Mark as Read</button></div></MenuBarExtra></MacApp>}
+      menuBarExtras={(
+        <MacApp
+          id="showcase-activity"
+          name="Showcase Activity"
+          presentation="menuBar"
+          icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}
+        >
+          <MenuBarExtra
+            badge={extraCount}
+            icon={<SystemSymbol name="sparkles" />}
+            isOpen={activityExtraOpen}
+            label="Showcase activity"
+            onOpenChange={setActivityExtraOpen}
+            triggerRef={activityTriggerRef}
+          >
+            <div className="showcase-extra-popover">
+              <strong>Showcase activity</strong>
+              <p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p>
+              <button
+                type="button"
+                disabled={extraCount === 0}
+                onClick={() => {
+                  if (extraCount === 0) return;
+                  setExtraCount(0);
+                  setStatus("Showcase activity marked as read.");
+                }}
+              >
+                Mark as Read
+              </button>
+              <button
+                type="button"
+                disabled={extraCount === 0}
+                onClick={() => {
+                  setActivityExtraOpen(false);
+                  setActivityAlertOpen(true);
+                }}
+              >
+                Clear Activity…
+              </button>
+            </div>
+          </MenuBarExtra>
+          <MacAlert
+            actions={[
+              { id: "cancel", label: "Cancel", role: "cancel" },
+              {
+                id: "clear",
+                label: "Clear",
+                role: "destructive",
+                isDefault: true,
+                onPress: () => {
+                  setExtraCount(0);
+                  setStatus("Showcase activity cleared by the menu-bar app.");
+                },
+              },
+            ]}
+            applicationName="Showcase Activity"
+            fallbackFocusRef={activityTriggerRef}
+            icon={<SystemSymbol name="sparkles" />}
+            message="All component notes will be removed from the current activity list."
+            onClose={() => setActivityAlertOpen(false)}
+            open={activityAlertOpen}
+            presentationScope="desktop"
+            title="Clear the activity notes?"
+          />
+        </MacApp>
+      )}
     >
       <MacApp
         id="catalog"
@@ -1003,9 +1100,9 @@ function ManagedShowcaseDesktop() {
       <MacApp id="chat" name="Chat" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="person.2.fill" />, background: "var(--chrome-ink)", foreground: "var(--on-accent)" }}>
         <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />
       </MacApp>
-      <MacApp id="app-store" name="App Store" defaultRunning={false} icon={defaultDockItem("app-store").icon}><SystemAppRecipe label="App Store" symbol="appstore" /></MacApp>
+      <MacApp id="app-store" name="App Store" defaultRunning={false} icon={defaultDockItem("app-store").icon}><SystemAppRecipe label="App Store" symbol="app" /></MacApp>
       <MacApp id="chrome" name="Google Chrome" defaultRunning={false} icon={defaultDockItem("chrome").icon}><SystemAppRecipe label="Google Chrome" symbol="network" /></MacApp>
-      <MacApp id="downloads" name="Downloads" dockGroup="places" defaultRunning={false} icon={defaultDockItem("downloads").icon}><SystemAppRecipe label="Downloads" symbol="doc.badge.arrow.down" /></MacApp>
+      <MacApp id="downloads" name="Downloads" dockGroup="places" defaultRunning={false} icon={defaultDockItem("downloads").icon}><SystemAppRecipe label="Downloads" symbol="arrow.down.doc" /></MacApp>
       <MacApp id="trash" name="Trash" dockGroup="places" defaultRunning={false} icon={defaultDockItem("trash").icon}><SystemAppRecipe label="Trash" symbol="xmark" /></MacApp>
       <MacAppDock label="Showcase Dock" />
     </DesktopShell>

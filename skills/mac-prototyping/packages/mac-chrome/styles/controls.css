@@ -250,9 +250,10 @@
   place-items: center;
 }
 
-.mc-segmented-icon svg {
+.mc-segmented-icon :is(svg, .mc-system-symbol) {
   width: 15px;
   height: 15px;
+  font-size: 15px;
 }
 
 .mc-control-group > * {

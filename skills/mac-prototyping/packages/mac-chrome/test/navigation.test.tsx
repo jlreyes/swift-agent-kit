@@ -140,16 +140,29 @@ describe("MacSourceList", () => {
   });
 
   it("exposes controlled section disclosure through the tree pattern", () => {
-    render(<SourceListHarness onSelection={() => undefined} />);
+    const onSelection = vi.fn();
+    render(<SourceListHarness onSelection={onSelection} />);
     const library = screen.getByRole("row", { name: /Library/ });
     expect(library.getAttribute("aria-expanded")).toBe("true");
+    expect(library.getAttribute("aria-selected")).not.toBe("true");
     expect(screen.getByRole("row", { name: "Shared" })).toBeTruthy();
+    expect(
+      library.querySelector(".mc-sidebar-disclosure .mc-system-symbol")?.getAttribute("data-system-symbol"),
+    ).toBe("chevron.down");
+
+    fireEvent.click(library);
+    expect(document.activeElement).toBe(library);
+    expect(onSelection).not.toHaveBeenCalled();
+    expect(screen.getByRole("row", { name: "All Components" }).getAttribute("aria-selected")).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: /Collapse Library/ }));
 
     expect(library.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("row", { name: "Shared" })).toBeNull();
-    expect(screen.getByRole("button", { name: /Expand Library/ })).toBeTruthy();
+    const expandButton = screen.getByRole("button", { name: /Expand Library/ });
+    expect(
+      expandButton.querySelector(".mc-sidebar-disclosure .mc-system-symbol")?.getAttribute("data-system-symbol"),
+    ).toBe("chevron.right");
   });
 });
 

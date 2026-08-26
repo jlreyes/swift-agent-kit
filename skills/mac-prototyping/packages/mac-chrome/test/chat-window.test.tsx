@@ -95,7 +95,12 @@ describe("ChatWindow composition", () => {
   });
 
   it("keeps the sidebar toolbar toggle and traffic-light placement working", () => {
-    render(<ChatHarness />);
+    const { container } = render(<ChatHarness />);
+    const window = container.querySelector<HTMLElement>(".mac-window.mc-chat-window");
+    expect(window).toBeTruthy();
+    expect(window?.querySelector(".mc-chat-sidebar-top[data-window-drag-handle]")).toBeTruthy();
+    expect(window?.querySelectorAll(".traffic-lights button")).toHaveLength(3);
+    expect(window?.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
     expect(screen.getByRole("button", { name: "Hide sidebar" })).toBeTruthy();
     expect(screen.getAllByLabelText("Window controls")).toHaveLength(1);
 

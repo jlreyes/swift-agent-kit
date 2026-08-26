@@ -40,7 +40,9 @@ test("the example surface renders the mac shell", async () => {
   assert.match(html, /class="mac-menu-bar"/);
   assert.match(html, /\/mac-assets\/dock\/finder\.png/);
   assert.match(html, /aria-label="Apple"/);
-  assert.match(html, /class="sf-symbol"/);
+  assert.match(html, /class="mc-system-symbol" data-system-symbol="doc\.text"/);
+  assert.match(html, /data-system-symbol="apple\.logo"/);
+  assert.match(html, /data-status-icon="battery" aria-label="Battery" role="img"/);
 });
 
 test("the showcase server-renders its catalog shell", async () => {
@@ -49,6 +51,9 @@ test("the showcase server-renders its catalog shell", async () => {
   assert.match(html, /data-showcase-story="anatomy"/);
   assert.match(html, /Mac Chrome component showcase/);
   assert.match(html, /aria-label="Showcase Dock"/);
+  assert.match(html, /aria-label="Showcase activity"/);
+  assert.match(html, /data-window-resizable="true"/);
+  assert.match(html, /data-window-resize-handle="se"/);
   assert.match(html, /href="\/mac-chrome-showcase\.svg"/);
   assert.match(html, /Window &amp; Toolbar/);
 });

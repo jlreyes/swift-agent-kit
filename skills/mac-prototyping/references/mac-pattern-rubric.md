@@ -28,7 +28,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   right-side bubble that expands on focus.
 - No subtitle or item count under the title; a centered title — one line or
   two — reads as web, not Mac. The title is always leading-aligned.
-- Toolbar glyphs are SVG/system symbols, never Unicode approximations.
+- Toolbar glyphs use `SystemSymbol`/the system SF font, never Unicode
+  approximations or hand-drawn SF lookalike SVGs. Brand/product artwork and
+  traffic-light marks are separate icon tiers.
 - Every visible non-title item is traffic-light chrome, navigation/search, an
   actionable command or menu, an exclusive-selection control, or genuine
   status. Decorative glyphs, bare prose, and implementation labels such as
@@ -79,6 +81,11 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - Every full-window recipe carries `WindowChrome` and functional traffic
   lights, even inside a catalog. A composition preview without draggable
   window chrome is not an app window.
+- `WindowChrome` owns the geometry contract: click-to-front/key state,
+  contained titlebar dragging, ResizeObserver recontainment, and all four
+  edges plus four corners by default. Verify resizing and a smaller canvas;
+  recipes may set `minSize` or `resizable={false}`, but must not replace
+  `.mac-window` positioning or invent their own drag/resize layer.
 - Window size signals role: creation/utility windows sit near 820×520; a
   1100×570 window with a centered 760px column and hero art reads as a
   marketing page, not a Mac window.
@@ -117,6 +124,11 @@ and `.inspector`.)
 - Product UI must not silently import a showcase-local component or duplicate
   showcase styling. `/showcase` is evidence that public primitives compose;
   it is not a private component source.
+- A disclosure uses `MacDisclosureGroup` or the controlled section affordance
+  in `MacSourceList`. Its indicator is the shared `SystemSymbol`, not a CSS
+  border chevron; its panel opens without a reveal-scale effect. A source-list
+  section header is structural and collapsible only when it has items—it is
+  never a selected navigation destination.
 
 ## Menu bar
 
@@ -138,6 +150,11 @@ and `.inspector`.)
   page overlay. Where the current macOS Apple menu presents a row icon, retain
   that row icon in the prototype; the Apple-menu active state is a compact
   menu-title selection, not a large decorative tile.
+- Command menus use the shared `MacMenu` command-row grid (13px type and
+  24px rows). Arbitrary content uses `MacPopover` with an explicit `layout`
+  and `contentInset`; never style arbitrary content as a command menu or put
+  commands in a generic content card. Use system font aliases only—do not
+  bundle SF Pro or add browser font-smoothing workarounds.
 - `NSStatusItem`/`MenuBarExtra` popovers reset foreground color and
   `text-shadow` inside their surface so menu-bar white text cannot inherit
   into a light popup. Audit an open status popover, not only its trigger.
@@ -242,6 +259,12 @@ and `.inspector`.)
   stays in-column; no modulo wrap into adjacent columns.
 - Dialogs/sheets contain focus (it never escapes to BODY); Cancel unwinds
   exactly one layer; focus restores to the invoking control on close.
+- Use `MacSheet` for a window-attached task and `MacAlert` for a short
+  decision. Both own visible title, body, actions, and insets; actions are
+  `MacDialogAction` data, with semantic `cancel`/`destructive` role separated
+  from the one `isDefault` action. A menu-bar app's alert explicitly uses the
+  desktop scope. Do not put a caller-authored button row or a `SetupHeading`
+  inside `MacSheet`; `Sheet` is compatibility-only.
 - `tabIndex` is never coupled to selection state — a hidden or secondary
   selection must not make controls keyboard-unreachable.
 - Verify at small viewports and with Reduce Motion; activation under

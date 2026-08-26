@@ -50,6 +50,8 @@ test("the showcase opens as a persistent split-view component catalog", () => {
   expect(screen.getByRole("main", { name: "App Anatomy story" })).toBeDefined();
   expect(screen.getByRole("complementary", { name: "Component inspector" })).toBeDefined();
   expect(screen.getByRole("navigation", { name: "Showcase Dock" })).toBeDefined();
+  expect(catalog.getAttribute("data-window-resizable")).toBe("true");
+  expect(catalog.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
   expect(document.querySelector(".showcase-desktop-status")).toBeNull();
   expect(screen.queryByText(/^Toolbar$/)).toBeNull();
 });
@@ -299,7 +301,11 @@ test("menus and popovers are distinct shared presentation primitives", async () 
   expect(screen.getByText("New Folder selected")).toBeDefined();
 
   await user.click(screen.getByRole("button", { name: "Component information" }));
-  expect(screen.getByText("Popover content")).toBeDefined();
+  const popoverContent = screen.getByText("Popover content");
+  const popover = popoverContent.closest<HTMLElement>(".mc-popover-surface");
+  if (popover === null) throw new Error("Shared popover surface was not rendered");
+  expect(popover.dataset.popoverLayout).toBe("content");
+  expect(popover.querySelector<HTMLElement>(".mc-popover-dialog")?.dataset.contentInset).toBe("regular");
   expect(screen.getByText("Use this for a small amount of transient functionality, not a list of commands.")).toBeDefined();
 });
 
@@ -328,6 +334,11 @@ test("the Create Project sheet retains its controlled project name", async () =>
   await user.click(sourceItem("Presentation & Feedback"));
   await user.click(screen.getByRole("button", { name: "Create Project…" }));
   let dialog = screen.getByRole("dialog", { name: "Create Project" });
+  expect(dialog.closest<HTMLElement>("[data-modal-kind='sheet']")?.dataset.modalScope).toBe("window");
+  expect(dialog.querySelector(".mc-sheet-header")).not.toBeNull();
+  expect(dialog.querySelector(".mc-sheet-body")).not.toBeNull();
+  expect(dialog.querySelector(".mc-sheet-footer")).not.toBeNull();
+  expect(dialog.querySelector(".mc-setup-heading")).toBeNull();
   let name = within(dialog).getByRole("textbox", { name: "Project name" });
   fireEvent.change(name, { target: { value: "Client Portal" } });
   expect((name as HTMLInputElement).value).toBe("Client Portal");
@@ -337,18 +348,65 @@ test("the Create Project sheet retains its controlled project name", async () =>
   dialog = screen.getByRole("dialog", { name: "Create Project" });
   name = within(dialog).getByRole("textbox", { name: "Project name" });
   expect((name as HTMLInputElement).value).toBe("Client Portal");
+  const create = within(dialog).getByRole("button", { name: "Create" });
+  expect(create.classList.contains("mc-dialog-action-default")).toBe(true);
+  await user.click(create);
+  expect(screen.queryByRole("dialog", { name: "Create Project" })).toBeNull();
+  expect(within(screen.getByRole("main", { name: "Presentation & Feedback story" })).getByRole("status").textContent).toContain("Created Client Portal.");
 });
 
-test("the presentation story exposes the shared system alert and window status bar", async () => {
+test("the presentation story uses a window-attached destructive alert and reports the result locally", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
 
   await user.click(sourceItem("Presentation & Feedback"));
-  await user.click(screen.getByRole("button", { name: "Show System Alert" }));
-  const alert = screen.getByRole("alertdialog", { name: "Apply the prototype settings?" });
-  await user.click(within(alert).getByRole("button", { name: "Apply" }));
+  await user.click(screen.getByRole("button", { name: "Delete Draft…" }));
+  const alert = screen.getByRole("alertdialog", { name: "Delete the draft project?" });
+  expect(alert.closest<HTMLElement>("[data-modal-kind='alert']")?.dataset.modalScope).toBe("window");
+  const deleteButton = within(alert).getByRole("button", { name: "Delete" });
+  expect(deleteButton.classList.contains("mc-dialog-action-default")).toBe(true);
+  expect(deleteButton.classList.contains("mc-dialog-action-destructive")).toBe(true);
+  await user.click(deleteButton);
   expect(screen.queryByRole("alertdialog")).toBeNull();
-  expect(within(screen.getByRole("main", { name: "Presentation & Feedback story" })).getByRole("status").textContent).toContain("Settings applied.");
+  expect(within(screen.getByRole("main", { name: "Presentation & Feedback story" })).getByRole("status").textContent).toContain("Deleted the draft project.");
+  expect(document.querySelector(".showcase-desktop-status")).toBeNull();
+});
+
+test("the menu-bar app presents its system alert at desktop scope", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+  const trigger = document.querySelector<HTMLElement>(".mc-menubar-trigger[aria-label='Showcase activity']");
+  if (trigger === null) throw new Error("Showcase activity trigger was not rendered");
+
+  await user.click(trigger);
+  await user.click(screen.getByRole("button", { name: "Clear Activity…" }));
+  const alert = screen.getByRole("alertdialog", { name: "Clear the activity notes?" });
+  expect(alert.closest<HTMLElement>("[data-modal-kind='alert']")?.dataset.modalScope).toBe("desktop");
+  expect(screen.queryByRole("dialog", { name: "Showcase activity" })).toBeNull();
+  expect(document.querySelector(".mc-menubar-popover")).toBeNull();
+  await user.click(within(alert).getByRole("button", { name: "Clear" }));
+  expect(screen.queryByRole("alertdialog", { name: "Clear the activity notes?" })).toBeNull();
+  expect(screen.getByText("Showcase activity cleared by the menu-bar app.")).toBeDefined();
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+});
+
+test("Setup Assistant composes the shared MacSheet without legacy modal plumbing", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await openRecipe(user, "Setup Assistant");
+  const setup = screen.getByRole("region", { name: "Setup Assistant showcase" });
+  await user.click(within(setup).getByRole("button", { name: "Show Details…" }));
+  const dialog = screen.getByRole("dialog", { name: "Welcome Details" });
+  expect(dialog.querySelector(".mc-setup-heading")).toBeNull();
+  expect(dialog.querySelector(".mc-sheet-header")).not.toBeNull();
+  expect(dialog.querySelector(".mc-sheet-body")).not.toBeNull();
+  expect(dialog.querySelector(".mc-sheet-footer")).not.toBeNull();
+  const done = within(dialog).getByRole("button", { name: "Done" });
+  expect(done.classList.contains("mc-dialog-action-cancel")).toBe(true);
+  expect(done.classList.contains("mc-dialog-action-default")).toBe(true);
+  await user.click(done);
+  expect(screen.queryByRole("dialog", { name: "Welcome Details" })).toBeNull();
 });
 
 test("full compositions open in their own window instead of nesting in the catalog", async () => {
@@ -399,6 +457,7 @@ test("the coverage map is unique and includes the complete runtime surface", () 
     "MacForm",
     "MacMenu",
     "MacPopover",
+    "MacSheet",
     "MacContentUnavailable",
     "MacAlert",
     "MacWindowStatusBar",

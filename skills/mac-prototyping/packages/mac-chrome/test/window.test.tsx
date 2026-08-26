@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { MacApp, MacAppDock, MacWindowManager } from "../app.tsx";
 import { TrafficLights, WindowChrome } from "../window";
 import { FinderWindow } from "../finder";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function renderFinder() {
   return render(
@@ -43,6 +48,90 @@ async function flushAnimationFrame() {
   });
 }
 
+async function flushNextTask() {
+  await act(async () => {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  });
+}
+
+type TestLayout = {
+  canvasLeft: number;
+  canvasTop: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  windowLeft: number;
+  windowTop: number;
+  windowWidth: number;
+  windowHeight: number;
+};
+
+function mockLayout(layout: TestLayout) {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("desktop-canvas")) {
+      return new DOMRect(layout.canvasLeft, layout.canvasTop, layout.canvasWidth, layout.canvasHeight);
+    }
+    if (this.classList.contains("mac-window")) {
+      return new DOMRect(
+        layout.canvasLeft + layout.windowLeft,
+        layout.canvasTop + layout.windowTop,
+        layout.windowWidth,
+        layout.windowHeight,
+      );
+    }
+    return new DOMRect();
+  });
+}
+
+const standardLayout: TestLayout = {
+  canvasLeft: 40,
+  canvasTop: 20,
+  canvasWidth: 800,
+  canvasHeight: 600,
+  windowLeft: 100,
+  windowTop: 80,
+  windowWidth: 500,
+  windowHeight: 400,
+};
+
+function renderCanvasWindow({
+  minSize,
+  resizable,
+  withControls = false,
+}: {
+  readonly minSize?: { readonly width: number; readonly height: number };
+  readonly resizable?: boolean;
+  readonly withControls?: boolean;
+} = {}) {
+  return render(
+    <div className="desktop-canvas">
+      <WindowChrome
+        frame={{ top: 80, left: 100, width: 500, height: 400 }}
+        label="Geometry window"
+        minSize={minSize}
+        resizable={resizable}
+      >
+        <div data-window-drag-handle="">Title</div>
+        {withControls ? <TrafficLights /> : null}
+      </WindowChrome>
+    </div>,
+  );
+}
+
+async function resizeFrom(
+  windowElement: HTMLElement,
+  edge: string,
+  deltaX: number,
+  deltaY: number,
+) {
+  const handle = windowElement.querySelector<HTMLElement>(`[data-window-resize-handle='${edge}']`);
+  expect(handle).toBeTruthy();
+  if (handle === null) return;
+  firePointer(handle, "pointerdown", { clientX: 200, clientY: 200 });
+  firePointer(windowElement, "pointermove", { clientX: 200 + deltaX, clientY: 200 + deltaY });
+  await flushAnimationFrame();
+  firePointer(windowElement, "pointerup", { clientX: 200 + deltaX, clientY: 200 + deltaY });
+}
+
 describe("WindowChrome geometry", () => {
   it("applies the generic default frame, centered", () => {
     const { container } = render(
@@ -75,6 +164,235 @@ describe("WindowChrome geometry", () => {
     expect(windowElement?.style.left).toBe("40px");
     expect(windowElement?.style.width).toBe("500px");
     expect(windowElement?.style.height).toBe("480px");
+  });
+
+  it("renders all eight edge and corner resize handles by default", () => {
+    const { container } = render(<WindowChrome label="Resizable"><p>Body</p></WindowChrome>);
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement?.dataset.windowResizable).toBe("true");
+    expect([...container.querySelectorAll<HTMLElement>("[data-window-resize-handle]")]
+      .map((handle) => handle.dataset.windowResizeHandle)).toEqual(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
+  });
+
+  it("renders no resize affordance when resizable is false", () => {
+    const { container } = render(<WindowChrome label="Fixed" resizable={false}><p>Body</p></WindowChrome>);
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement?.dataset.windowResizable).toBe("false");
+    expect(container.querySelectorAll("[data-window-resize-handle]")).toHaveLength(0);
+  });
+
+  it("resizes from every edge and corner", async () => {
+    const cases = [
+      { edge: "n", deltaX: 0, deltaY: -30, expected: [100, 50, 500, 430] },
+      { edge: "ne", deltaX: 30, deltaY: -30, expected: [100, 50, 530, 430] },
+      { edge: "e", deltaX: 30, deltaY: 0, expected: [100, 80, 530, 400] },
+      { edge: "se", deltaX: 30, deltaY: 20, expected: [100, 80, 530, 420] },
+      { edge: "s", deltaX: 0, deltaY: 20, expected: [100, 80, 500, 420] },
+      { edge: "sw", deltaX: -30, deltaY: 20, expected: [70, 80, 530, 420] },
+      { edge: "w", deltaX: -30, deltaY: 0, expected: [70, 80, 530, 400] },
+      { edge: "nw", deltaX: -30, deltaY: -30, expected: [70, 50, 530, 430] },
+    ] as const;
+
+    for (const resizeCase of cases) {
+      mockLayout({ ...standardLayout });
+      const { container, unmount } = renderCanvasWindow();
+      const windowElement = container.querySelector<HTMLElement>(".mac-window");
+      expect(windowElement).toBeTruthy();
+      if (windowElement === null) continue;
+      await resizeFrom(windowElement, resizeCase.edge, resizeCase.deltaX, resizeCase.deltaY);
+      expect([
+        Number.parseFloat(windowElement.style.left),
+        Number.parseFloat(windowElement.style.top),
+        Number.parseFloat(windowElement.style.width),
+        Number.parseFloat(windowElement.style.height),
+      ]).toEqual(resizeCase.expected);
+      unmount();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("enforces the declared minimum and all canvas bounds", async () => {
+    mockLayout({ ...standardLayout });
+    const { container } = renderCanvasWindow({ minSize: { width: 460, height: 320 } });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement).toBeTruthy();
+    if (windowElement === null) return;
+
+    await resizeFrom(windowElement, "nw", 1_000, 1_000);
+    expect(windowElement.style.left).toBe("140px");
+    expect(windowElement.style.top).toBe("160px");
+    expect(windowElement.style.width).toBe("460px");
+    expect(windowElement.style.height).toBe("320px");
+  });
+
+  it("recontains after shrink/reset notifications in a later task, never the observer cycle", async () => {
+    const layout = { ...standardLayout };
+    let notifyResize: () => void = () => undefined;
+    let observedElement: Element | null = null;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(target: Element): void { observedElement = target; }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    mockLayout(layout);
+    const { container } = renderCanvasWindow();
+    const canvas = container.querySelector(".desktop-canvas");
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(observedElement).toBe(canvas);
+    expect(windowElement?.style.width).toBe("500px");
+    const animationFrameSpy = vi.spyOn(window, "requestAnimationFrame");
+
+    layout.canvasWidth = 450;
+    act(() => notifyResize());
+    expect(windowElement?.style.width).toBe("500px");
+    expect(animationFrameSpy).not.toHaveBeenCalled();
+    await flushNextTask();
+    expect(windowElement?.style.left).toBe("24px");
+    expect(windowElement?.style.width).toBe("402px");
+
+    layout.canvasWidth = 800;
+    act(() => notifyResize());
+    expect(windowElement?.style.left).toBe("24px");
+    expect(windowElement?.style.width).toBe("402px");
+    expect(animationFrameSpy).not.toHaveBeenCalled();
+    await flushNextTask();
+    expect(windowElement?.style.left).toBe("24px");
+    expect(windowElement?.style.width).toBe("420px");
+  });
+
+  it("attaches containment after a default-closed managed window opens from the Dock", async () => {
+    const layout = { ...standardLayout };
+    let notifyResize: () => void = () => undefined;
+    let observedElement: Element | null = null;
+    let observeCount = 0;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(target: Element): void {
+        observedElement = target;
+        observeCount += 1;
+      }
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    mockLayout(layout);
+
+    const { container, getByRole, queryByLabelText } = render(
+      <MacWindowManager>
+        <div className="desktop-canvas">
+          <MacApp id="late" name="Late app" defaultRunning={false} icon="/late.png">
+            <WindowChrome
+              defaultOpen={false}
+              frame={{ top: 80, left: 100, width: 500, height: 400 }}
+              label="Late window"
+            >
+              <div data-window-drag-handle="">Late</div>
+              <TrafficLights />
+            </WindowChrome>
+          </MacApp>
+          <MacAppDock label="Test Dock" />
+        </div>
+      </MacWindowManager>,
+    );
+
+    expect(queryByLabelText("Late window")).toBeNull();
+    const dockButton = await waitFor(() => getByRole("button", { name: "Late app" }));
+    fireEvent.click(dockButton);
+    const windowElement = await waitFor(() => getByRole("region", { name: "Late window" }));
+    const canvas = container.querySelector(".desktop-canvas");
+    expect(observedElement).toBe(canvas);
+    expect(windowElement.style.width).toBe("500px");
+
+    layout.canvasWidth = 450;
+    act(() => notifyResize());
+    expect(windowElement.style.width).toBe("500px");
+    await flushNextTask();
+    expect(windowElement.style.left).toBe("24px");
+    expect(windowElement.style.width).toBe("402px");
+
+    fireEvent.click(getByRole("button", { name: "Close window" }));
+    expect(queryByLabelText("Late window")).toBeNull();
+    fireEvent.click(dockButton);
+    const reopenedWindow = await waitFor(() => getByRole("region", { name: "Late window" }));
+    expect(observeCount).toBe(2);
+    expect(reopenedWindow.style.left).toBe("24px");
+    expect(reopenedWindow.style.width).toBe("402px");
+  });
+
+  it("restores the resized frame after zooming", async () => {
+    mockLayout({ ...standardLayout });
+    const { container, getByRole } = renderCanvasWindow({ withControls: true });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement).toBeTruthy();
+    if (windowElement === null) return;
+
+    await resizeFrom(windowElement, "e", 30, 0);
+    expect(windowElement.style.width).toBe("530px");
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.width).toBe("calc(100% - 48px)");
+    expect(windowElement.querySelectorAll("[data-window-resize-handle]")).toHaveLength(0);
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.left).toBe("100px");
+    expect(windowElement.style.width).toBe("530px");
+  });
+});
+
+describe("nested ResizeObserver loop reporting", () => {
+  it("reference-counts the narrow guard and leaves unrelated errors untouched", () => {
+    const first = render(
+      <WindowChrome label="First split window">
+        <div data-group=""><div data-panel="">First split</div></div>
+      </WindowChrome>,
+    );
+    const second = render(
+      <WindowChrome label="Second split window">
+        <div data-group=""><div data-panel="">Second split</div></div>
+      </WindowChrome>,
+    );
+    const received: Array<{ readonly defaultPrevented: boolean; readonly message: string }> = [];
+    function recordError(event: ErrorEvent) {
+      received.push({ defaultPrevented: event.defaultPrevented, message: event.message });
+      event.preventDefault();
+    }
+    window.addEventListener("error", recordError);
+
+    try {
+      for (const message of [
+        "ResizeObserver loop completed with undelivered notifications.",
+        "ResizeObserver loop limit exceeded",
+      ]) {
+        window.dispatchEvent(new ErrorEvent("error", { cancelable: true, message }));
+      }
+      expect(received).toEqual([]);
+
+      window.dispatchEvent(new ErrorEvent("error", { cancelable: true, message: "Actual application failure" }));
+      expect(received).toEqual([{ defaultPrevented: false, message: "Actual application failure" }]);
+
+      first.unmount();
+      window.dispatchEvent(new ErrorEvent("error", {
+        cancelable: true,
+        message: "ResizeObserver loop limit exceeded",
+      }));
+      expect(received).toHaveLength(1);
+
+      second.unmount();
+      window.dispatchEvent(new ErrorEvent("error", {
+        cancelable: true,
+        message: "ResizeObserver loop completed with undelivered notifications.",
+      }));
+      expect(received.at(-1)).toEqual({
+        defaultPrevented: false,
+        message: "ResizeObserver loop completed with undelivered notifications.",
+      });
+    } finally {
+      window.removeEventListener("error", recordError);
+    }
   });
 });
 
@@ -185,12 +503,12 @@ describe("window dragging", () => {
     expect(handle).toBeTruthy();
     if (!windowElement || !handle) return;
 
-    expect(windowElement.style.transform).toBe("translate3d(0px, 0px, 0)");
+    const originalLeft = windowElement.style.left;
     firePointer(handle, "pointerdown", { clientX: 300, clientY: 40 });
     firePointer(windowElement, "pointermove", { clientX: 380, clientY: 90 });
     await flushAnimationFrame();
-    expect(windowElement.style.transform).toContain("translate3d(");
-    expect(windowElement.style.transform).not.toBe("translate3d(0px, 0px, 0)");
+    expect(windowElement.style.left).not.toBe(originalLeft);
+    expect(windowElement.style.transform).toBe("");
     firePointer(windowElement, "pointerup", { clientX: 380, clientY: 90 });
   });
 
@@ -205,6 +523,53 @@ describe("window dragging", () => {
     firePointer(control, "pointerdown", { clientX: 300, clientY: 40 });
     firePointer(windowElement, "pointermove", { clientX: 380, clientY: 90 });
     await flushAnimationFrame();
-    expect(windowElement.style.transform).toBe("translate3d(0px, 0px, 0)");
+    expect(windowElement.style.left).toMatch(/^calc\(50% -/);
+  });
+
+  it("clamps dragging to the desktop canvas rather than the global viewport", async () => {
+    mockLayout({ ...standardLayout });
+    const { container } = renderCanvasWindow();
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 5_000, clientY: 5_000 });
+    await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("276px");
+    expect(windowElement.style.top).toBe("112px");
+    firePointer(windowElement, "pointerup", { clientX: 5_000, clientY: 5_000 });
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: -5_000, clientY: -5_000 });
+    await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("24px");
+    expect(windowElement.style.top).toBe("28px");
+  });
+
+  it("raises a background managed window before resizing it", async () => {
+    const { container } = render(
+      <MacWindowManager>
+        <div className="desktop-canvas">
+          <MacApp id="first" name="First" icon="/first.png">
+            <WindowChrome label="First window"><div data-window-drag-handle="">First</div></WindowChrome>
+          </MacApp>
+          <MacApp id="second" name="Second" icon="/second.png">
+            <WindowChrome label="Second window"><div data-window-drag-handle="">Second</div></WindowChrome>
+          </MacApp>
+        </div>
+      </MacWindowManager>,
+    );
+
+    await waitFor(() => expect(container.querySelector<HTMLElement>("[aria-label='Second window']")?.dataset.keyWindow).toBe("true"));
+    const firstWindow = container.querySelector<HTMLElement>("[aria-label='First window']");
+    const firstResizeHandle = firstWindow?.querySelector<HTMLElement>("[data-window-resize-handle='se']");
+    expect(firstWindow?.dataset.keyWindow).toBe("false");
+    expect(firstResizeHandle).toBeTruthy();
+    if (firstResizeHandle === null || firstResizeHandle === undefined) return;
+    firePointer(firstResizeHandle, "pointerdown", { clientX: 200, clientY: 200 });
+    await waitFor(() => expect(firstWindow?.dataset.keyWindow).toBe("true"));
   });
 });

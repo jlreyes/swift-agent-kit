@@ -68,9 +68,10 @@
   color: var(--accent);
 }
 
-.mc-list-row-icon svg {
+.mc-list-row-icon :is(svg, .mc-system-symbol) {
   width: 18px;
   height: 18px;
+  font-size: 18px;
 }
 
 .mc-list-row-copy {
@@ -114,10 +115,6 @@
   font-size: 13px;
 }
 
-.mc-disclosure {
-  border-bottom: 0.5px solid var(--line-soft);
-}
-
 .mc-disclosure-heading {
   margin: 0;
   font: inherit;
@@ -125,55 +122,45 @@
 
 .mc-disclosure-trigger {
   width: 100%;
-  min-height: 34px;
-  padding: 5px 8px;
+  min-height: 28px;
+  padding: 2px 4px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--text-strong);
   background: transparent;
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   text-align: left;
-}
-
-.mc-disclosure-trigger[data-hovered] {
-  background: rgba(0, 0, 0, 0.045);
+  cursor: default;
 }
 
 .mc-disclosure-trigger[data-focus-visible] {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--focus-ring);
 }
 
-.mc-disclosure-chevron {
-  width: 7px;
-  height: 7px;
-  margin-left: 2px;
-  border-top: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor;
-  transform: rotate(45deg);
-  transition: transform 110ms ease;
+.mc-disclosure-trigger .mc-disclosure-indicator {
+  width: 12px;
+  height: 18px;
+  flex: 0 0 12px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
 }
 
-.mc-disclosure[data-expanded] .mc-disclosure-chevron {
-  transform: rotate(135deg) translate(-1px, 1px);
+.mc-disclosure-trigger .mc-disclosure-indicator .mc-system-symbol {
+  font-size: 8.5px;
 }
 
 .mc-disclosure-panel {
-  padding: 2px 10px 11px 24px;
+  padding: 2px 8px 8px 21px;
   color: var(--text);
   font-size: 13px;
 }
 
 .mc-disclosure[data-disabled] {
   opacity: 0.45;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mc-disclosure-chevron {
-    transition: none;
-  }
 }

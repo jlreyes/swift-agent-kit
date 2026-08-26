@@ -21,9 +21,13 @@ export function useModalFocusTrap({
 
   useEffect(() => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const fallbackTarget = fallbackFocusRef?.current;
     return () => {
-      const target = openerRef.current?.isConnected ? openerRef.current : fallbackTarget;
+      // An explicit fallback is the caller's stable return target (for
+      // example, a menu-bar status item). Overlay libraries may restore focus
+      // to a still-connected but transient opener while the modal mounts, so
+      // connectedness alone must not outrank that explicit policy.
+      const fallbackTarget = fallbackFocusRef?.current;
+      const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
       window.requestAnimationFrame(() => target?.focus());
     };
   }, [fallbackFocusRef]);

@@ -2,7 +2,6 @@
    only layout overrides for them live here. */
 
 .mc-finder-window {
-  position: relative;
   overflow: hidden;
   border: 0.5px solid var(--glass-strong);
   border-radius: var(--radius-window);
@@ -320,9 +319,10 @@
   color: var(--text-soft);
 }
 
-.mc-quicklook-panel > header button svg {
+.mc-quicklook-panel > header button :is(svg, .mc-system-symbol) {
   width: 10px;
   height: 10px;
+  font-size: 10px;
 }
 
 .mc-quicklook-panel > div {

@@ -90,39 +90,18 @@ export interface DesktopShellProps {
 }
 
 function AppleMark() {
-  return (
-    <svg viewBox="0 0 18 20" aria-hidden="true" focusable="false">
-      <path d="M14.8 10.5c0-2 1.7-3 1.8-3.1a4 4 0 0 0-3.2-1.7c-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.8A4.4 4.4 0 0 0 3.3 8c-1.6 2.8-.4 6.9 1.1 9.1.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3.1-.7 1.4 0 1.8.7 3.1.7s2.1-1.1 2.8-2.2a9.8 9.8 0 0 0 1.3-2.7 4 4 0 0 1-2.8-3.9ZM12.5 4.3A4 4 0 0 0 13.4 1a4.1 4.1 0 0 0-2.8 1.4 3.8 3.8 0 0 0-1 3.1 3.4 3.4 0 0 0 2.9-1.2Z" />
-    </svg>
-  );
+  return <SystemSymbol name="apple.logo" />;
 }
 
-function StatusBattery() {
+function StatusSymbol({ label, name, status }: {
+  readonly label: string;
+  readonly name: "battery.100percent" | "switch.2" | "wifi";
+  readonly status: "battery" | "control-center" | "wifi";
+}) {
   return (
-    <svg data-status-icon="battery" viewBox="0 0 27 12" aria-label="Battery" role="img">
-      <rect x=".75" y=".75" width="22" height="10.5" rx="2.4" />
-      <rect className="status-fill" x="2.7" y="2.7" width="16.3" height="6.6" rx="1" />
-      <path d="M24.2 4.1v3.8c1.2-.2 1.8-.8 1.8-1.9s-.6-1.7-1.8-1.9Z" />
-    </svg>
-  );
-}
-
-function StatusWifi() {
-  return (
-    <svg data-status-icon="wifi" viewBox="0 0 18 14" aria-label="Wi-Fi" role="img">
-      <path d="M1.2 4.4a12.1 12.1 0 0 1 15.6 0M3.8 7.2a8 8 0 0 1 10.4 0M6.4 10a4 4 0 0 1 5.2 0" />
-      <circle cx="9" cy="12.4" r="1" />
-    </svg>
-  );
-}
-
-function StatusControlCenter() {
-  return (
-    <svg data-status-icon="control-center" viewBox="0 0 18 14" aria-label="Control Center" role="img">
-      <path d="M2 4h14M2 10h14" />
-      <circle className="status-knob" cx="6" cy="4" r="2" />
-      <circle className="status-knob" cx="12" cy="10" r="2" />
-    </svg>
+    <span className="mc-status-symbol" data-status-icon={status} aria-label={label} role="img">
+      <SystemSymbol name={name} />
+    </span>
   );
 }
 
@@ -145,7 +124,7 @@ function defaultAppleMenu(): MenuSpec {
       kind: "action",
       id: "app-store",
       label: "App Store…",
-      icon: <SystemSymbol name="appstore" />,
+      icon: <SystemSymbol name="app" />,
     },
     { kind: "separator", id: "apple-separator-2" },
     { kind: "action", id: "force-quit", label: "Force Quit…", shortcut: "⌥⌘Esc" },
@@ -419,9 +398,9 @@ export function DesktopShell({
           </div>
           <div className="menu-right" aria-label="Mac status items">
             {menuBarExtras !== undefined ? <span className="mc-menubar-extras">{menuBarExtras}</span> : null}
-            <StatusBattery />
-            <StatusWifi />
-            <StatusControlCenter />
+            <StatusSymbol label="Battery" name="battery.100percent" status="battery" />
+            <StatusSymbol label="Wi-Fi" name="wifi" status="wifi" />
+            <StatusSymbol label="Control Center" name="switch.2" status="control-center" />
             <span suppressHydrationWarning>{date ?? nativeDate(now)}</span>
             <span suppressHydrationWarning>{clock ?? nativeClock(now)}</span>
           </div>

@@ -4,67 +4,24 @@ import type { ReactNode, Ref } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Toolbar } from "react-aria-components";
 
+import { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 import "./styles/tokens.css";
 import "./styles/toolbar.css";
 
 export type ToolbarGlyphName = "back" | "forward" | "grid" | "inspector" | "list" | "more" | "search";
 
+const toolbarSymbols = {
+  back: "chevron.left",
+  forward: "chevron.right",
+  grid: "square.grid.2x2",
+  inspector: "sidebar.trailing",
+  list: "list.bullet",
+  more: "ellipsis",
+  search: "magnifyingglass",
+} as const satisfies Readonly<Record<ToolbarGlyphName, SystemSymbolName>>;
+
 export function ToolbarGlyph({ name }: { readonly name: ToolbarGlyphName }) {
-  if (name === "back" || name === "forward") {
-    return (
-      <svg className="mc-toolbar-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d={name === "back" ? "M10.5 2.75 5.25 8l5.25 5.25" : "m5.5 2.75 5.25 5.25-5.25 5.25"} />
-      </svg>
-    );
-  }
-
-  if (name === "grid") {
-    return (
-      <svg className="mc-toolbar-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <rect x="2.25" y="2.25" width="4.5" height="4.5" rx="0.8" />
-        <rect x="9.25" y="2.25" width="4.5" height="4.5" rx="0.8" />
-        <rect x="2.25" y="9.25" width="4.5" height="4.5" rx="0.8" />
-        <rect x="9.25" y="9.25" width="4.5" height="4.5" rx="0.8" />
-      </svg>
-    );
-  }
-
-  if (name === "list") {
-    return (
-      <svg className="mc-toolbar-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d="M5.25 3.25h8.5M5.25 8h8.5M5.25 12.75h8.5" />
-        <circle cx="2.5" cy="3.25" r="0.7" />
-        <circle cx="2.5" cy="8" r="0.7" />
-        <circle cx="2.5" cy="12.75" r="0.7" />
-      </svg>
-    );
-  }
-
-  if (name === "inspector") {
-    return (
-      <svg className="mc-toolbar-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="1.6" />
-        <path d="M10.25 2.6v10.8" />
-      </svg>
-    );
-  }
-
-  if (name === "more") {
-    return (
-      <svg className="mc-toolbar-glyph fill-dots" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <circle cx="3" cy="8" r="1" />
-        <circle cx="8" cy="8" r="1" />
-        <circle cx="13" cy="8" r="1" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg className="mc-toolbar-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <circle cx="7" cy="7" r="4.4" />
-      <path d="m10.4 10.4 3.1 3.1" />
-    </svg>
-  );
+  return <SystemSymbol className="mc-toolbar-glyph" name={toolbarSymbols[name]} />;
 }
 
 export function MacToolbar({ center, children, className = "", leading, title, trailing }: {

@@ -1,20 +1,24 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MacAlert, MacWindowStatusBar } from "../presentation.tsx";
+import { MacAlert, MacSheet, MacWindowStatusBar } from "../presentation.tsx";
 
 afterEach(cleanup);
 
-function AlertHarness() {
+function AlertHarness({ cancel = true }: { readonly cancel?: boolean }) {
   const [open, setOpen] = useState(false);
   const [cancelCount, setCancelCount] = useState(0);
   const [applyCount, setApplyCount] = useState(0);
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
-    <>
-      <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>Show alert</button>
+    <section className="mac-window" aria-label="Example window">
+      <div className="window-underlay">
+        <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>Show alert</button>
+        <output data-cancel-count={cancelCount} data-apply-count={applyCount} />
+      </div>
       <MacAlert
         open={open}
         onClose={() => setOpen(false)}
@@ -22,12 +26,77 @@ function AlertHarness() {
         title="Apply settings?"
         message="The settings will be updated."
         actions={[
-          { id: "cancel", label: "Cancel", role: "cancel", onPress: () => setCancelCount((current) => current + 1) },
-          { id: "apply", label: "Apply", role: "default", onPress: () => setApplyCount((current) => current + 1) },
+          ...(cancel ? [{ id: "cancel", label: "Cancel", role: "cancel" as const, onPress: () => setCancelCount((current) => current + 1) }] : []),
+          { id: "apply", label: "Apply", isDefault: true, onPress: () => setApplyCount((current) => current + 1) },
         ]}
       />
-      <output data-cancel-count={cancelCount} data-apply-count={applyCount} />
+    </section>
+  );
+}
+
+function SheetHarness() {
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState("none");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <section className="mac-window" aria-label="Project window">
+      <div className="window-underlay">
+        <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>Create project</button>
+        <output>{result}</output>
+      </div>
+      <MacSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        fallbackFocusRef={triggerRef}
+        title="Create Project"
+        actions={[
+          { id: "create", label: "Create", isDefault: true, onPress: () => setResult("created") },
+          { id: "remove", label: "Remove", role: "destructive", onPress: () => setResult("removed") },
+          { id: "cancel", label: "Cancel", role: "cancel", onPress: () => setResult("cancelled") },
+        ]}
+      >
+        <label>Project name <input defaultValue="Untitled Project" /></label>
+      </MacSheet>
+    </section>
+  );
+}
+
+function DesktopAlertWithExternalPortal({ portalHost }: { readonly portalHost: HTMLElement }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <div className="desktop-canvas"><div className="desktop-underlay">Desktop</div></div>
+      {createPortal(<div className="react-aria-Popover" role="menu">Open status menu</div>, portalHost)}
+      <MacAlert
+        open={open}
+        onClose={() => setOpen(false)}
+        presentationScope="desktop"
+        title="System decision"
+        message="The external menu is modal underlay."
+        actions={[{ id: "okay", label: "OK", isDefault: true }]}
+      />
     </>
+  );
+}
+
+function ExplicitFallbackAlertHarness() {
+  const [open, setOpen] = useState(false);
+  const fallbackRef = useRef<HTMLButtonElement>(null);
+  return (
+    <section className="mac-window" aria-label="Focus policy window">
+      <div className="window-underlay">
+        <button ref={fallbackRef} type="button">Stable status item</button>
+        <button type="button" onClick={() => setOpen(true)}>Transient menu command</button>
+      </div>
+      <MacAlert
+        open={open}
+        onClose={() => setOpen(false)}
+        fallbackFocusRef={fallbackRef}
+        title="Complete operation?"
+        message="Focus should return to the explicit stable target."
+        actions={[{ id: "okay", label: "OK", isDefault: true }]}
+      />
+    </section>
   );
 }
 
@@ -40,21 +109,120 @@ describe("native presentation primitives", () => {
     expect(status.textContent).toContain("4 items");
   });
 
-  it("runs alert actions, maps Escape to cancel, and restores trigger focus", async () => {
+  it("attaches a sheet to its owning window and owns labelled title, body, and action regions", async () => {
+    const { container } = render(<SheetHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create Project" });
+    const window = container.querySelector(".mac-window");
+    expect(window?.querySelector(":scope > .mc-window-modal-layer-sheet")).toBeTruthy();
+    expect(dialog.querySelector(".mc-sheet-header h2")?.textContent).toBe("Create Project");
+    expect(dialog.querySelector(".mc-sheet-body input")).toBeTruthy();
+    const labels = within(dialog).getAllByRole("button").map((button) => button.textContent);
+    expect(labels).toEqual(["Remove", "Cancel", "Create"]);
+    expect(within(dialog).getByRole("button", { name: "Remove" }).classList.contains("mc-dialog-action-destructive")).toBe(true);
+    expect(within(dialog).getByRole("button", { name: "Create" }).classList.contains("mc-dialog-action-default")).toBe(true);
+  });
+
+  it("makes the owning window underlay inert and restores it after the modal closes", async () => {
+    const { container } = render(<SheetHarness />);
+    const underlay = container.querySelector<HTMLElement>(".window-underlay");
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    await screen.findByRole("dialog", { name: "Create Project" });
+    await waitFor(() => {
+      expect(underlay?.hasAttribute("inert")).toBe(true);
+      expect(underlay?.getAttribute("aria-hidden")).toBe("true");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  it("maps Return to the independent default action", async () => {
+    render(<SheetHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create Project" });
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("created")).toBeTruthy();
+  });
+
+  it("maps Escape only to a cancel action and restores trigger focus", async () => {
     render(<AlertHarness />);
     const trigger = screen.getByRole("button", { name: "Show alert" });
     trigger.focus();
     fireEvent.click(trigger);
-    const alert = screen.getByRole("alertdialog", { name: "Apply settings?" });
+    const alert = await screen.findByRole("alertdialog", { name: "Apply settings?" });
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Apply" })));
     fireEvent.keyDown(alert, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
     expect(document.querySelector("output")?.dataset.cancelCount).toBe("1");
+  });
 
-    fireEvent.click(trigger);
-    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(document.querySelector("output")?.dataset.applyCount).toBe("1");
+  it("prefers a connected explicit focus fallback over a connected transient opener", async () => {
+    render(<ExplicitFallbackAlertHarness />);
+    const stableTarget = screen.getByRole("button", { name: "Stable status item" });
+    const transientOpener = screen.getByRole("button", { name: "Transient menu command" });
+    transientOpener.focus();
+    fireEvent.click(transientOpener);
+    await screen.findByRole("alertdialog", { name: "Complete operation?" });
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "Complete operation?" })).toBeNull());
+    expect(transientOpener.isConnected).toBe(true);
+    await waitFor(() => expect(document.activeElement).toBe(stableTarget));
+  });
+
+  it("keeps an alert open on Escape when it has no cancel action", async () => {
+    render(<AlertHarness cancel={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Show alert" }));
+    const alert = await screen.findByRole("alertdialog", { name: "Apply settings?" });
+    fireEvent.keyDown(alert, { key: "Escape" });
+    expect(screen.getByRole("alertdialog", { name: "Apply settings?" })).toBe(alert);
+  });
+
+  it("uses an explicit desktop modal scope for a menu-bar app even when another app has a key window", async () => {
+    const { container } = render(
+      <>
+        <div className="desktop-canvas">
+          <div className="desktop-underlay">Desktop</div>
+          <section className="mac-window" data-key-window="true">Unrelated app window</section>
+        </div>
+        <MacAlert
+          open
+          onClose={() => {}}
+          presentationScope="desktop"
+          title="Menu-bar alert"
+          message="This alert belongs to the desktop presentation layer."
+          actions={[{ id: "okay", label: "OK", isDefault: true }]}
+        />
+      </>,
+    );
+    const alert = await screen.findByRole("alertdialog", { name: "Menu-bar alert" });
+    const layer = alert.closest<HTMLElement>(".mc-window-modal-layer");
+    expect(layer?.dataset.modalScope).toBe("desktop");
+    expect(layer?.parentElement).toBe(container.querySelector(".desktop-canvas"));
+    expect(container.querySelector(".desktop-underlay")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("makes body-level portalled overlays inert for a desktop alert and restores them", async () => {
+    const portalHost = document.createElement("div");
+    portalHost.dataset.reactAriaPortal = "";
+    portalHost.setAttribute("aria-hidden", "false");
+    document.body.append(portalHost);
+    try {
+      render(<DesktopAlertWithExternalPortal portalHost={portalHost} />);
+      await screen.findByRole("alertdialog", { name: "System decision" });
+      await waitFor(() => {
+        expect(portalHost.hasAttribute("inert")).toBe(true);
+        expect(portalHost.getAttribute("aria-hidden")).toBe("true");
+      });
+      fireEvent.click(screen.getByRole("button", { name: "OK" }));
+      await waitFor(() => expect(screen.queryByRole("alertdialog", { name: "System decision" })).toBeNull());
+      expect(portalHost.hasAttribute("inert")).toBe(false);
+      expect(portalHost.getAttribute("aria-hidden")).toBe("false");
+    } finally {
+      portalHost.remove();
+    }
   });
 });

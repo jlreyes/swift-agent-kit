@@ -1,9 +1,8 @@
 "use client";
 
-import { useRef, type ReactNode, type RefObject } from "react";
+import type { ReactNode } from "react";
 
 import { MacButton } from "./controls";
-import { useModalFocusTrap } from "./modal-focus";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
@@ -11,6 +10,7 @@ import "./styles/setup-assistant.css";
 
 /* Default geometry (Setup Assistant sheet-like proportions). */
 const setupDefaultSize = { width: 720, height: 560 } as const;
+const setupMinSize = { width: 540, height: 420 } as const;
 
 export type SetupStep = {
   readonly id: string;
@@ -18,59 +18,9 @@ export type SetupStep = {
   readonly symbol?: SystemSymbolName;
 };
 
-// Generic sheet presentation: scrim + top-attached dialog with a modal focus
-// trap. Content (including any footer buttons) is the caller's.
-export function Sheet({
-  open,
-  onClose,
-  label,
-  fallbackFocusRef,
-  initialFocusSelector,
-  children,
-}: {
-  readonly open: boolean;
-  readonly onClose: () => void;
-  readonly label?: string;
-  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
-  readonly initialFocusSelector?: string;
-  readonly children: ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <SheetDialog onClose={onClose} label={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector}>
-      {children}
-    </SheetDialog>
-  );
-}
-
-function SheetDialog({
-  onClose,
-  label,
-  fallbackFocusRef,
-  initialFocusSelector,
-  children,
-}: {
-  readonly onClose: () => void;
-  readonly label?: string;
-  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
-  readonly initialFocusSelector?: string;
-  readonly children: ReactNode;
-}) {
-  const dialogRef = useRef<HTMLElement>(null);
-  const handleKeyDown = useModalFocusTrap({
-    dialogRef,
-    fallbackFocusRef,
-    ...(initialFocusSelector !== undefined ? { initialFocusSelector } : {}),
-    onCancel: onClose,
-  });
-  return (
-    <div className="mc-sheet-scrim" role="presentation">
-      <section className="mc-sheet" role="dialog" aria-modal="true" aria-label={label} ref={dialogRef} onKeyDown={handleKeyDown}>
-        {children}
-      </section>
-    </div>
-  );
-}
+// Direct imports from this module keep working while the presentation system
+// lives in its canonical module.
+export { Sheet } from "./presentation";
 
 // Generic step heading (hero symbol + title) for step bodies that want the
 // standard look; entirely optional.
@@ -93,8 +43,6 @@ export function SetupAssistant({
   onContinue,
   continueLabel = "Continue",
   continueDisabled = false,
-  // While a Sheet is up the underlay goes inert so the trap is airtight.
-  modalOpen = false,
   label,
   frame,
   onClose,
@@ -111,6 +59,7 @@ export function SetupAssistant({
   readonly onContinue: () => void;
   readonly continueLabel?: string;
   readonly continueDisabled?: boolean;
+  /** @deprecated MacSheet and Sheet now make their owning window inert automatically. */
   readonly modalOpen?: boolean;
   readonly label?: string;
   /** Placement/size override; defaults to ~720x560, centered. */
@@ -129,6 +78,7 @@ export function SetupAssistant({
       label={label ?? "Setup Assistant"}
       frame={frame}
       defaultSize={setupDefaultSize}
+      minSize={setupMinSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}
@@ -136,9 +86,9 @@ export function SetupAssistant({
       <div className="mc-setup-titlebar" data-window-drag-handle="">
         <TrafficLights />
       </div>
-      <div className="mc-setup-underlay" inert={modalOpen ? true : undefined} aria-hidden={modalOpen || undefined}>
+      <div className="mc-setup-underlay">
         <span className="mc-visually-hidden" aria-live="polite">{currentName}</span>
-        <nav className="mc-setup-progress" aria-label="Steps">
+        <nav className="mc-setup-progress" aria-label="Steps" data-window-drag-handle="">
           {steps.map((step, index) => {
             const isCurrent = step.id === currentStep;
             const isComplete = index < currentIndex || index < furthestIndex;
@@ -146,6 +96,7 @@ export function SetupAssistant({
               <button
                 type="button"
                 key={step.id}
+                data-no-window-drag=""
                 className={isCurrent ? "mc-current" : isComplete ? "mc-complete" : ""}
                 aria-current={isCurrent ? "step" : undefined}
                 disabled={index > furthestIndex}

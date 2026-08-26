@@ -7,6 +7,7 @@
 // against the stub keep working after vendoring. Full drag, focus, overlay,
 // and keyboard behavior exists only in the real package.
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { getSymbol, type SymbolName } from "symbolist";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
 
@@ -38,6 +39,9 @@ export type MenuPopoverConfig = {
   readonly offset?: number;
   readonly nonModal?: boolean;
 };
+
+export type MacPopoverLayout = "content" | "status";
+export type MacPopoverContentInset = "regular" | "compact" | "flush";
 
 /** A menu-bar title backed by a real dropdown (functional in the real package). */
 export type MenuBarMenu = {
@@ -84,7 +88,7 @@ export function MacMenu({ className = "", items, label, trigger, triggerClassNam
           <strong key={item.id} className="menu-section-label">{item.label}</strong>
         ) : (
           <button key={item.id} type="button" role={item.checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={item.checked} disabled={item.disabled} onClick={item.onSelect}>
-            <span aria-hidden="true">{item.icon ?? (item.checked ? "✓" : null)}</span>
+            <span aria-hidden="true">{item.icon ?? (item.checked ? <SystemSymbol name="checkmark" /> : null)}</span>
             <span>{item.label}</span>
             {item.shortcut !== undefined ? <kbd>{item.shortcut}</kbd> : item.trailingIcon}
           </button>
@@ -117,20 +121,30 @@ export function MacDetailsMenu({ children, className = "", label, summary }: {
   );
 }
 
-export function MacPopover({ children, className = "", label, trigger, triggerClassName = "" }: {
+export function MacPopover({ children, className = "", contentInset = "regular", isOpen, label, layout = "content", onOpenChange, trigger, triggerClassName = "", triggerRef }: {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly contentInset?: MacPopoverContentInset;
+  readonly isOpen?: boolean;
   readonly label: string;
+  readonly layout?: MacPopoverLayout;
   readonly offset?: number;
+  readonly onOpenChange?: (open: boolean) => void;
   readonly placement?: "bottom start" | "bottom end";
   readonly trigger: ReactNode;
   readonly triggerClassName?: string;
+  readonly triggerRef?: Ref<HTMLButtonElement>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = isOpen ?? uncontrolledOpen;
+  function setOpen(nextOpen: boolean) {
+    if (isOpen === undefined) setUncontrolledOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  }
   return (
     <span className="mc-popover-stub">
-      <button type="button" className={`mc-popover-trigger ${triggerClassName}`.trim()} aria-label={label} aria-expanded={open} onClick={() => setOpen((current) => !current)}>{trigger}</button>
-      {open ? <aside className={`mc-popover-surface ${className}`.trim()} aria-label={label}><div className="mc-popover-dialog">{children}</div></aside> : null}
+      <button ref={triggerRef} type="button" className={`mc-popover-trigger ${triggerClassName}`.trim()} aria-label={label} aria-expanded={open} onClick={() => setOpen(!open)}>{trigger}</button>
+      {open ? <aside className={`mc-popover-surface ${className}`.trim()} data-popover-layout={layout} aria-label={label}><div className="mc-popover-dialog" data-content-inset={contentInset}>{children}</div></aside> : null}
     </span>
   );
 }
@@ -144,7 +158,9 @@ export type WindowFrame = {
   readonly height?: number | string;
 };
 
-type WindowSize = { readonly width: number; readonly height: number };
+export type WindowSize = { readonly width: number; readonly height: number };
+
+const stubResizeEdges = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 
 const genericDefaultSize: WindowSize = { width: 720, height: 480 };
 const finderDefaultSize: WindowSize = { width: 940, height: 580 };
@@ -199,7 +215,7 @@ export function DesktopShell({
         <header className="mac-menu-bar">
           <div className="menu-left">
             <button type="button" className="mc-menu-trigger mc-menubar-menu-title" aria-label="Apple">
-              <span className="apple-mark"><svg viewBox="0 0 18 20" aria-hidden="true"><path d="M14.8 10.5c0-2 1.7-3 1.8-3.1a4 4 0 0 0-3.2-1.7c-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.8A4.4 4.4 0 0 0 3.3 8c-1.6 2.8-.4 6.9 1.1 9.1.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3.1-.7 1.4 0 1.8.7 3.1.7s2.1-1.1 2.8-2.2a9.8 9.8 0 0 0 1.3-2.7 4 4 0 0 1-2.8-3.9ZM12.5 4.3A4 4 0 0 0 13.4 1a4.1 4.1 0 0 0-2.8 1.4 3.8 3.8 0 0 0-1 3.1 3.4 3.4 0 0 0 2.9-1.2Z" /></svg></span>
+              <span className="apple-mark"><SystemSymbol name="apple.logo" /></span>
             </button>
             <button type="button" className="mc-menu-trigger mc-menubar-menu-title"><strong>{appName}</strong></button>
             {menuItems.map((item) => {
@@ -226,6 +242,9 @@ export function DesktopShell({
           </div>
           <div className="menu-right" aria-label="Mac status items">
             {menuBarExtras !== undefined ? <span className="mc-menubar-extras">{menuBarExtras}</span> : null}
+            <span className="mc-status-symbol" data-status-icon="battery" aria-label="Battery" role="img"><SystemSymbol name="battery.100percent" /></span>
+            <span className="mc-status-symbol" data-status-icon="wifi" aria-label="Wi-Fi" role="img"><SystemSymbol name="wifi" /></span>
+            <span className="mc-status-symbol" data-status-icon="control-center" aria-label="Control Center" role="img"><SystemSymbol name="switch.2" /></span>
             <span>{date}</span>
             <span>{clock}</span>
           </div>
@@ -440,6 +459,8 @@ export function WindowChrome({
   defaultSize = genericDefaultSize,
   frame,
   label,
+  minSize: _minSize,
+  resizable = true,
   style,
   windowId,
   onClose,
@@ -455,6 +476,8 @@ export function WindowChrome({
   /** Placement/size override; unset sides default to the centered placement. */
   readonly frame?: WindowFrame;
   readonly label: string;
+  readonly minSize?: WindowSize;
+  readonly resizable?: boolean;
   readonly style?: CSSProperties;
   readonly windowId?: string;
   readonly onClose?: () => void;
@@ -486,6 +509,7 @@ export function WindowChrome({
         data-app-id={app?.id}
         data-key-window={managedWindow === undefined ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
         data-window-id={resolvedWindowId ?? undefined}
+        data-window-resizable={resizable ? "true" : "false"}
         data-window-state={managedWindow?.state}
         onPointerDownCapture={() => { if (resolvedWindowId !== null) manager?.activateWindow(resolvedWindowId); }}
         onFocusCapture={() => {
@@ -494,6 +518,7 @@ export function WindowChrome({
         style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex }}
       >
         {children}
+        {resizable ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} />) : null}
       </section>
     </StubWindowControlsContext.Provider>
   );
@@ -520,8 +545,18 @@ export function MacToolbar({ center, children, className = "", leading, title, t
 
 export type ToolbarGlyphName = "back" | "forward" | "grid" | "inspector" | "list" | "more" | "search";
 
+const stubToolbarSymbols = {
+  back: "chevron.left",
+  forward: "chevron.right",
+  grid: "square.grid.2x2",
+  inspector: "sidebar.trailing",
+  list: "list.bullet",
+  more: "ellipsis",
+  search: "magnifyingglass",
+} as const satisfies Readonly<Record<ToolbarGlyphName, SystemSymbolName>>;
+
 export function ToolbarGlyph({ name }: { readonly name: ToolbarGlyphName }) {
-  return <SystemSymbol name={name === "grid" ? "square.grid.2x2" : name === "list" ? "list.bullet" : name === "inspector" ? "sidebar.trailing" : name === "search" ? "magnifyingglass" : "chevron.right"} />;
+  return <SystemSymbol className="mc-toolbar-glyph" name={stubToolbarSymbols[name]} />;
 }
 
 export function ToolbarCapsule({ children, className = "", divided = false, label, role }: {
@@ -689,20 +724,37 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
   return <MacDock items={items} label={label} />;
 }
 
-export function MenuBarExtra({ badge, children, icon, label }: {
+export function MenuBarExtra({ badge, children, icon, isOpen, label, onOpenChange, triggerRef }: {
   readonly badge?: number | string;
   readonly children: ReactNode;
   readonly icon: ReactNode | string;
+  readonly isOpen?: boolean;
   readonly label: string;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly triggerRef?: Ref<HTMLButtonElement>;
 }) {
   return (
-    <details className="mc-menubar-layer">
-      <summary className="mc-menubar-trigger" aria-label={label}>
-        {typeof icon === "string" ? <img src={icon} alt="" /> : icon}
-        {badge !== undefined && badge !== 0 && badge !== "" ? <span className="mc-menubar-badge">{badge}</span> : null}
-      </summary>
-      <aside className="menu-popover mc-menubar-popover" aria-label={label}>{children}</aside>
-    </details>
+    <div className="mc-menubar-layer">
+      <MacPopover
+        className="mc-menubar-popover"
+        contentInset="flush"
+        isOpen={isOpen}
+        label={label}
+        layout="status"
+        offset={4}
+        onOpenChange={onOpenChange}
+        triggerClassName="mc-menubar-trigger"
+        triggerRef={triggerRef}
+        trigger={
+          <>
+            {typeof icon === "string" ? <img src={icon} alt="" /> : icon}
+            {badge !== undefined && badge !== 0 && badge !== "" ? <span className="mc-menubar-badge" aria-hidden="true">{badge}</span> : null}
+          </>
+        }
+      >
+        {children}
+      </MacPopover>
+    </div>
   );
 }
 
@@ -1198,7 +1250,7 @@ export function finderKeyTarget(key: string, index: number, columns: number, cou
   return null;
 }
 
-export type SystemSymbolName = string;
+export type SystemSymbolName = SymbolName;
 
 export type ChooserChoice = {
   readonly id: string;
@@ -1342,17 +1394,92 @@ export function Sheet({ open, onClose, label, children }: {
   readonly children: ReactNode;
 }) {
   if (!open) return null;
-  return <div className="mc-sheet-scrim" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="mc-sheet" role="dialog" aria-modal="true" aria-label={label}>{children}</section></div>;
+  return <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window"><div className="mc-window-modal-scrim" role="presentation" /><section className="mc-sheet mc-sheet-legacy" role="dialog" aria-modal="true" aria-label={label}>{children}</section></div>;
 }
 
-export type MacAlertActionRole = "default" | "cancel" | "destructive";
-export type MacAlertAction = {
+export type MacDialogActionRole = "cancel" | "destructive";
+export type MacAlertPresentationScope = "automatic" | "desktop";
+export type MacDialogAction = {
   readonly id: string;
   readonly label: string;
-  readonly role?: MacAlertActionRole;
+  readonly role?: MacDialogActionRole;
+  readonly isDefault?: boolean;
   readonly disabled?: boolean;
   readonly onPress?: () => void;
 };
+
+export type MacAlertActionRole = MacDialogActionRole | "default";
+export type MacAlertAction = Omit<MacDialogAction, "role"> & { readonly role?: MacAlertActionRole };
+
+type StubDialogAction = MacDialogAction | MacAlertAction;
+
+function stubActionIsDefault(action: StubDialogAction) {
+  return action.isDefault === true || action.role === "default";
+}
+
+function StubDialogActions({ actions, onClose }: { readonly actions: readonly StubDialogAction[]; readonly onClose: () => void }) {
+  const ordered = actions
+    .map((action, index) => ({ action, index }))
+    .sort((left, right) => {
+      const priority = (action: StubDialogAction) => stubActionIsDefault(action) ? 2 : action.role === "cancel" ? 1 : 0;
+      return priority(left.action) - priority(right.action) || left.index - right.index;
+    })
+    .map(({ action }) => action);
+  return (
+    <div className="mc-dialog-actions">
+      {ordered.map((action) => {
+        const isDefault = stubActionIsDefault(action);
+        const isDestructive = action.role === "destructive";
+        return (
+          <MacButton
+            key={action.id}
+            className={`mc-dialog-action${isDefault ? " mc-dialog-action-default" : ""}${isDestructive ? " mc-dialog-action-destructive" : ""}${action.role === "cancel" ? " mc-dialog-action-cancel" : ""}`}
+            variant={isDefault ? "primary" : isDestructive ? "destructive" : "regular"}
+            disabled={action.disabled}
+            onPress={() => {
+              if (action.disabled === true) return;
+              action.onPress?.();
+              onClose();
+            }}
+          >
+            {action.label}
+          </MacButton>
+        );
+      })}
+    </div>
+  );
+}
+
+export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSelector: _initialFocusSelector, onClose, open, title }: {
+  readonly actions: readonly MacDialogAction[];
+  readonly children: ReactNode;
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly initialFocusSelector?: string;
+  readonly onClose: () => void;
+  readonly open: boolean;
+  readonly title: string;
+}) {
+  const titleId = useId();
+  const bodyId = useId();
+  function closeSheet() {
+    onClose();
+    window.requestAnimationFrame(() => fallbackFocusRef?.current?.focus());
+  }
+  if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
+  return (
+    <>
+      <span className="mc-window-modal-anchor" aria-hidden="true" />
+      <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window">
+        <div className="mc-window-modal-scrim" role="presentation" />
+        <section className="mc-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
+          <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
+          <div className="mc-sheet-body" id={bodyId}>{children}</div>
+          <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={closeSheet} /></footer>
+        </section>
+      </div>
+    </>
+  );
+}
 
 export function MacWindowStatusBar({ children, className = "", live, trailing }: {
   readonly children: ReactNode;
@@ -1363,24 +1490,37 @@ export function MacWindowStatusBar({ children, className = "", live, trailing }:
   return <footer className={`mc-window-status-bar ${className}`} role={live === undefined ? undefined : "status"} aria-live={live}><span className="mc-window-status-primary">{children}</span>{trailing === undefined ? null : <span className="mc-window-status-trailing">{trailing}</span>}</footer>;
 }
 
-export function MacAlert({ actions, icon, message, onClose, open, title }: {
-  readonly actions: readonly MacAlertAction[];
+export function MacAlert({ actions, applicationName, fallbackFocusRef, icon, message, onClose, open, presentationScope = "automatic", title }: {
+  readonly actions: readonly (MacDialogAction | MacAlertAction)[];
+  readonly applicationName?: string;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly icon?: ReactNode;
   readonly message: ReactNode;
   readonly onClose: () => void;
   readonly open: boolean;
+  readonly presentationScope?: MacAlertPresentationScope;
   readonly title: string;
 }) {
-  if (!open) return null;
+  const titleId = useId();
+  const messageId = useId();
+  function closeAlert() {
+    onClose();
+    window.requestAnimationFrame(() => fallbackFocusRef?.current?.focus());
+  }
+  if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
+  const scope = presentationScope === "desktop" ? "desktop" : "window";
   return (
-    <div className="mc-alert-scrim" role="presentation">
-      <section className="mc-alert" role="alertdialog" aria-modal="true" aria-label={title}>
+    <>
+      <span className="mc-window-modal-anchor" aria-hidden="true" />
+      <div className={`mc-window-modal-layer mc-window-modal-layer-alert mc-window-modal-layer-${scope}`} data-modal-kind="alert" data-modal-scope={scope}>
+        <div className="mc-window-modal-scrim" role="presentation" />
+        <section className={`mc-alert${icon === undefined ? " mc-alert-no-icon" : ""}`} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}>
         {icon === undefined ? null : <div className="mc-alert-icon" aria-hidden="true">{icon}</div>}
-        <div className="mc-alert-copy"><h2>{title}</h2><div>{message}</div></div>
-        <div className="mc-alert-actions">{actions.map((action) => { const role = action.role ?? "default"; return <MacButton key={action.id} className={`mc-alert-action-${role}`} variant={role === "default" ? "primary" : role === "destructive" ? "destructive" : "regular"} disabled={action.disabled} onPress={() => { action.onPress?.(); onClose(); }}>{action.label}</MacButton>; })}</div>
-      </section>
-    </div>
+          <div className="mc-alert-copy">{applicationName === undefined ? null : <div className="mc-alert-application">{applicationName}</div>}<h2 id={titleId}>{title}</h2><div className="mc-alert-message" id={messageId}>{message}</div></div>
+          <footer className="mc-alert-footer"><StubDialogActions actions={actions} onClose={closeAlert} /></footer>
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -1468,14 +1608,10 @@ export function useModalFocusTrap() {
   return () => undefined;
 }
 
-export function SystemSymbol({ className, name, size }: {
+export function SystemSymbol({ className = "", name, size }: {
   readonly className?: string;
   readonly name: SystemSymbolName;
   readonly size?: number;
 }) {
-  return (
-    <svg className={className} data-system-symbol={name} viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false">
-      <circle cx="12" cy="12" r="8" />
-    </svg>
-  );
+  return <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>{getSymbol(name) ?? ""}</span>;
 }

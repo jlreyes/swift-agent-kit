@@ -77,11 +77,30 @@ there, and render one `MacAppDock`. Multiple windows in the same app need
 explicit stable `windowId` values. The provider owns key-window focus,
 z-order, running state, traffic-light actions, Window-menu targeting, and
 Dock launch/restore; do not duplicate those with route-local active-window
-state or z-index counters.
+state or z-index counters. `WindowChrome` owns contained drag/resize geometry
+and recontains itself when its desktop canvas changes; use its `minSize` and
+`resizable` props, and never override `.mac-window` positioning from a recipe.
+
+Choose `MacApp presentation="windowed"` for an ordinary Dock app, or
+`presentation="menuBar"` with `MenuBarExtra` for a status-item app. Use
+`MacAlert presentationScope="desktop"` for a menu-bar app's system decision;
+`MacSheet` and ordinary alerts attach to the owning window. Keep Dock activity
+out of `MacWindowStatusBar`, which is window-local feedback only.
 
 Dock entries must use `DockIcon`/`MacDockAppIcon`'s shared normalizer. Supply
 an `asset` for hydrated app artwork or a `symbol` for generated app artwork;
 do not nest a custom full-size icon tile or write per-app scale overrides.
+
+Use `SystemSymbol` for SF-style glyphs. It maps typed `symbolist` codepoints
+through the macOS system SF font; it deliberately ships neither font files nor
+hand-drawn SF-symbol SVGs, and therefore needs a Mac client for exact glyph
+rendering. The template's `SFSymbol` remains only as a deprecated compatibility
+alias; new chrome code imports `SystemSymbol`.
+
+Use `MacMenu` for command rows and `MacPopover` for arbitrary anchored content
+(`layout` and `contentInset` make that choice explicit). Use
+`MacDisclosureGroup` for collapsed detail and `MacSourceList` for sidebar
+navigation; source-list headers are structural and never navigation targets.
 
 ## Fork an existing prototype
 

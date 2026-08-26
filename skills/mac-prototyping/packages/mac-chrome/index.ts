@@ -20,6 +20,7 @@ export {
   type DockItem,
   type MacDockAppIconProps,
 } from "./dock.tsx";
+export type { MacWindowThumbnail } from "./window-transition.ts";
 export { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 export {
   MacToolbar,

@@ -2,6 +2,7 @@
 
 import type { CSSProperties, DragEvent as ReactDragEvent, ReactNode } from "react";
 
+import type { MacWindowThumbnail } from "./window-transition.ts";
 import "./styles/tokens.css";
 import "./styles/dock.css";
 
@@ -88,6 +89,10 @@ export interface DockItem {
   readonly label: string;
   /** Prefer a typed DockIcon; URL and ReactNode shorthands remain supported. */
   readonly icon: DockIconSource;
+  /** A minimized window renders as a real preview, not another app icon. */
+  readonly windowThumbnail?: MacWindowThumbnail;
+  /** Shared identity used for native-style minimize/restore View Transitions. */
+  readonly viewTransitionName?: string;
   readonly running?: boolean;
   /** Adjacent items with different group values get a divider between them. */
   readonly group?: string;
@@ -119,7 +124,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
           <span className="p0-dock-item-wrap" key={item.id}>
             {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
             <button
-              className={`p0-dock-item${item.running ? " is-running" : ""}${draggable ? " can-drag" : ""}`}
+              className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
               type="button"
               aria-label={item.label}
               data-hover-effect="lift"
@@ -133,7 +138,21 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                 event.dataTransfer.effectAllowed = "copy";
               }}
             >
-              <MacDockAppIcon icon={item.icon} />
+              {item.windowThumbnail ? (
+                <span
+                  className="p0-window-thumbnail"
+                  style={{
+                    aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`,
+                    viewTransitionName: item.viewTransitionName,
+                  }}
+                >
+                  {item.windowThumbnail.src ? (
+                    <img src={item.windowThumbnail.src} alt="" draggable={false} />
+                  ) : (
+                    <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>
+                  )}
+                </span>
+              ) : <MacDockAppIcon icon={item.icon} />}
               <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
               <span className="p0-dock-running-dot" aria-hidden="true" />
             </button>

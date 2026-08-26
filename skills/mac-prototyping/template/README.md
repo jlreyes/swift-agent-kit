@@ -37,9 +37,11 @@ The launcher at `/` links both starter routes:
   freshly vendored toolkit. It is also a running Dock app, so its desktop
   identity is visible while exercising the shell. Full compositions launch
   as simultaneous managed apps: click an exposed background window to bring
-  it forward, drag its toolbar, use its traffic lights, or restore it from
-  the Dock. Its persistent catalog layout dogfoods the public source list and
-  navigation split view; it is not a one-off demo layout.
+  it forward, drag its toolbar, use its traffic lights or Window-menu
+  commands, minimize it into the Dock's separate window-thumbnail group, then
+  restore that same thumbnail. Its persistent catalog layout dogfoods the
+  public source list and navigation split view; it is not a one-off demo
+  layout.
 - `/example` is the deliberately small, coherent product-window starter.
   Build the product's first surface from it rather than treating the catalog
   as application UI.
@@ -65,6 +67,11 @@ Build a product surface from public primitives before adding local components:
   click-to-front, contained drag, ResizeObserver recontainment, and default
   eight-edge resizing; set its `minSize`/`resizable` props rather than
   reimplementing geometry or overriding `.mac-window` positioning.
+  Managed minimize is part of this same lifecycle: it captures the actual
+  window, transitions it into the Dock's separate thumbnail group, leaves the
+  app tile running, and restores through that thumbnail. Do not make a local
+  minimized-window UI. Standalone unmanaged `WindowChrome` uses its local hide
+  fallback instead.
 - Use `MacApp presentation="windowed"` for ordinary Dock apps and
   `presentation="menuBar"` with `MenuBarExtra` for status-item-only apps.
 - Use `MacAlert presentationScope="desktop"` for a menu-bar app's system

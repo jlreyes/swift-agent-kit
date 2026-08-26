@@ -1,5 +1,7 @@
 "use client";
 
+import "./resize-observer-compat.ts";
+
 import {
   useEffect,
   useRef,

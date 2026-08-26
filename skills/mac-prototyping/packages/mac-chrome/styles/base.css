@@ -24,6 +24,28 @@ body {
   margin: 0;
 }
 
+/* Only explicitly named windows and minimized Dock thumbnails participate in
+   minimize/restore transitions; the desktop itself must not cross-fade. */
+html {
+  view-transition-name: none;
+}
+
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.78, 0.2, 1);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation-duration: 0.01ms;
+  }
+}
+
 body {
   overflow: auto;
   color: var(--ink);

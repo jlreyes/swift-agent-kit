@@ -8,7 +8,14 @@ import { DesktopShell } from "../desktop-shell.tsx";
 import { SystemSymbol } from "../system-symbol.tsx";
 import { TrafficLights, WindowChrome } from "../window.tsx";
 
-afterEach(cleanup);
+vi.mock("html-to-image", () => ({
+  toPng: vi.fn(async () => "data:image/png;base64,d2luZG93"),
+}));
+
+afterEach(() => {
+  cleanup();
+  Reflect.deleteProperty(document, "startViewTransition");
+});
 
 function ManagedDesktop() {
   return (
@@ -90,43 +97,53 @@ describe("Mac app and window management", () => {
   });
 
   it("minimizes, closes, restores, and zooms managed windows", async () => {
-    vi.useFakeTimers();
-    try {
-      render(<ManagedDesktop />);
-      await act(async () => undefined);
-      fireEvent.click(managedDockButton("Notes"));
-      await act(async () => undefined);
+    const startViewTransition = vi.fn((update: () => void) => {
+      update();
+      return {};
+    });
+    Object.defineProperty(document, "startViewTransition", { configurable: true, value: startViewTransition });
+    render(<ManagedDesktop />);
+    await act(async () => undefined);
+    fireEvent.click(managedDockButton("Notes"));
+    await act(async () => undefined);
 
-      const notesWindow = managedWindow("notes");
-      expect(notesWindow).toBeTruthy();
-      if (!notesWindow) return;
-      fireEvent.click(within(notesWindow).getByRole("button", { name: "Minimize window" }));
-      expect(notesWindow.classList.contains("mc-minimizing")).toBe(true);
-      act(() => vi.advanceTimersByTime(300));
-      expect(managedWindow("notes")).toBeNull();
-      expect(managedDockButton("Notes").classList.contains("is-running")).toBe(true);
+    const notesWindow = managedWindow("notes");
+    expect(notesWindow).toBeTruthy();
+    if (!notesWindow) return;
+    fireEvent.click(within(notesWindow).getByRole("button", { name: "Minimize window" }));
+    await waitFor(() => expect(managedWindow("notes")).toBeNull());
+    expect(managedDockButton("Notes").classList.contains("is-running")).toBe(true);
 
-      fireEvent.click(managedDockButton("Notes"));
-      expect(managedWindow("notes")).toBeTruthy();
-      expect(screen.getByLabelText("Key window").textContent).toBe("notes:main");
+    const minimizedItem = managedDockButton("Notes window");
+    expect(minimizedItem.classList.contains("is-window-thumbnail")).toBe(true);
+    expect(minimizedItem.querySelector<HTMLImageElement>(".p0-window-thumbnail > img")?.src).toContain("data:image/png");
+    expect(document.querySelectorAll(".p0-dock-divider")).toHaveLength(2);
+    const dockLabels = within(screen.getByRole("navigation", { name: "Managed Dock" }))
+      .getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+    expect(dockLabels.indexOf("Notes window")).toBeLessThan(dockLabels.indexOf("Trash"));
+    expect(startViewTransition).toHaveBeenCalledTimes(1);
 
-      const restoredWindow = managedWindow("notes");
-      if (!restoredWindow) return;
-      fireEvent.click(within(restoredWindow).getByRole("button", { name: "Close window" }));
-      expect(managedWindow("notes")).toBeNull();
-      fireEvent.click(managedDockButton("Notes"));
-      expect(managedWindow("notes")).toBeTruthy();
+    fireEvent.click(minimizedItem);
+    await waitFor(() => expect(managedWindow("notes")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Notes window" })).toBeNull();
+    expect(screen.getByLabelText("Key window").textContent).toBe("notes:main");
+    expect(startViewTransition).toHaveBeenCalledTimes(2);
 
-      fireEvent.click(screen.getByRole("button", { name: "Menu Zoom" }));
-      expect(managedWindow("notes")?.classList.contains("mc-zoomed")).toBe(true);
-      fireEvent.click(screen.getByRole("button", { name: "Menu Zoom" }));
-      expect(managedWindow("notes")?.classList.contains("mc-zoomed")).toBe(false);
+    const restoredWindow = managedWindow("notes");
+    if (!restoredWindow) return;
+    fireEvent.click(within(restoredWindow).getByRole("button", { name: "Close window" }));
+    expect(managedWindow("notes")).toBeNull();
+    fireEvent.click(managedDockButton("Notes"));
+    expect(managedWindow("notes")).toBeTruthy();
 
-      fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
-      expect(managedWindow("notes")).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+    fireEvent.click(screen.getByRole("button", { name: "Menu Zoom" }));
+    expect(managedWindow("notes")?.classList.contains("mc-zoomed")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Menu Zoom" }));
+    expect(managedWindow("notes")?.classList.contains("mc-zoomed")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+    await waitFor(() => expect(managedWindow("notes")).toBeNull());
+    expect(managedDockButton("Notes window")).toBeTruthy();
   });
 
   it("routes the standard File and Window menus to the key managed window", async () => {
@@ -143,7 +160,7 @@ describe("Mac app and window management", () => {
     fireEvent.click(screen.getByRole("button", { name: "Window" }));
     await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
     fireEvent.click(screen.getByRole("menuitem", { name: "Minimize" }));
-    expect(managedWindow("notes")).toBeNull();
+    await waitFor(() => expect(managedWindow("notes")).toBeNull());
 
     fireEvent.click(managedDockButton("Notes"));
     fireEvent.click(screen.getByRole("button", { name: "File" }));
@@ -163,7 +180,7 @@ describe("Mac app and window management", () => {
     fireEvent.click(appMenu as HTMLButtonElement);
     await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
     fireEvent.click(screen.getByRole("menuitem", { name: "Hide Notes" }));
-    expect(managedWindow("notes")).toBeNull();
+    await waitFor(() => expect(managedWindow("notes")).toBeNull());
     expect(managedDockButton("Notes").classList.contains("is-running")).toBe(true);
 
     fireEvent.click(managedDockButton("Notes"));

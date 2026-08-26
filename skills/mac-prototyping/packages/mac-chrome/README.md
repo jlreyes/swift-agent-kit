@@ -33,7 +33,7 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 ## Exports (`index.ts`)
 
 Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacManagedApp`, `MacManagedWindow`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog: it
 covers every runtime export against a working desktop shell. Use it to
@@ -93,7 +93,7 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 - An active menu switches when its title is hovered. Left/Right moves between
   menu titles; Tab/Shift-Tab dismisses it and advances focus; Escape and an
   outside press dismiss it. The Apple mark and the Battery, Wi-Fi, and Control
-  Center glyphs are self-contained SVGs.
+  Center glyphs use the shared typed `SystemSymbol`/SF Symbols pipeline.
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
@@ -115,10 +115,14 @@ maps to: `NSApplication` plus SwiftUI `App`/`WindowGroup` scene ownership and th
 `WindowChrome` registers with its nearest `MacApp`; pointer presses raise it,
 keyboard navigation into it can make it key, and programmatic focus
 restoration does not reorder windows. Z-indices are derived from the bounded
-visible stack instead of growing on every click. Closing/minimizing hides the
-window without unmounting its application subtree, so state survives and
-`MacAppDock` can launch, restore, or activate it. Running dots are derived from
-the same app registry.
+visible stack instead of growing on every click. Closing or minimizing
+preserves the application subtree, so state survives and `MacAppDock` can
+launch, restore, or activate it. Managed minimization captures the actual
+`WindowChrome` with `html-to-image`, moves it through a stable View Transition
+into a separate `windows` Dock group, and keeps the app tile's running dot.
+Selecting that thumbnail restores the same window and removes the thumbnail.
+If capture fails, the manager supplies a normalized mini-window fallback.
+Running dots are derived from the same app registry.
 
 Keep app `id`, `name`, icon, and `defaultRunning` stable for a mounted
 `MacApp`. A one-window app may omit `WindowChrome.windowId` and receives
@@ -132,7 +136,7 @@ state.
 ### TrafficLights
 maps to: `NSWindow.standardWindowButton(.closeButton/.miniaturizeButton/.zoomButton)`.
 `TrafficLights({ disabled = false, onClose, onMinimize, onZoom }: { readonly disabled?: boolean; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void } = {})`
-Inside a `WindowChrome`, the three controls are functional with no props: hovering the cluster reveals the ×/−/+ glyphs on all three (macOS behavior), close hides the window, minimize animates out then hides, zoom toggles the frame against a near-canvas size. An explicit handler prop **overrides** the enclosing window's internal default for that control (the window no longer hides itself — the consumer owns the behavior). `disabled` renders all three as solid gray inert dots.
+Inside a `WindowChrome`, the three controls are functional with no props: hovering the cluster reveals the ×/−/+ glyphs on all three (macOS behavior), close hides the window, managed minimize captures and transitions it to the Dock's separate window-thumbnail group, and zoom toggles the frame against a near-canvas size. An explicit handler prop **overrides** the enclosing window's internal default for that control (the window no longer hides itself — the consumer owns the behavior). `disabled` renders all three as solid gray inert dots.
 
 ### useWindowDrag
 maps to: `NSWindow.performDrag(with:)` / `isMovableByWindowBackground`.
@@ -147,18 +151,25 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 - **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`). The desktop contracts below its 1200px reference width and window CSS has a final canvas-containment guard. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
 - **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller canvas wins so the complete window remains reachable. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas rather than the browser viewport. Set `resizable={false}` for intentionally fixed-size utility windows.
-- **Nested split-view observation**: `react-resizable-panels` synchronously reconciles its group when an outer window changes size. Chromium can consequently emit either standard `ResizeObserver` loop message for an undelivered notification that it automatically retries in the next delivery cycle, even though both outer and panel geometry are already correct. While an interactive `WindowChrome` actually contains a panel group, the shared chrome suppresses only those two benign error events so development overlays do not present a false failure; unrelated errors continue normally.
-- **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, minimize animates out (~220ms, reduced-motion aware) then hides, zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows own local visibility. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock or Window menu can restore them.
+- **Nested split-view observation**: the shared ResizeObserver compatibility adapter defers and coalesces only observations whose target is a `react-resizable-panels` `[data-group]` to the following task. Ordinary ResizeObserver delivery remains synchronous. This prevents the feedback cycle at its source; it does not suppress browser error events or hide unrelated failures.
+- **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, managed minimize captures the window and transitions it to a separate Dock thumbnail (reduced motion skips the animation), and zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows retain the local ~220ms hide fallback. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock, thumbnail, or Window menu can restore them.
 
 ### MacDock
 maps to: the system Dock (`NSDockTile` per app); no SwiftUI counterpart — system UI.
 `MacDock({ items, label = "Dock" }: { readonly items?: readonly DockItem[]; readonly label?: string })`
 `type DockIcon = { readonly kind: "asset"; readonly src: string } | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string }`
 `type DockIconSource = DockIcon | ReactNode | string`
-`interface DockItem { readonly id: string; readonly label: string; readonly icon: DockIconSource; readonly running?: boolean; readonly group?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
+`type MacWindowThumbnail = { readonly src?: string; readonly width: number; readonly height: number }`
+`interface DockItem { readonly id: string; readonly label: string; readonly icon: DockIconSource; readonly running?: boolean; readonly group?: string; readonly windowThumbnail?: MacWindowThumbnail; readonly viewTransitionName?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
 When `items` is omitted, the Dock shows Finder, App Store, Google Chrome,
 Downloads, and Trash. The local icons hydrated into `public/mac-assets/` are
 private assets: they are ignored and must never be committed.
+
+`windowThumbnail` is a compact preview surface, not alternate app artwork.
+`MacAppDock` creates those items for minimized managed windows in its own
+`windows` group; other consumers may use the same contract for a decorative
+Dock. Pair `viewTransitionName` with the source window only for a single,
+stable moving surface; do not assign it ad hoc to unrelated items.
 
 ### MacDockAppIcon
 maps to: an app's normalized `NSDockTile` artwork; no SwiftUI counterpart — system UI.

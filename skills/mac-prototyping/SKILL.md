@@ -93,6 +93,13 @@ instead of recipe-local geometry. Every full-window recipe composes it and
 must not override `.mac-window` positioning. Do not manage product windows by
 conditional rendering plus local z-index counters.
 
+Managed minimization is registry-owned: `WindowChrome` captures its actual
+surface, `MacWindowManager` transitions it to the Dock's separate minimized-
+window group, and the thumbnail restores the same window. The app tile remains
+running throughout. Do not add a recipe-local minimized card, thumbnail, or
+Dock separator. A standalone, unmanaged `WindowChrome` retains the small local
+hide fallback because it has no desktop registry.
+
 Use the default `presentation="windowed"` for an app with managed windows and
 a Dock tile. Use `presentation="menuBar"` for an app whose visible surface is
 a `MenuBarExtra`; it remains registered but is intentionally omitted from the
@@ -188,7 +195,8 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,
-  and Dock restoration must all resolve through that registry.
+  minimized-window thumbnails, and Dock restoration must all resolve through
+  that registry.
 - **Compose before styling.** Use the shared navigation, source-list, list,
   disclosure, form, control, menu, and content-state primitives before
   writing a local layout or control. Product CSS may arrange a surface around
@@ -217,8 +225,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    served pages → a rubric self-pass; screenshots optional. The showcase must
    dogfood public primitives, demonstrate both windowed and menu-bar apps, and
    cover window containment/focus/resize plus attached and desktop modal
-   scopes. Do not fix a catalog defect with story-local geometry, padding, or
-   icon code.
+   scopes. Exercise both traffic-light and Window-menu minimization: each must
+   leave the app tile running, create an actual window preview in the Dock's
+   separate window group, and restore the same window when selected. Resize a
+   split-view window and shrink/reset the viewport; no error overlay or console
+   error is acceptable. Do not fix a catalog defect with story-local geometry,
+   padding, or icon code.
 4. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md`, not in
    long-lived reviewer conversations — one line per finding
    (date · finder · [Pn] finding — file:line → resolution):

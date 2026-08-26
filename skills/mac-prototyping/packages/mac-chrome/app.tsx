@@ -4,6 +4,12 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { MacDock, type DockIconSource, type DockItem } from "./dock.tsx";
+import {
+  captureMacWindowThumbnail,
+  commitMacWindowViewTransition,
+  macWindowViewTransitionName,
+  type MacWindowThumbnail,
+} from "./window-transition.ts";
 
 export type MacWindowState = "open" | "minimized" | "closed";
 export type MacAppPresentation = "windowed" | "menuBar";
@@ -26,6 +32,7 @@ export interface MacManagedWindow {
   readonly zoomed: boolean;
   readonly isKeyWindow: boolean;
   readonly zIndex: number;
+  readonly thumbnail?: MacWindowThumbnail;
 }
 
 export interface MacWindowManagerValue {
@@ -62,6 +69,7 @@ type WindowRecord = {
   readonly stackOrder: number;
   readonly state: MacWindowState;
   readonly zoomed: boolean;
+  readonly thumbnail?: MacWindowThumbnail;
 };
 
 type ManagerState = {
@@ -125,6 +133,7 @@ function visibleWindows(state: ManagerState) {
 export function MacWindowManager({ children }: { readonly children: ReactNode }) {
   const [state, setState] = useState<ManagerState>(initialState);
   const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
+  const minimizingWindowIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     function recordKeyboardInteraction() {
@@ -227,7 +236,7 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
         ...current,
         apps: current.apps.map((app) => app.id === target.appId ? { ...app, running: true } : app),
         windows: current.windows.map((window) => window.id === windowId
-          ? { ...window, state: "open", stackOrder: current.nextStackOrder }
+          ? { ...window, state: "open", stackOrder: current.nextStackOrder, thumbnail: undefined }
           : window),
         nextStackOrder: current.nextStackOrder + 1,
       };
@@ -246,7 +255,7 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
         ...current,
         apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
         windows: target === undefined ? current.windows : current.windows.map((window) => window.id === target.id
-          ? { ...window, state: "open", stackOrder: current.nextStackOrder }
+          ? { ...window, state: "open", stackOrder: current.nextStackOrder, thumbnail: undefined }
           : window),
         nextStackOrder: target === undefined ? current.nextStackOrder : current.nextStackOrder + 1,
       };
@@ -256,18 +265,36 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
   const closeWindow = useCallback((windowId: string) => {
     setState((current) => ({
       ...current,
-      windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "closed" } : window),
+      windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "closed", thumbnail: undefined } : window),
     }));
   }, []);
 
   const minimizeWindow = useCallback((windowId: string) => {
-    setState((current) => ({
-      ...current,
-      windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "minimized" } : window),
-    }));
+    if (minimizingWindowIdsRef.current.has(windowId)) return;
+    minimizingWindowIdsRef.current.add(windowId);
+    const element = [...document.querySelectorAll<HTMLElement>("[data-window-id]")]
+      .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
+    void captureMacWindowThumbnail(element).then((thumbnail) => {
+      commitMacWindowViewTransition(() => {
+        setState((current) => {
+          const target = current.windows.find((window) => window.id === windowId);
+          if (target === undefined || target.state !== "open") return current;
+          return {
+            ...current,
+            windows: current.windows.map((window) => window.id === windowId
+              ? { ...window, state: "minimized", thumbnail }
+              : window),
+          };
+        });
+      });
+    }).finally(() => minimizingWindowIdsRef.current.delete(windowId));
   }, []);
 
-  const restoreWindow = activateWindow;
+  const restoreWindow = useCallback((windowId: string) => {
+    commitMacWindowViewTransition(() => {
+      activateWindow(windowId);
+    });
+  }, [activateWindow]);
   const openWindow = activateWindow;
 
   const toggleZoom = useCallback((windowId: string) => {
@@ -297,7 +324,9 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
     setState((current) => ({
       ...current,
       apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
-      windows: current.windows.map((window) => window.appId === appId ? { ...window, state: "closed" } : window),
+      windows: current.windows.map((window) => window.appId === appId
+        ? { ...window, state: "closed", thumbnail: undefined }
+        : window),
     }));
   }, []);
 
@@ -314,6 +343,7 @@ export function MacWindowManager({ children }: { readonly children: ReactNode })
       zoomed: window.zoomed,
       isKeyWindow: window.id === keyWindow?.id,
       zIndex: 10 + orderedVisibleWindows.findIndex((candidate) => candidate.id === window.id),
+      thumbnail: window.thumbnail,
     }));
   const publicApps: readonly MacManagedApp[] = state.apps
     .slice()
@@ -419,8 +449,9 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
 }) {
   const manager = useMacWindowManager();
   const appIds = new Set(manager.apps.map((app) => app.id));
-  const items: readonly DockItem[] = [
-    ...manager.apps.filter((app) => app.presentation === "windowed").map((app): DockItem => ({
+  const unmanagedItems = extraItems.filter((item) => !appIds.has(item.id));
+  function appDockItem(app: MacManagedApp): DockItem {
+    return {
       id: app.id,
       label: app.name,
       icon: app.icon,
@@ -430,8 +461,25 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
         manager.activateApp(app.id);
         onAppActivate?.(app.id);
       },
-    })),
-    ...extraItems.filter((item) => !appIds.has(item.id)),
+    };
+  }
+  const items: readonly DockItem[] = [
+    ...manager.apps.filter((app) => app.presentation === "windowed" && app.dockGroup === "apps").map(appDockItem),
+    ...unmanagedItems.filter((item) => item.group === "apps"),
+    ...manager.windows.filter((window) => window.state === "minimized").map((window): DockItem => {
+      const app = manager.apps.find((candidate) => candidate.id === window.appId);
+      return {
+        id: `minimized:${window.id}`,
+        label: window.label,
+        icon: app?.icon ?? "",
+        group: "windows",
+        windowThumbnail: window.thumbnail ?? { width: 720, height: 480 },
+        viewTransitionName: macWindowViewTransitionName(window.id),
+        onActivate: () => manager.restoreWindow(window.id),
+      };
+    }),
+    ...manager.apps.filter((app) => app.presentation === "windowed" && app.dockGroup === "places").map(appDockItem),
+    ...unmanagedItems.filter((item) => item.group !== "apps"),
   ];
   return <MacDock label={label} items={items} />;
 }

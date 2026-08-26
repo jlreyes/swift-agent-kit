@@ -80,6 +80,17 @@ Dock launch/restore; do not duplicate those with route-local active-window
 state or z-index counters. `WindowChrome` owns contained drag/resize geometry
 and recontains itself when its desktop canvas changes; use its `minSize` and
 `resizable` props, and never override `.mac-window` positioning from a recipe.
+Managed minimize belongs to this registry too: it captures the actual window,
+uses a shared View Transition, and places a restorable preview in the Dock's
+separate `windows` group while the app tile stays running. Do not create a
+product-local minimized state or thumbnail. Standalone unmanaged windows keep
+their local hide fallback.
+
+When smoke-checking a served desktop, minimize both from traffic lights and
+the Window menu, verify the same preview appears in the separate Dock section,
+then restore it and verify removal. Resize a split-view window and shrink then
+reset the viewport; the shared adapter must prevent ResizeObserver overlays
+and console errors without suppressing unrelated errors.
 
 Choose `MacApp presentation="windowed"` for an ordinary Dock app, or
 `presentation="menuBar"` with `MenuBarExtra` for a status-item app. Use

@@ -219,10 +219,18 @@ test("traffic lights minimize managed apps and their Dock items restore them", a
   await user.click(within(controls).getByRole("button", { name: "Minimize window" }));
   await waitFor(() => expect(screen.queryByRole("region", { name: "Finder showcase" })).toBeNull());
   expect(dockButton("Finder").classList.contains("is-running")).toBe(true);
+  const minimizedFinder = dockButton("Finder showcase");
+  expect(minimizedFinder.classList.contains("is-window-thumbnail")).toBe(true);
+  expect(minimizedFinder.querySelector(".p0-window-thumbnail")).not.toBeNull();
+  expect(screen.getByRole("navigation", { name: "Showcase Dock" }).querySelectorAll(".p0-dock-divider").length).toBeGreaterThanOrEqual(2);
+  const dockLabels = within(screen.getByRole("navigation", { name: "Showcase Dock" }))
+    .getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+  expect(dockLabels.indexOf("Finder showcase")).toBeLessThan(dockLabels.indexOf("Downloads"));
 
-  await user.click(dockButton("Finder"));
+  await user.click(minimizedFinder);
   expect(screen.getByRole("region", { name: "Finder showcase" })).toBeDefined();
   expect(screen.getByRole("region", { name: "Finder showcase" }).getAttribute("data-key-window")).toBe("true");
+  expect(within(screen.getByRole("navigation", { name: "Showcase Dock" })).queryByRole("button", { name: "Finder showcase" })).toBeNull();
 });
 
 test.each([

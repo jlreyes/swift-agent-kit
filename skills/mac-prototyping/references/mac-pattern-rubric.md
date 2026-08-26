@@ -75,9 +75,11 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   traffic lights are visually quiet; the key window has active chrome.
 - Close, minimize, zoom, File › Close Window, the Window menu, and the Dock
   all operate on the same registered window state. Minimize keeps the app's
-  running indicator and Dock activation restores it; close does not destroy
-  product state; clicking a running app's Dock tile activates its frontmost
-  restorable window.
+  running indicator, moves the actual window preview into a separate Dock
+  window section, and selecting that thumbnail restores/removes it; close does
+  not destroy product state; clicking a running app's Dock tile activates its
+  frontmost restorable window. Traffic-light and Window-menu minimization have
+  identical results.
 - Every full-window recipe carries `WindowChrome` and functional traffic
   lights, even inside a catalog. A composition preview without draggable
   window chrome is not an app window.
@@ -86,6 +88,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   edges plus four corners by default. Verify resizing and a smaller canvas;
   recipes may set `minSize` or `resizable={false}`, but must not replace
   `.mac-window` positioning or invent their own drag/resize layer.
+- A split-view resize must not surface a ResizeObserver overlay or console
+  error. The shared compatibility adapter defers/coalesces only panel-group
+  observations; do not intercept browser error events in product code.
 - Window size signals role: creation/utility windows sit near 820×520; a
   1100×570 window with a centered 760px column and hero art reads as a
   marketing page, not a Mac window.
@@ -268,7 +273,9 @@ and `.inspector`.)
 - `tabIndex` is never coupled to selection state — a hidden or secondary
   selection must not make controls keyboard-unreachable.
 - Verify at small viewports and with Reduce Motion; activation under
-  Reduce Motion still restores focus and announces.
+  Reduce Motion still restores focus and announces. Minimize may skip its
+  flight animation under Reduce Motion, but it still creates/restores the
+  separate Dock thumbnail.
 
 ## Animation & transition discipline
 
@@ -276,6 +283,9 @@ and `.inspector`.)
   never unmount-here/mount-there (reads as a page reload), never several
   simultaneous competing animations.
 - No artificial pre-commit delays; drops and clicks commit immediately.
+- Managed window minimize/restore is one View Transition between the
+  `WindowChrome` and its Dock thumbnail. Preserve one stable transition name
+  for that pair; do not animate a product-local duplicate.
 - Never animate layout-forcing properties (heights) per-frame across a
   grid; measure destination geometry after layout settles; one short
   (~160ms) transform owns the moving element.

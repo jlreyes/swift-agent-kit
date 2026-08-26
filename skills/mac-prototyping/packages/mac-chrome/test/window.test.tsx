@@ -343,59 +343,6 @@ describe("WindowChrome geometry", () => {
   });
 });
 
-describe("nested ResizeObserver loop reporting", () => {
-  it("reference-counts the narrow guard and leaves unrelated errors untouched", () => {
-    const first = render(
-      <WindowChrome label="First split window">
-        <div data-group=""><div data-panel="">First split</div></div>
-      </WindowChrome>,
-    );
-    const second = render(
-      <WindowChrome label="Second split window">
-        <div data-group=""><div data-panel="">Second split</div></div>
-      </WindowChrome>,
-    );
-    const received: Array<{ readonly defaultPrevented: boolean; readonly message: string }> = [];
-    function recordError(event: ErrorEvent) {
-      received.push({ defaultPrevented: event.defaultPrevented, message: event.message });
-      event.preventDefault();
-    }
-    window.addEventListener("error", recordError);
-
-    try {
-      for (const message of [
-        "ResizeObserver loop completed with undelivered notifications.",
-        "ResizeObserver loop limit exceeded",
-      ]) {
-        window.dispatchEvent(new ErrorEvent("error", { cancelable: true, message }));
-      }
-      expect(received).toEqual([]);
-
-      window.dispatchEvent(new ErrorEvent("error", { cancelable: true, message: "Actual application failure" }));
-      expect(received).toEqual([{ defaultPrevented: false, message: "Actual application failure" }]);
-
-      first.unmount();
-      window.dispatchEvent(new ErrorEvent("error", {
-        cancelable: true,
-        message: "ResizeObserver loop limit exceeded",
-      }));
-      expect(received).toHaveLength(1);
-
-      second.unmount();
-      window.dispatchEvent(new ErrorEvent("error", {
-        cancelable: true,
-        message: "ResizeObserver loop completed with undelivered notifications.",
-      }));
-      expect(received.at(-1)).toEqual({
-        defaultPrevented: false,
-        message: "ResizeObserver loop completed with undelivered notifications.",
-      });
-    } finally {
-      window.removeEventListener("error", recordError);
-    }
-  });
-});
-
 describe("traffic lights", () => {
   it("renders three functional buttons with reveal glyphs inside WindowChrome", () => {
     const { container, getByRole } = render(

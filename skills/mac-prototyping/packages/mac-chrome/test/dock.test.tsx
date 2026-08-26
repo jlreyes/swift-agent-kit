@@ -88,3 +88,39 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
   await act(async () => root.unmount());
   container.remove();
 });
+
+it("renders minimized windows as a separate normalized thumbnail group", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(
+      <MacDock
+        items={[
+          { id: "app", label: "App", icon: "/app.png", group: "apps", running: true },
+          {
+            id: "window",
+            label: "Project window",
+            icon: "/app.png",
+            group: "windows",
+            viewTransitionName: "mc-window-project",
+            windowThumbnail: { src: "data:image/png;base64,d2luZG93", width: 900, height: 600 },
+          },
+          { id: "trash", label: "Trash", icon: "/trash.png", group: "places" },
+        ]}
+      />,
+    );
+  });
+
+  const thumbnailButton = container.querySelector<HTMLElement>(".p0-dock-item.is-window-thumbnail");
+  const thumbnail = thumbnailButton?.querySelector<HTMLElement>(".p0-window-thumbnail");
+  expect(container.querySelectorAll(".p0-dock-divider")).toHaveLength(2);
+  expect(thumbnailButton?.querySelector(".p0-app-icon")).toBeNull();
+  expect(thumbnail?.style.aspectRatio).toBe("900 / 600");
+  expect(thumbnail?.style.viewTransitionName).toBe("mc-window-project");
+  expect(thumbnail?.querySelector("img")?.getAttribute("src")).toContain("data:image/png");
+
+  await act(async () => root.unmount());
+  container.remove();
+});

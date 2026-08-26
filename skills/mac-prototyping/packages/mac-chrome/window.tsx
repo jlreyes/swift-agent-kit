@@ -1,9 +1,10 @@
 "use client";
 
-import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
+import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useManagedWindowRegistration } from "./app.tsx";
+import { macWindowViewTransitionName } from "./window-transition.ts";
 import "./styles/tokens.css";
 import "./styles/base.css";
 
@@ -244,42 +245,6 @@ type WindowBounds = {
 };
 
 const resizeEdges: readonly WindowResizeEdge[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
-
-const benignResizeObserverLoopMessages = new Set([
-  "ResizeObserver loop completed with undelivered notifications.",
-  "ResizeObserver loop limit exceeded",
-]);
-
-let resizeObserverLoopGuardCount = 0;
-
-function handleBenignResizeObserverLoop(event: ErrorEvent) {
-  const message = event.message || (event.error instanceof Error ? event.error.message : "");
-  if (!benignResizeObserverLoopMessages.has(message)) return;
-  /* react-resizable-panels synchronously reconciles its nested group during
-     ResizeObserver delivery. Chromium reports any remaining notification as
-     an error event, then retries it in the next delivery cycle; the outer and
-     panel geometry are already correct. Suppress only those two platform
-     messages so a development overlay does not misclassify the retry as an
-     application failure. */
-  event.preventDefault();
-  event.stopImmediatePropagation();
-}
-
-function retainResizeObserverLoopGuard() {
-  if (resizeObserverLoopGuardCount === 0) {
-    window.addEventListener("error", handleBenignResizeObserverLoop, true);
-  }
-  resizeObserverLoopGuardCount += 1;
-  let retained = true;
-  return () => {
-    if (!retained) return;
-    retained = false;
-    resizeObserverLoopGuardCount = Math.max(0, resizeObserverLoopGuardCount - 1);
-    if (resizeObserverLoopGuardCount === 0) {
-      window.removeEventListener("error", handleBenignResizeObserverLoop, true);
-    }
-  };
-}
 
 /* Keep ordinary windows clear of the menu bar and Dock. Horizontal margins
    keep the rounded chrome and resize hit targets reachable at either edge. */
@@ -568,39 +533,6 @@ function useWindowGeometry({
   };
 }
 
-function useNestedPanelResizeObserverLoopGuard({
-  enabled,
-  windowRef,
-}: {
-  readonly enabled: boolean;
-  readonly windowRef: RefObject<HTMLElement | null>;
-}) {
-  useLayoutEffect(() => {
-    const element = windowRef.current;
-    if (!enabled || element === null) return;
-    const mountedElement = element;
-
-    let releaseGuard: (() => void) | null = null;
-    function syncGuard() {
-      const hasNestedResizableGroup = mountedElement.querySelector("[data-group] [data-panel]") !== null;
-      if (hasNestedResizableGroup && releaseGuard === null) {
-        releaseGuard = retainResizeObserverLoopGuard();
-      } else if (!hasNestedResizableGroup && releaseGuard !== null) {
-        releaseGuard();
-        releaseGuard = null;
-      }
-    }
-
-    syncGuard();
-    const observer = new MutationObserver(syncGuard);
-    observer.observe(mountedElement, { childList: true, subtree: true });
-    return () => {
-      observer.disconnect();
-      releaseGuard?.();
-    };
-  }, [enabled, windowRef]);
-}
-
 export function WindowChrome({
   children,
   className = "",
@@ -643,7 +575,7 @@ export function WindowChrome({
   readonly windowId?: string;
   /** Called on close; the window hides itself either way. */
   readonly onClose?: () => void;
-  /** Called on minimize; the window animates out and hides either way. */
+  /** Called on minimize; managed windows move into the Dock either way. */
   readonly onMinimize?: () => void;
   /** Called on zoom; the window toggles frame size <-> canvas size either way. */
   readonly onZoom?: () => void;
@@ -677,11 +609,6 @@ export function WindowChrome({
     resizable,
     visible,
   });
-  useNestedPanelResizeObserverLoopGuard({
-    enabled: visible && resizable,
-    windowRef: windowGeometry.windowRef,
-  });
-
   const controls = useMemo<WindowControls>(() => ({
     close: () => {
       onClose?.();
@@ -690,7 +617,8 @@ export function WindowChrome({
     },
     minimize: () => {
       onMinimize?.();
-      setMinimizing(true);
+      if (managed && resolvedWindowId !== null) minimizeManagedWindow?.(resolvedWindowId);
+      else setMinimizing(true);
     },
     zoom: () => {
       onZoom?.();
@@ -702,12 +630,11 @@ export function WindowChrome({
   useEffect(() => {
     if (!minimizing) return;
     const timer = window.setTimeout(() => {
-      if (managed && resolvedWindowId !== null) minimizeManagedWindow?.(resolvedWindowId);
-      else setHidden(true);
+      setHidden(true);
       setMinimizing(false);
     }, minimizeDurationMs);
     return () => window.clearTimeout(timer);
-  }, [managed, minimizeManagedWindow, minimizing, resolvedWindowId]);
+  }, [minimizing]);
 
   if (!visible) return null;
 
@@ -721,6 +648,7 @@ export function WindowChrome({
       height: windowGeometry.geometry.height,
     }),
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
+    ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };
   if (minimizing) {
     const existingTransform = composedStyle.transform;

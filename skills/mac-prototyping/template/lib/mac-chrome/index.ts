@@ -96,6 +96,7 @@ export type {
   MacToggleStyle,
   MacWindowManagerValue,
   MacWindowState,
+  MacWindowThumbnail,
   MenuAction,
   MenuBarMenu,
   MenuCommand,

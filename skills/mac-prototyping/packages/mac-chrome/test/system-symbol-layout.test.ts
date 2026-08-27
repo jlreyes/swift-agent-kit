@@ -39,5 +39,32 @@ it("gives generated Dock artwork a stable slot before centering intrinsic symbol
 
   expect(dock).toMatch(/\.p0-app-icon-glyph\s*\{[^}]*width:\s*34px;[^}]*height:\s*30px;/s);
   expect(dock).toMatch(/\.p0-app-icon-glyph > svg\s*\{[^}]*width:\s*26px;[^}]*height:\s*26px;/s);
-  expect(dock).toMatch(/\.p0-app-icon-glyph > \.mc-system-symbol\s*\{[^}]*font-size:\s*20px;/s);
+  expect(dock).toMatch(/\.p0-app-icon-glyph > \.mc-system-symbol\s*\{[^}]*font-size:\s*26px;/s);
+});
+
+it("gives every SVG-capable role an equivalent canonical font-symbol size", () => {
+  const roles = [
+    ["content-state.css", ".mc-content-unavailable-icon .mc-system-symbol", "42"],
+    ["chooser.css", ".mc-chooser-choice > .mc-system-symbol", "27"],
+    ["chooser.css", ".mc-chooser-secondary-trigger > .mc-system-symbol", "19"],
+    ["chat.css", ".mc-chat-send .mc-system-symbol", "13"],
+    ["dock.css", ".p0-app-icon-glyph > .mc-system-symbol", "26"],
+    ["finder.css", ".mc-quicklook-panel > header button .mc-system-symbol", "10"],
+    ["popover.css", ".mc-menu-popover .mc-menu-icon > .mc-system-symbol", "15"],
+    ["popover.css", ".mc-menu-popover .mc-menu-trailing > .mc-system-symbol", "13"],
+    ["popover.css", ".mc-details-menu-trigger > .mc-system-symbol", "16"],
+    ["popover.css", ".mc-menubar-trigger .mc-system-symbol", "15"],
+    ["popover.css", ".mc-menubar-popover header .mc-system-symbol", "26"],
+    ["navigation.css", ".mc-sidebar-item-icon .mc-system-symbol", "16"],
+    ["toolbar.css", ".mc-toolbar-button > .mc-system-symbol", "14"],
+    ["setup-assistant.css", ".mc-setup-progress .mc-system-symbol", "15"],
+    ["collections.css", ".mc-list-row-icon .mc-system-symbol", "18"],
+    ["presentation.css", ".mc-alert-icon .mc-system-symbol", "42"],
+    ["controls.css", ".mc-segmented-icon .mc-system-symbol", "15"],
+  ] as const;
+
+  for (const [file, selector, size] of roles) {
+    const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    expect(source(join(stylesRoot, file))).toMatch(new RegExp(`${escapedSelector}\\s*\\{[^}]*font-size:\\s*${size}px`, "s"));
+  }
 });

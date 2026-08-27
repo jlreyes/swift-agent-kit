@@ -72,6 +72,39 @@ test("stub alerts include their padding in the constrained inline size", () => {
   expect(alert).toMatch(/width:\s*min\(390px, calc\(100% - 24px\)\)/);
 });
 
+test("presentation geometry owns border-box sizing without relying on global base styles", () => {
+  expect(source).toMatch(
+    /\.mc-window-modal-layer,\s*\.mc-window-modal-scrim,\s*\.mc-sheet,\s*\.mc-alert,\s*\.mc-window-status-bar\s*\{[^}]*box-sizing:\s*border-box/,
+  );
+  const style = document.createElement("style");
+  style.textContent = source;
+  document.head.append(style);
+  const element = (className: string) => {
+    const value = document.createElement("div");
+    value.className = className;
+    document.body.append(value);
+    return value;
+  };
+  const layer = element("mc-window-modal-layer mc-window-modal-layer-alert");
+  const scrim = element("mc-window-modal-scrim");
+  const sheet = element("mc-sheet");
+  const alert = element("mc-alert");
+  const status = element("mc-window-status-bar");
+  for (const primitive of [layer, scrim, sheet, alert, status]) {
+    expect(getComputedStyle(primitive).boxSizing).toBe("border-box");
+  }
+  expect(getComputedStyle(layer).paddingBottom).toBe("22px");
+  expect(getComputedStyle(sheet).maxHeight).toBe("calc(100% - 20px)");
+  expect(getComputedStyle(alert).maxHeight).toBe("calc(100% - 22px)");
+  expect(getComputedStyle(status).minHeight).toBe("23px");
+  style.remove();
+  layer.remove();
+  scrim.remove();
+  sheet.remove();
+  alert.remove();
+  status.remove();
+});
+
 test("tall sheets and alerts keep actions fixed while only content regions scroll", () => {
   const sheet = rule(".mc-sheet");
   expect(sheet).toMatch(/max-height:\s*calc\(100% - 20px\)/);
@@ -203,6 +236,18 @@ test("source lists own scrolling within their clipped navigation sidebar", () =>
 test("menu-bar popovers preserve their native cap without exceeding the viewport", () => {
   const popover = rule(".mc-menu-popover.mc-menubar-menu-popover");
 
+  expect(popover).toMatch(/min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
+  expect(popover).not.toMatch(/min-width:\s*224px/);
   expect(popover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
   expect(popover).not.toMatch(/max-width:\s*340px/);
+});
+
+test("short viewports keep the desktop canvas on the dynamic viewport height", () => {
+  const viewport = rules(".showcase-viewport");
+  const canvas = rules(".desktop-canvas");
+
+  expect(source).toMatch(/@media\s*\(max-height:\s*749px\)/);
+  expect(viewport).toMatch(/min-height:\s*0/);
+  expect(canvas).toMatch(/height:\s*100dvh/);
+  expect(canvas).not.toMatch(/height:\s*100vh/);
 });

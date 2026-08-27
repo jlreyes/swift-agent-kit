@@ -259,7 +259,7 @@
 
 .showcase-library-items .mc-system-symbol {
   color: #4e82b4;
-  font-size: 23px;
+  font-size: 38px;
 }
 
 .showcase-library-items.is-list svg {
@@ -268,7 +268,7 @@
 }
 
 .showcase-library-items.is-list .mc-system-symbol {
-  font-size: 12px;
+  font-size: 21px;
 }
 
 .showcase-inline-status {
@@ -323,7 +323,7 @@
 
 .showcase-navigation-detail > .mc-system-symbol {
   color: #5487b8;
-  font-size: 29px;
+  font-size: 48px;
 }
 
 .showcase-navigation-detail h3 {
@@ -414,7 +414,7 @@
 }
 
 .showcase-control-row .mc-system-symbol {
-  font-size: 9px;
+  font-size: 15px;
 }
 
 .showcase-popover-copy,
@@ -469,7 +469,7 @@
 
 .showcase-recipe-summary > .mc-system-symbol {
   color: #5487b8;
-  font-size: 26px;
+  font-size: 44px;
 }
 
 .showcase-recipe-summary h3 {
@@ -507,7 +507,7 @@
 }
 
 .showcase-component-inspector > header .mc-system-symbol {
-  font-size: 9px;
+  font-size: 15px;
 }
 
 .showcase-component-inspector dl {
@@ -540,7 +540,7 @@
 
 .showcase-preview-card > .mc-system-symbol {
   color: #5185b6;
-  font-size: 32px;
+  font-size: 54px;
 }
 
 .showcase-preview-card p {

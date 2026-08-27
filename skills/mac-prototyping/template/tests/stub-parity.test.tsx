@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -119,6 +119,18 @@ describe("template stub public behavior", () => {
     const { container } = render(<DesktopShell appName="Prototype" wallpaper={wallpaper}><div /></DesktopShell>);
     const canvas = container.querySelector<HTMLElement>(".desktop-canvas");
     expect(canvas?.style.getPropertyValue("--mc-wallpaper")).toBe(expected);
+  });
+
+  test.each([
+    ["balanced nested functions", 'image(linear-gradient(#123, #456), url("wall)paper.png"))', 'image(linear-gradient(#123, #456), url("wall)paper.png"))'],
+    ["comments containing delimiters", 'image(/* unmatched ) is inert */ url("wallpaper.png"), #345)', 'image(/* unmatched ) is inert */ url("wallpaper.png"), #345)'],
+    ["function-like image filename", "image(foo).png", 'url("image(foo).png")'],
+    ["function-like paint filename", "paint(foo).jpg", 'url("paint(foo).jpg")'],
+    ["trailing layout token", "linear-gradient(#123, #456) center", 'url("linear-gradient(#123, #456) center")'],
+    ["unterminated function", "var(--wallpaper", 'url("var(--wallpaper")'],
+  ])("DesktopShell validates the complete %s wallpaper source", (_case, wallpaper, expected) => {
+    const { container } = render(<DesktopShell appName="Prototype" wallpaper={wallpaper}><div /></DesktopShell>);
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper")).toBe(expected);
   });
 
   test("MacList exposes one tab stop and supports arrow and text-value navigation", async () => {
@@ -783,6 +795,51 @@ describe("template stub public behavior", () => {
     expect(screen.queryByText("Manifest icon")).toBeNull();
   });
 
+  test("duplicate registrations restore each surviving app and window owner's metadata", async () => {
+    const manifest = { id: "owned", name: "Manifest", icon: "/manifest.png" } as const;
+    function RegistryMetadata() {
+      const manager = useMacWindowManager();
+      const app = manager.apps.find((candidate) => candidate.id === manifest.id);
+      const window = manager.windows.find((candidate) => candidate.id === "owned:main");
+      return <><output data-testid="owned-metadata">{app === undefined ? "missing" : `${app.name}|${app.dockGroup}|${app.presentation}|${window?.label ?? "no-window"}`}</output><output data-testid="owned-icon">{typeof app?.icon === "string" ? app.icon : "complex icon"}</output></>;
+    }
+    function Harness() {
+      const [showPrimary, setShowPrimary] = useState(true);
+      const [showNewest, setShowNewest] = useState(true);
+      return (
+        <MacWindowManager initialApps={[manifest]}>
+          <button type="button" onClick={() => setShowNewest(false)}>Remove newest owner</button>
+          <button type="button" onClick={() => setShowPrimary(false)}>Remove primary owner</button>
+          {showPrimary ? (
+            <MacApp {...manifest} name="Primary" icon="/primary.png" presentation="menuBar">
+              <WindowChrome label="Primary window" windowId="owned:main"><span /></WindowChrome>
+            </MacApp>
+          ) : null}
+          {showNewest ? (
+            <MacApp {...manifest} name="Newest" icon="/newest.png" dockGroup="places">
+              <WindowChrome label="Newest window" windowId="owned:main"><span /></WindowChrome>
+            </MacApp>
+          ) : null}
+          <RegistryMetadata />
+          <MacAppDock label="Owned Dock" />
+        </MacWindowManager>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("owned-metadata").textContent).toBe("Newest|places|windowed|Newest window"));
+    expect(screen.getByTestId("owned-icon").textContent).toBe("/newest.png");
+
+    await user.click(screen.getByRole("button", { name: "Remove newest owner" }));
+    await waitFor(() => expect(screen.getByTestId("owned-metadata").textContent).toBe("Primary|apps|menuBar|Primary window"));
+    expect(screen.getByTestId("owned-icon").textContent).toBe("/primary.png");
+
+    await user.click(screen.getByRole("button", { name: "Remove primary owner" }));
+    await waitFor(() => expect(screen.getByTestId("owned-metadata").textContent).toBe("Manifest|apps|windowed|no-window"));
+    expect(screen.getByTestId("owned-icon").textContent).toBe("/manifest.png");
+  });
+
   test("unmanaged WindowChrome preserves a caller z-index", () => {
     render(<WindowChrome label="Floating utility" style={{ zIndex: 77 }}>Utility</WindowChrome>);
     expect(screen.getByRole("region", { name: "Floating utility" }).style.zIndex).toBe("77");
@@ -1166,6 +1223,108 @@ describe("template stub public behavior", () => {
   test("finder navigation only resets an invalid selection for arrow keys", () => {
     expect(finderKeyTarget("Enter", -1, 3, 6)).toBeNull();
     expect(finderKeyTarget("ArrowDown", -1, 3, 6)).toBe(0);
+  });
+
+  test("Finder keyboard open and Quick Look use the focused selection and show file metadata", async () => {
+    const onOpen = vi.fn();
+    const entries = [{
+      id: "report",
+      name: "Report",
+      kind: "folder",
+      icon: <span>Report icon</span>,
+      modified: "Today, 2:30 PM",
+      size: "42 KB",
+    }] as const;
+    function FinderHarness() {
+      const [selectedId, setSelectedId] = useState<string | null>("report");
+      return (
+        <FinderWindow
+          sidebar={[]}
+          entries={entries}
+          mode="icons"
+          onModeChange={() => {}}
+          search={{ value: "", onChange: () => {} }}
+          selection={{ selectedId, onSelect: setSelectedId }}
+          onOpen={onOpen}
+        />
+      );
+    }
+    render(<FinderHarness />);
+    const option = screen.getByRole("option", { name: /Report/ });
+    option.focus();
+
+    expect(fireEvent.keyDown(option, { key: "ArrowDown", metaKey: true })).toBe(false);
+    expect(onOpen).toHaveBeenCalledWith(entries[0]);
+    expect(document.activeElement).toBe(screen.getByRole("listbox", { name: "Files" }));
+
+    option.focus();
+    expect(fireEvent.keyDown(option, { key: " " })).toBe(false);
+    const quickLook = await screen.findByRole("dialog", { name: "Quick Look Report" });
+    expect(within(quickLook).getByText("Today, 2:30 PM · 42 KB")).toBeDefined();
+  });
+
+  test("modal default Return leaves links and every native editable content boundary in control", async () => {
+    const onDefault = vi.fn();
+    function SerializedEditable({ value, testId }: { readonly value: string; readonly testId: string }) {
+      const ref = useRef<HTMLDivElement>(null);
+      useEffect(() => ref.current?.setAttribute("contenteditable", value), [value]);
+      return <div ref={ref}><span data-testid={testId}>Editable child</span></div>;
+    }
+    render(
+      <WindowChrome label="Return owner">
+        <MacSheet
+          actions={[{ id: "default", label: "Continue", isDefault: true, onPress: onDefault }]}
+          onClose={() => {}}
+          open
+          title="Return targets"
+        >
+          <a href="/help"><span data-testid="link-child">Help</span></a>
+          <SerializedEditable value="" testId="empty-editable-child" />
+          <SerializedEditable value="true" testId="true-editable-child" />
+          <SerializedEditable value="plaintext-only" testId="plaintext-editable-child" />
+          <SerializedEditable value="false" testId="false-editable-child" />
+          <span data-testid="plain-return-target">Plain target</span>
+        </MacSheet>
+      </WindowChrome>,
+    );
+    await screen.findByRole("dialog", { name: "Return targets" });
+
+    fireEvent.keyDown(screen.getByTestId("link-child"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("empty-editable-child"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("true-editable-child"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("plaintext-editable-child"), { key: "Enter" });
+    expect(onDefault).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByTestId("false-editable-child"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("plain-return-target"), { key: "Enter" });
+    expect(onDefault).toHaveBeenCalledTimes(2);
+  });
+
+  test("Chat Return sends, Shift-Return stays multiline, and delivery status is rendered", () => {
+    const onSend = vi.fn();
+    render(
+      <ChatWindow
+        conversations={[{
+          id: "thread",
+          title: "Prototype",
+          messages: [
+            { id: "owner", author: { name: "James", role: "owner" }, at: "2:30 PM", body: "Ship it", status: "Delivered" },
+            { id: "agent", author: { name: "Agent", role: "agent" }, at: "2:31 PM", body: "Done", status: "Read" },
+          ],
+        }]}
+        activeConversationId="thread"
+        onSelectConversation={() => {}}
+        composer={{ value: "Send this", onChange: () => {}, onSend, placeholder: "Message" }}
+      />,
+    );
+    expect(screen.getByText("Delivered").className).toBe("mc-chat-status");
+    expect(screen.getByText("Read").className).toBe("mc-chat-status");
+    const composer = screen.getByRole("textbox", { name: "Message" });
+
+    expect(fireEvent.keyDown(composer, { key: "Enter", shiftKey: true })).toBe(true);
+    expect(onSend).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(composer, { key: "Enter" })).toBe(false);
+    expect(onSend).toHaveBeenCalledOnce();
   });
 
   test("MacSheet honors initial focus, traps Tab, cancels on Escape, and restores focus", async () => {

@@ -493,6 +493,213 @@ describe("WindowChrome geometry", () => {
     expect(windowElement.style.height).toBe("320px");
   });
 
+  it("removes competing logical frame properties once physical interaction geometry owns the window", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(40, 20, 900, 700);
+      if (this.classList.contains("mac-window")) {
+        const left = Number.parseFloat(this.style.insetInlineStart || this.style.left) || 0;
+        const top = Number.parseFloat(this.style.insetBlockStart || this.style.top) || 0;
+        const width = Number.parseFloat(this.style.inlineSize || this.style.width) || 0;
+        const height = Number.parseFloat(this.style.blockSize || this.style.height) || 0;
+        return new DOMRect(40 + left, 20 + top, width, height);
+      }
+      return new DOMRect();
+    });
+    const { container } = render(
+      <div className="desktop-canvas">
+        <WindowChrome
+          frame={{ left: 100, top: 80, width: 500, height: 360 }}
+          label="Logical geometry"
+          style={{
+            blockSize: 450,
+            inlineSize: 600,
+            insetBlockStart: 90,
+            insetInlineStart: 140,
+          }}
+        >
+          <div data-window-drag-handle="">Title</div>
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    expect(windowElement.style.left).toBe("140px");
+    expect(windowElement.style.top).toBe("90px");
+    expect(windowElement.style.width).toBe("600px");
+    expect(windowElement.style.height).toBe("450px");
+    expect(windowElement.style.insetInlineStart).toBe("");
+    expect(windowElement.style.insetBlockStart).toBe("");
+    expect(windowElement.style.inlineSize).toBe("");
+    expect(windowElement.style.blockSize).toBe("");
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 120 });
+    firePointer(windowElement, "pointermove", { clientX: 220, clientY: 130 });
+    await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("160px");
+    expect(windowElement.style.top).toBe("100px");
+    expect(windowElement.getBoundingClientRect().left).toBe(200);
+    expect(windowElement.getBoundingClientRect().width).toBe(600);
+  });
+
+  it.each([
+    {
+      expectedHeight: 450,
+      expectedWidth: 400,
+      frame: { left: 100, top: 80, width: 500, height: 300 },
+      name: "maximum width and minimum height",
+      style: { maxWidth: 400, minHeight: 450 },
+    },
+    {
+      expectedHeight: 350,
+      expectedWidth: 550,
+      frame: { left: 100, top: 80, width: 500, height: 400 },
+      name: "minimum width and maximum height",
+      style: { minWidth: 550, maxHeight: 350 },
+    },
+  ] satisfies readonly {
+    readonly expectedHeight: number;
+    readonly expectedWidth: number;
+    readonly frame: { readonly left: number; readonly top: number; readonly width: number; readonly height: number };
+    readonly name: string;
+    readonly style: CSSProperties;
+  }[])("normalizes authored $name into unconstrained interactive geometry", async ({
+    expectedHeight,
+    expectedWidth,
+    frame,
+    style,
+  }) => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(40, 20, 900, 700);
+      if (this.classList.contains("mac-window")) {
+        const authoredWidth = Number.parseFloat(this.style.width) || 0;
+        const authoredHeight = Number.parseFloat(this.style.height) || 0;
+        const minWidth = Number.parseFloat(this.style.minWidth);
+        const maxWidth = Number.parseFloat(this.style.maxWidth);
+        const minHeight = Number.parseFloat(this.style.minHeight);
+        const maxHeight = Number.parseFloat(this.style.maxHeight);
+        const width = Math.min(
+          Number.isFinite(maxWidth) ? maxWidth : Number.POSITIVE_INFINITY,
+          Math.max(Number.isFinite(minWidth) ? minWidth : 0, authoredWidth),
+        );
+        const height = Math.min(
+          Number.isFinite(maxHeight) ? maxHeight : Number.POSITIVE_INFINITY,
+          Math.max(Number.isFinite(minHeight) ? minHeight : 0, authoredHeight),
+        );
+        return new DOMRect(
+          40 + (Number.parseFloat(this.style.left) || 0),
+          20 + (Number.parseFloat(this.style.top) || 0),
+          width,
+          height,
+        );
+      }
+      return new DOMRect();
+    });
+    const { container } = render(
+      <div className="desktop-canvas">
+        <WindowChrome
+          frame={frame}
+          label="Constrained geometry"
+          minSize={{ width: 100, height: 100 }}
+          style={style}
+        >
+          <div data-window-drag-handle="">Title</div>
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement).toBeTruthy();
+    if (windowElement === null) return;
+
+    expect(windowElement.style.width).toBe(`${expectedWidth}px`);
+    expect(windowElement.style.height).toBe(`${expectedHeight}px`);
+    expect(windowElement.style.minWidth).toBe("");
+    expect(windowElement.style.maxWidth).toBe("");
+    expect(windowElement.style.minHeight).toBe("");
+    expect(windowElement.style.maxHeight).toBe("");
+
+    await resizeFrom(windowElement, "se", 20, 20);
+    expect(windowElement.style.width).toBe(`${expectedWidth + 20}px`);
+    expect(windowElement.style.height).toBe(`${expectedHeight + 20}px`);
+    expect(windowElement.getBoundingClientRect().width).toBe(expectedWidth + 20);
+    expect(windowElement.getBoundingClientRect().height).toBe(expectedHeight + 20);
+  });
+
+  it("preserves responsive authored geometry through click-only gestures and activates pixels on movement", async () => {
+    const layout = { canvasLeft: 40, canvasTop: 20, canvasWidth: 800, canvasHeight: 600 };
+    let notifyResize: () => void = () => undefined;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    function resolvedLength(value: string, available: number): number {
+      if (value.endsWith("%")) return available * Number.parseFloat(value) / 100;
+      return Number.parseFloat(value) || 0;
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) {
+        return new DOMRect(layout.canvasLeft, layout.canvasTop, layout.canvasWidth, layout.canvasHeight);
+      }
+      if (this.classList.contains("mac-window")) {
+        const left = resolvedLength(this.style.left, layout.canvasWidth);
+        const top = resolvedLength(this.style.top, layout.canvasHeight);
+        const width = resolvedLength(this.style.width, layout.canvasWidth);
+        const height = resolvedLength(this.style.height, layout.canvasHeight);
+        return new DOMRect(layout.canvasLeft + left, layout.canvasTop + top, width, height);
+      }
+      return new DOMRect();
+    });
+    const { container } = render(
+      <div className="desktop-canvas">
+        <WindowChrome
+          frame={{ left: "10%", top: "10%", width: "50%", height: "50%" }}
+          label="Responsive geometry"
+          minSize={{ width: 100, height: 100 }}
+        >
+          <div data-window-drag-handle="">Title</div>
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    expect(windowElement.style.left).toBe("10%");
+    expect(windowElement.style.width).toBe("50%");
+    firePointer(handle, "pointerdown", { clientX: 100, clientY: 100 });
+    firePointer(windowElement, "pointerup", { clientX: 100, clientY: 100 });
+    expect(windowElement.style.left).toBe("10%");
+    expect(windowElement.style.width).toBe("50%");
+
+    layout.canvasWidth = 600;
+    layout.canvasHeight = 500;
+    act(() => notifyResize());
+    await flushNextTask();
+    expect(windowElement.style.left).toBe("10%");
+    expect(windowElement.style.width).toBe("50%");
+    expect(windowElement.getBoundingClientRect().left).toBe(100);
+    expect(windowElement.getBoundingClientRect().width).toBe(300);
+
+    firePointer(handle, "pointerdown", { clientX: 100, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 120, clientY: 110 });
+    await flushAnimationFrame();
+    firePointer(windowElement, "pointerup", { clientX: 120, clientY: 110 });
+    expect(windowElement.style.left).toBe("80px");
+    expect(windowElement.style.top).toBe("60px");
+    expect(windowElement.style.width).toBe("300px");
+    expect(windowElement.style.height).toBe("250px");
+  });
+
   it.each([
     { name: "margin shorthand", style: { margin: "12px 0 0 18px" } },
     { name: "margin-left and margin-top", style: { marginLeft: 24, marginTop: 16 } },

@@ -287,6 +287,8 @@ describe("DesktopShell wallpaper sources", () => {
     "repeating-linear-gradient(45deg, #123 0 8px, #456 8px 16px)",
     "repeating-radial-gradient(circle, #123 0 8px, #456 8px 16px)",
     "  RePeAtInG-CoNiC-GrAdIeNt(#123 0 20deg, #456 20deg 40deg)",
+    "  linear-gradient(var(--start, rgb(1 2 3)), image-set(url('day(1).png') 1x, url('day(2).png') 2x))  ",
+    "url('wallpaper).png')",
   ])("passes through the CSS image value %s", (wallpaper) => {
     const { container } = render(
       <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
@@ -295,8 +297,26 @@ describe("DesktopShell wallpaper sources", () => {
     );
 
     expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
-      // CSSStyleDeclaration normalizes insignificant leading whitespace.
-      .toBe(wallpaper.trimStart());
+      // CSSStyleDeclaration normalizes insignificant outer whitespace.
+      .toBe(wallpaper.trim());
+  });
+
+  it.each([
+    ["image(foo).png", 'url("image(foo).png")'],
+    ["paint(foo).jpg", 'url("paint(foo).jpg")'],
+    ["linear-gradient(#123, #456", 'url("linear-gradient(#123, #456")'],
+    ["linear-gradient(#123, #456) center", 'url("linear-gradient(#123, #456) center")'],
+    ["linear-gradient(#123, #456))", 'url("linear-gradient(#123, #456))")'],
+    ["url('unterminated.png)", 'url("url(\'unterminated.png)")'],
+  ])("wraps the incomplete or trailing-token source %s", (wallpaper, expected) => {
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      .toBe(expected);
   });
 
   it("quotes and escapes a bare wallpaper path as a CSS URL", () => {

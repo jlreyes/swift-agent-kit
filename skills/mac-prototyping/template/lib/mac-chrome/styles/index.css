@@ -75,6 +75,7 @@
 }
 
 .mc-menu-popover.mc-menubar-menu-popover {
+  min-width: min(224px, calc(100vw - 16px));
   max-width: min(340px, calc(100vw - 16px));
 }
 
@@ -358,7 +359,7 @@
 }
 
 .p0-app-icon-glyph > .mc-system-symbol {
-  font-size: 20px;
+  font-size: 26px;
 }
 
 .p0-dock-running-dot {
@@ -464,9 +465,84 @@
   white-space: nowrap;
 }
 
-.mc-toolbar-button > .mc-system-symbol,
+.mc-toolbar-button > .mc-system-symbol {
+  font-size: 14px;
+}
+
 .mc-search-bubble > button > .mc-system-symbol {
   font-size: 14px;
+}
+
+.mc-content-unavailable-icon .mc-system-symbol {
+  font-size: 42px;
+}
+
+.mc-alert-icon .mc-system-symbol {
+  font-size: 42px;
+}
+
+.mc-chooser-choice > .mc-system-symbol {
+  font-size: 27px;
+}
+
+.mc-chat-send .mc-system-symbol {
+  font-size: 13px;
+}
+
+.mc-quicklook-panel > header button .mc-system-symbol {
+  font-size: 10px;
+}
+
+.mc-menu-popover .mc-menu-icon > .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-menubar-trigger .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-setup-progress .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-segmented-icon .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-menu-popover .mc-menu-trailing > .mc-system-symbol {
+  font-size: 13px;
+}
+
+.mc-details-menu-trigger > .mc-system-symbol {
+  font-size: 16px;
+}
+
+.mc-sidebar-item-icon .mc-system-symbol {
+  font-size: 16px;
+}
+
+.mc-menubar-popover header .mc-system-symbol {
+  font-size: 26px;
+}
+
+.mc-sidebar-disclosure .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-disclosure-trigger .mc-disclosure-indicator .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol {
+  font-size: 19px;
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol:last-child {
+  font-size: 11px;
+}
+
+.mc-list-row-icon .mc-system-symbol {
+  font-size: 18px;
 }
 
 .mc-window-resize-handle {
@@ -585,6 +661,16 @@
 
 .mc-window-modal-anchor {
   display: none;
+}
+
+/* Presentation geometry owns its box model even when consumers extract these
+   rules without the template's global base styles. */
+.mc-window-modal-layer,
+.mc-window-modal-scrim,
+.mc-sheet,
+.mc-alert,
+.mc-window-status-bar {
+  box-sizing: border-box;
 }
 
 .mc-window-modal-layer {
@@ -738,4 +824,14 @@
 
 .mc-alert-no-icon .mc-alert-footer {
   grid-column: 1;
+}
+
+@media (max-height: 749px) {
+  .showcase-viewport {
+    min-height: 0;
+  }
+
+  .desktop-canvas {
+    height: 100dvh;
+  }
 }

@@ -76,7 +76,7 @@
 }
 
 .mc-menu-popover .mc-menu-icon > .mc-system-symbol {
-  font-size: 10px;
+  font-size: 15px;
 }
 
 .mc-menu-popover .mc-menu-trailing > svg {
@@ -308,7 +308,7 @@
 }
 
 .mc-menubar-trigger .mc-system-symbol {
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .mc-menubar-badge {
@@ -360,7 +360,7 @@
 }
 
 .mc-menubar-popover header .mc-system-symbol {
-  font-size: 18px;
+  font-size: 26px;
 }
 
 .mc-menubar-popover header span {

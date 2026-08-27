@@ -209,7 +209,7 @@ img {
    rather than the wrapper. */
 .mc-menu-popover.mc-menubar-menu-popover {
   width: max-content;
-  min-width: 224px;
+  min-width: min(224px, calc(100vw - 16px));
   max-width: min(340px, calc(100vw - 16px));
   border-radius: var(--radius-menu-popover);
   text-shadow: none;
@@ -445,6 +445,6 @@ img {
   }
 
   .desktop-canvas {
-    height: 100vh;
+    height: 100dvh;
   }
 }

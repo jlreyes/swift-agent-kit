@@ -52,8 +52,49 @@ const stubCssImageFunctions = new Set([
 ]);
 
 function stubWallpaperSource(wallpaper: string) {
-  const functionName = /^\s*([\w-]+)\(/.exec(wallpaper)?.[1]?.toLowerCase();
-  if (functionName !== undefined && stubCssImageFunctions.has(functionName)) return wallpaper;
+  const value = wallpaper.trim();
+  const functionMatch = /^(-?[a-z][a-z0-9-]*)\(/i.exec(value);
+  const functionName = functionMatch?.[1];
+  let isImageValue = functionName !== undefined && stubCssImageFunctions.has(functionName.toLowerCase());
+  if (isImageValue) {
+    let depth = 0;
+    let quote: "\"" | "'" | null = null;
+    isImageValue = false;
+    for (let index = (functionMatch?.[0].length ?? 1) - 1; index < value.length; index += 1) {
+      const character = value[index];
+      if (quote !== null) {
+        if (character === "\\") index += 1;
+        else if (character === quote) quote = null;
+        continue;
+      }
+      if (character === "\"" || character === "'") {
+        quote = character;
+        continue;
+      }
+      if (character === "/" && value[index + 1] === "*") {
+        const commentEnd = value.indexOf("*/", index + 2);
+        if (commentEnd === -1) break;
+        index = commentEnd + 1;
+        continue;
+      }
+      if (character === "\\") {
+        index += 1;
+        continue;
+      }
+      if (character === "(") {
+        depth += 1;
+        continue;
+      }
+      if (character !== ")") continue;
+      depth -= 1;
+      if (depth < 0) break;
+      if (depth === 0) {
+        isImageValue = index === value.length - 1;
+        break;
+      }
+    }
+  }
+  if (isImageValue) return wallpaper;
   const escaped = wallpaper.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
   return `url("${escaped}")`;
 }
@@ -668,8 +709,31 @@ export interface MacWindowManagerValue {
   readonly quitApp: (appId: string) => void;
 }
 
-type StubAppRecord = Omit<MacManagedApp, "windowIds"> & { readonly order: number };
-type StubWindowRecord = Omit<MacManagedWindow, "isKeyWindow" | "zIndex"> & { readonly order: number };
+type StubAppRegistration = {
+  readonly id: string;
+  readonly name: string;
+  readonly icon: DockIconSource;
+  readonly dockGroup: "apps" | "places";
+  readonly defaultRunning: boolean;
+  readonly presentation: MacAppPresentation;
+};
+type StubWindowRegistration = {
+  readonly id: string;
+  readonly appId: string;
+  readonly label: string;
+  readonly defaultOpen: boolean;
+};
+type StubRegistrationOwner = symbol;
+type StubAppRecord = Omit<MacManagedApp, "windowIds"> & {
+  readonly order: number;
+  readonly fromManifest: boolean;
+  readonly manifest?: StubAppRegistration;
+  readonly registrations: readonly { readonly owner: StubRegistrationOwner; readonly registration: StubAppRegistration }[];
+};
+type StubWindowRecord = Omit<MacManagedWindow, "isKeyWindow" | "zIndex"> & {
+  readonly order: number;
+  readonly registrations: readonly { readonly owner: StubRegistrationOwner; readonly registration: StubWindowRegistration }[];
+};
 type StubManagerState = {
   readonly apps: readonly StubAppRecord[];
   readonly windows: readonly StubWindowRecord[];
@@ -677,11 +741,11 @@ type StubManagerState = {
   readonly activeAppId: string | null;
 };
 type StubManagerContextValue = MacWindowManagerValue & {
-  readonly registerApp: (app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => void;
-  readonly unregisterApp: (appId: string) => void;
-  readonly registerWindow: (window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => void;
-  readonly unregisterWindow: (windowId: string) => void;
-  readonly updateWindowLabel: (windowId: string, label: string) => void;
+  readonly registerApp: (app: StubAppRegistration, owner: StubRegistrationOwner) => void;
+  readonly unregisterApp: (appId: string, owner: StubRegistrationOwner) => void;
+  readonly registerWindow: (window: StubWindowRegistration, owner: StubRegistrationOwner) => void;
+  readonly unregisterWindow: (windowId: string, owner: StubRegistrationOwner) => void;
+  readonly updateWindowLabel: (windowId: string, owner: StubRegistrationOwner, label: string) => void;
   readonly consumeKeyboardWindowFocusIntent: () => boolean;
 };
 type StubAppContextValue = { readonly id: string; readonly defaultRunning: boolean };
@@ -711,18 +775,29 @@ export function MacWindowManager({ children, initialApps = [] }: {
   readonly initialApps?: readonly MacAppDefinition[];
 }) {
   const initialAppsRef = useRef(initialApps);
-  const appRegistrationCountsRef = useRef(new Map(initialAppsRef.current.map((app) => [app.id, 1])));
-  const windowRegistrationCountsRef = useRef(new Map<string, number>());
   const [state, setState] = useState<StubManagerState>(() => ({
-    apps: initialAppsRef.current.map((app, index) => ({
-      id: app.id,
-      name: app.name,
-      icon: app.icon,
-      dockGroup: app.dockGroup ?? "apps",
-      presentation: app.presentation ?? "windowed",
-      running: app.defaultRunning ?? true,
-      order: index + 1,
-    })),
+    apps: initialAppsRef.current.map((app, index) => {
+      const manifest: StubAppRegistration = {
+        id: app.id,
+        name: app.name,
+        icon: app.icon,
+        dockGroup: app.dockGroup ?? "apps",
+        defaultRunning: app.defaultRunning ?? true,
+        presentation: app.presentation ?? "windowed",
+      };
+      return {
+        id: manifest.id,
+        name: manifest.name,
+        icon: manifest.icon,
+        dockGroup: manifest.dockGroup,
+        presentation: manifest.presentation,
+        running: manifest.defaultRunning,
+        order: index + 1,
+        fromManifest: true,
+        manifest,
+        registrations: [],
+      };
+    }),
     windows: [],
     nextOrder: initialAppsRef.current.length + 1,
     activeAppId: initialAppsRef.current.find((app) => app.defaultRunning !== false)?.id ?? null,
@@ -743,23 +818,20 @@ export function MacWindowManager({ children, initialApps = [] }: {
     interactionModalityRef.current = null;
     return true;
   }, []);
-  const registerApp = useCallback((app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => {
-    appRegistrationCountsRef.current.set(app.id, (appRegistrationCountsRef.current.get(app.id) ?? 0) + 1);
+  const registerApp = useCallback((app: StubAppRegistration, owner: StubRegistrationOwner) => {
     setState((current) => {
       const existing = current.apps.find((candidate) => candidate.id === app.id);
       if (existing !== undefined) {
+        const registrations = [...existing.registrations.filter((entry) => entry.owner !== owner), { owner, registration: app }];
         const activeAppId = current.activeAppId ?? (existing.running ? existing.id : null);
-        if (existing.name === app.name && existing.icon === app.icon && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) {
-          return activeAppId === current.activeAppId ? current : { ...current, activeAppId };
-        }
-        return { ...current, activeAppId, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
+        return { ...current, activeAppId, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, registrations } : candidate) };
       }
       const launchesVisibleWindow = app.defaultRunning && current.windows.some((window) => (
         window.appId === app.id && window.state === "open"
       ));
       return {
         ...current,
-        apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder }],
+        apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder, fromManifest: false, registrations: [{ owner, registration: app }] }],
         nextOrder: current.nextOrder + 1,
         activeAppId: (current.activeAppId === null && app.defaultRunning) || launchesVisibleWindow
           ? app.id
@@ -767,46 +839,69 @@ export function MacWindowManager({ children, initialApps = [] }: {
       };
     });
   }, []);
-  const unregisterApp = useCallback((appId: string) => {
-    const registrations = appRegistrationCountsRef.current.get(appId) ?? 0;
-    if (registrations > 1) {
-      appRegistrationCountsRef.current.set(appId, registrations - 1);
-      return;
-    }
-    if (registrations === 0) return;
-    appRegistrationCountsRef.current.delete(appId);
+  const unregisterApp = useCallback((appId: string, owner: StubRegistrationOwner) => {
     setState((current) => {
+      const existing = current.apps.find((app) => app.id === appId);
+      if (existing === undefined) return current;
+      const registrations = existing.registrations.filter((entry) => entry.owner !== owner);
+      if (registrations.length === existing.registrations.length) return current;
+      const surviving = registrations.at(-1)?.registration ?? existing.manifest;
+      if (surviving !== undefined) {
+        return {
+          ...current,
+          apps: current.apps.map((app) => app.id === appId ? {
+            ...app,
+            name: surviving.name,
+            icon: surviving.icon,
+            dockGroup: surviving.dockGroup,
+            presentation: surviving.presentation,
+            registrations,
+          } : app),
+        };
+      }
       const next = { ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) };
       return { ...next, activeAppId: current.activeAppId === appId ? stubFallbackActiveAppId(next) : current.activeAppId };
     });
   }, []);
-  const registerWindow = useCallback((window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => {
-    windowRegistrationCountsRef.current.set(window.id, (windowRegistrationCountsRef.current.get(window.id) ?? 0) + 1);
+  const registerWindow = useCallback((window: StubWindowRegistration, owner: StubRegistrationOwner) => {
     setState((current) => {
-      if (current.windows.some((candidate) => candidate.id === window.id)) return current;
+      const existing = current.windows.find((candidate) => candidate.id === window.id);
+      if (existing !== undefined) {
+        const registrations = [...existing.registrations.filter((entry) => entry.owner !== owner), { owner, registration: window }];
+        return { ...current, windows: current.windows.map((candidate) => candidate.id === window.id ? { ...candidate, label: window.label, registrations } : candidate) };
+      }
       const activatesApp = window.defaultOpen && current.apps.find((app) => app.id === window.appId)?.running === true;
       return {
         ...current,
-        windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0 }],
+        windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0, registrations: [{ owner, registration: window }] }],
         nextOrder: window.defaultOpen ? current.nextOrder + 1 : current.nextOrder,
         activeAppId: activatesApp ? window.appId : current.activeAppId,
       };
     });
   }, []);
-  const unregisterWindow = useCallback((windowId: string) => {
-    const registrations = windowRegistrationCountsRef.current.get(windowId) ?? 0;
-    if (registrations > 1) {
-      windowRegistrationCountsRef.current.set(windowId, registrations - 1);
-      return;
-    }
-    if (registrations === 0) return;
-    windowRegistrationCountsRef.current.delete(windowId);
-    setState((current) => ({ ...current, windows: current.windows.filter((window) => window.id !== windowId) }));
+  const unregisterWindow = useCallback((windowId: string, owner: StubRegistrationOwner) => {
+    setState((current) => {
+      const existing = current.windows.find((window) => window.id === windowId);
+      if (existing === undefined) return current;
+      const registrations = existing.registrations.filter((entry) => entry.owner !== owner);
+      if (registrations.length === existing.registrations.length) return current;
+      const surviving = registrations.at(-1)?.registration;
+      return surviving === undefined
+        ? { ...current, windows: current.windows.filter((window) => window.id !== windowId) }
+        : { ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, label: surviving.label, registrations } : window) };
+    });
   }, []);
-  const updateWindowLabel = useCallback((windowId: string, label: string) => setState((current) => {
+  const updateWindowLabel = useCallback((windowId: string, owner: StubRegistrationOwner, label: string) => setState((current) => {
     const existing = current.windows.find((window) => window.id === windowId);
-    if (existing === undefined || existing.label === label) return current;
-    return { ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, label } : window) };
+    if (existing === undefined) return current;
+    const registrationIndex = existing.registrations.findIndex((entry) => entry.owner === owner);
+    const registrationEntry = existing.registrations[registrationIndex];
+    if (registrationEntry === undefined || registrationEntry.registration.label === label) return current;
+    const registrations = existing.registrations.map((entry, index) => index === registrationIndex
+      ? { ...entry, registration: { ...entry.registration, label } }
+      : entry);
+    const ownsCurrentMetadata = registrationIndex === registrations.length - 1;
+    return { ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, label: ownsCurrentMetadata ? label : window.label, registrations } : window) };
   }), []);
   const activateWindow = useCallback((windowId: string) => setState((current) => {
     const target = current.windows.find((window) => window.id === windowId);
@@ -874,8 +969,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
   const visible = state.windows.filter((window) => window.state === "open" && state.apps.find((app) => app.id === window.appId)?.running).slice().sort((left, right) => left.order - right.order);
   const activeApp = state.apps.find((app) => app.id === state.activeAppId && app.running);
   const keyWindow = activeApp === undefined ? undefined : visible.filter((window) => window.appId === activeApp.id).at(-1);
-  const windows: readonly MacManagedWindow[] = state.windows.map((window) => ({ ...window, isKeyWindow: window.id === keyWindow?.id, zIndex: 10 + visible.findIndex((candidate) => candidate.id === window.id) }));
-  const apps: readonly MacManagedApp[] = state.apps.map((app) => ({ ...app, windowIds: state.windows.filter((window) => window.appId === app.id).map((window) => window.id) }));
+  const windows: readonly MacManagedWindow[] = state.windows.map(({ registrations: _registrations, order: _order, ...window }) => ({ ...window, isKeyWindow: window.id === keyWindow?.id, zIndex: 10 + visible.findIndex((candidate) => candidate.id === window.id) }));
+  const apps: readonly MacManagedApp[] = state.apps.map(({ fromManifest: _fromManifest, manifest: _manifest, registrations: _registrations, order: _order, ...app }) => ({ ...app, windowIds: state.windows.filter((window) => window.appId === app.id).map((window) => window.id) }));
   const value = useMemo<StubManagerContextValue>(() => ({
     apps,
     windows,
@@ -911,9 +1006,10 @@ export function MacApp({ children, defaultRunning = true, dockGroup = "apps", ic
 }) {
   const manager = useMacWindowManager();
   const initial = useRef({ id, name, icon, dockGroup, defaultRunning, presentation });
+  const registrationOwner = useRef<StubRegistrationOwner>(Symbol("MacApp registration"));
   useEffect(() => {
-    manager.registerApp(initial.current);
-    return () => manager.unregisterApp(initial.current.id);
+    manager.registerApp(initial.current, registrationOwner.current);
+    return () => manager.unregisterApp(initial.current.id, registrationOwner.current);
   }, [manager.registerApp, manager.unregisterApp]);
   const value = useMemo<StubAppContextValue>(() => ({ id, defaultRunning }), [defaultRunning, id]);
   return <StubAppContext.Provider value={value}>{children}</StubAppContext.Provider>;
@@ -978,14 +1074,15 @@ export function WindowChrome({
   const registerWindow = manager?.registerWindow;
   const unregisterWindow = manager?.unregisterWindow;
   const updateWindowLabel = manager?.updateWindowLabel;
+  const registrationOwner = useRef<StubRegistrationOwner>(Symbol("managed window registration"));
   useEffect(() => {
     if (registerWindow === undefined || unregisterWindow === undefined || app === null || resolvedWindowId === null) return;
-    registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen });
-    return () => unregisterWindow(resolvedWindowId);
+    registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen }, registrationOwner.current);
+    return () => unregisterWindow(resolvedWindowId, registrationOwner.current);
   }, [app, defaultOpen, registerWindow, resolvedWindowId, unregisterWindow]);
   useEffect(() => {
     if (updateWindowLabel === undefined || resolvedWindowId === null) return;
-    updateWindowLabel(resolvedWindowId, label);
+    updateWindowLabel(resolvedWindowId, registrationOwner.current, label);
   }, [label, resolvedWindowId, updateWindowLabel]);
   const managedWindow = resolvedWindowId === null ? undefined : manager?.windows.find((window) => window.id === resolvedWindowId);
   const appRunning = app === null ? true : manager?.apps.find((candidate) => candidate.id === app.id)?.running ?? app.defaultRunning;
@@ -2275,6 +2372,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
   const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [quickLookId, setQuickLookId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const keyboardFocusPending = useRef<string | null>(null);
   const sourceListSections: readonly MacSourceListSection[] = sidebar.map((section) => ({
@@ -2291,6 +2389,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   const expandedSectionIds = new Set(collapsibleSectionIds.filter((id) => !collapsedSectionIds.has(id)));
   const selectedSectionId = sidebar.find((section) => section.title !== undefined && section.selected)?.id;
   const selectedEntry = entries.find((entry) => entry.id === selection.selectedId) ?? null;
+  const quickLookEntry = quickLookId === null ? null : entries.find((entry) => entry.id === quickLookId) ?? null;
   const tabStopId = selectedEntry?.id ?? entries[0]?.id;
   let selectedItemId: string | null = null;
   for (const section of sidebar) {
@@ -2330,6 +2429,10 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
     keyboardFocusPending.current = null;
     const content = contentRef.current;
     if (content === null) return;
+    if (pending === " content") {
+      content.focus();
+      return;
+    }
     for (const option of content.querySelectorAll<HTMLElement>("[data-mc-entry-id]")) {
       if (option.dataset["mcEntryId"] === pending) {
         option.focus();
@@ -2357,9 +2460,26 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   }
   function handleContentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    const index = entries.findIndex((entry) => entry.id === selection.selectedId);
+    const selected = index >= 0 ? entries[index] : undefined;
+    if (event.metaKey && event.key === "ArrowDown") {
+      if (selected !== undefined) {
+        event.preventDefault();
+        keyboardFocusPending.current = " content";
+        contentRef.current?.focus();
+        onOpen(selected);
+      }
+      return;
+    }
+    if (event.key === " ") {
+      if (selected !== undefined) {
+        event.preventDefault();
+        setQuickLookId(selected.id);
+      }
+      return;
+    }
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const index = entries.findIndex((entry) => entry.id === selection.selectedId);
     const next = finderKeyTarget(event.key, index, columnsForNavigation(), entries.length);
     if (next === null) return;
     const entry = entries[next];
@@ -2438,6 +2558,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
         {statusBar !== undefined ? <MacWindowStatusBar className="mc-finder-status">{statusBar}</MacWindowStatusBar> : null}
       </main>
       {preview !== undefined && isPreviewVisible ? <aside className="mc-finder-preview">{preview(entries.find((entry) => entry.id === selection.selectedId) ?? null)}</aside> : null}
+      {quickLookEntry !== null ? <QuickLook entry={quickLookEntry} onClose={() => setQuickLookId(null)} /> : null}
     </WindowChrome>
   );
 }
@@ -2449,11 +2570,12 @@ export function QuickLook({ entry, detail, onClose }: {
 }) {
   const panelRef = useRef<HTMLElement>(null);
   const handleModalKeyDown = useModalFocusTrap({ dialogRef: panelRef, onCancel: onClose });
+  const metadata = [entry.modified, entry.size].filter((part) => part !== undefined).join(" · ");
   return (
     <div className="mc-quicklook-scrim" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section ref={panelRef} className="mc-quicklook-panel" role="dialog" aria-modal="true" aria-label={`Quick Look ${entry.name}`} onKeyDown={handleModalKeyDown}>
         <header><button type="button" onClick={onClose} aria-label="Close Quick Look">×</button><strong>{entry.name}</strong></header>
-        <div>{entry.icon}<h2>{entry.name}</h2>{detail}</div>
+        <div>{entry.icon}<h2>{entry.name}</h2>{detail}{metadata ? <small>{metadata}</small> : null}</div>
       </section>
     </div>
   );
@@ -2880,6 +3002,15 @@ function stubResolveModalOwner({ allowDesktopFallback, anchor, fallbackFocus, ke
   return { element: document.querySelector<HTMLElement>(".desktop-canvas") ?? document.body, scope: "desktop" };
 }
 
+function stubIsContentEditableTarget(target: Element) {
+  const editingBoundary = target.closest<HTMLElement>("[contenteditable]");
+  if (editingBoundary === null) return target instanceof HTMLElement && target.isContentEditable;
+  const value = editingBoundary.getAttribute("contenteditable")?.toLowerCase();
+  if (value === "false") return false;
+  if (value === "" || value === "true" || value === "plaintext-only") return true;
+  return editingBoundary.isContentEditable;
+}
+
 function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, className, dialogRef, fallbackFocusRef, initialFocusSelector, kind, onCancel, onDefault, owner, role }: {
   readonly ariaDescribedBy?: string;
   readonly ariaLabel?: string;
@@ -2910,7 +3041,10 @@ function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, 
   }, [owner]);
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     const target = event.target instanceof Element ? event.target : null;
-    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") instanceof HTMLElement;
+    const consumesReturn = target !== null && (
+      target.closest("button, select, textarea, a[href]") instanceof HTMLElement
+      || stubIsContentEditableTarget(target)
+    );
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
       event.stopPropagation();
@@ -3217,6 +3351,16 @@ export type Conversation = { readonly id: string; readonly title: string; readon
 export type ChatComposer = { readonly value: string; readonly onChange: (value: string) => void; readonly onSend: () => void; readonly placeholder?: string; readonly accessory?: ReactNode };
 export type ChatSearch = { readonly value: string; readonly onChange: (value: string) => void };
 
+function StubChatMessageRow({ message }: { readonly message: ChatMessage }) {
+  if (message.author.role === "owner") {
+    return <div className="mc-chat-message mc-owner"><p className="mc-chat-bubble">{message.body}<small>{message.at}</small></p>{message.status !== undefined ? <small className="mc-chat-status">{message.status}</small> : null}</div>;
+  }
+  if (message.author.role === "agent") {
+    return <div className="mc-chat-message mc-agent">{message.author.icon !== undefined ? <span className="mc-chat-author-icon" aria-hidden="true">{message.author.icon}</span> : <span className="mc-chat-author-icon mc-placeholder" aria-hidden="true" />}<div><span className="mc-chat-author-name">{message.author.name}</span><p className="mc-chat-bubble">{message.body}<small>{message.at}</small></p>{message.status !== undefined ? <small className="mc-chat-status">{message.status}</small> : null}</div></div>;
+  }
+  return <div className="mc-chat-message mc-system"><p>{message.body}</p><small>{message.at}</small></div>;
+}
+
 export function ChatWindow({ conversations, activeConversationId, onSelectConversation, composer, search, sidebarLabel = "Conversations", sidebarVisible, onSidebarVisibleChange, toolbarExtras, emptyTranscript, label, frame, onClose, onMinimize, onZoom }: {
   readonly conversations: readonly Conversation[];
   readonly activeConversationId: string;
@@ -3246,8 +3390,8 @@ export function ChatWindow({ conversations, activeConversationId, onSelectConver
       {isSidebarVisible ? <aside className="mc-chat-sidebar" aria-label={sidebarLabel}><div className="mc-chat-sidebar-top"><TrafficLights /></div><nav>{conversations.map((conversation) => <button type="button" key={conversation.id} aria-current={conversation.id === activeConversationId ? "true" : undefined} onClick={() => onSelectConversation(conversation.id)}>{conversation.icon}<strong>{conversation.title}</strong></button>)}</nav></aside> : null}
       <section className="mc-chat-main">
         <MacToolbar leading={<>{!isSidebarVisible ? <TrafficLights /> : null}<ToolbarButton label={isSidebarVisible ? "Hide sidebar" : "Show sidebar"} pressed={isSidebarVisible} onClick={() => setSidebarVisibility(!isSidebarVisible)}><SystemSymbol name="sidebar.left" /></ToolbarButton></>} title={active?.title} trailing={<>{search !== undefined ? <ToolbarSearchBubble value={search.value} onChange={search.onChange} label="Search conversation" /> : null}{toolbarExtras}</>} />
-        <div className="mc-chat-transcript" role="log" aria-label="Conversation">{active?.messages.length ? active.messages.map((message) => <article key={message.id} className={`mc-chat-message mc-${message.author.role}`}>{message.author.icon}<strong>{message.author.name}</strong><p>{message.body}</p><small>{message.at}</small></article>) : emptyTranscript}</div>
-        <form className="mc-chat-composer" onSubmit={(event) => { event.preventDefault(); if (composer.value.trim()) composer.onSend(); }}>{composer.accessory}<textarea aria-label={composer.placeholder ?? "Message"} value={composer.value} placeholder={composer.placeholder} onChange={(event) => composer.onChange(event.target.value)} /><button type="submit" disabled={!composer.value.trim()} aria-label="Send message"><SystemSymbol name="arrow.up" /></button></form>
+        <div className="mc-chat-transcript" role="log" aria-label="Conversation">{active?.messages.length ? active.messages.map((message) => <StubChatMessageRow key={message.id} message={message} />) : emptyTranscript}</div>
+        <form className="mc-chat-composer" onSubmit={(event) => { event.preventDefault(); if (composer.value.trim()) composer.onSend(); }}>{composer.accessory}<textarea aria-label={composer.placeholder ?? "Message"} value={composer.value} placeholder={composer.placeholder} onChange={(event) => composer.onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button type="submit" disabled={!composer.value.trim()} aria-label="Send message"><SystemSymbol name="arrow.up" /></button></form>
       </section>
     </WindowChrome>
   );

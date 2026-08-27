@@ -154,6 +154,17 @@ it("keeps both menu-bar command groups reachable on narrow viewports", () => {
   expect(rule(base, ".menu-left .mc-menubar-menu,\n  .menu-right > *")).toMatch(/flex:\s*0 0 auto/);
 });
 
+it("keeps the desktop canvas on the parent's dynamic viewport height when short", () => {
+  const base = styleSource("base");
+  const viewport = rules(base, ".showcase-viewport");
+  const canvas = rules(base, ".desktop-canvas");
+
+  expect(base).toMatch(/@media\s*\(max-height:\s*749px\)/);
+  expect(viewport).toMatch(/min-height:\s*0/);
+  expect(canvas).toMatch(/height:\s*100dvh/);
+  expect(canvas).not.toMatch(/height:\s*100vh/);
+});
+
 it("gives the Setup Assistant hero symbol an explicit optical size", () => {
   const setup = styleSource("setup-assistant");
   const hero = rule(setup, ".mc-setup-hero-symbol");

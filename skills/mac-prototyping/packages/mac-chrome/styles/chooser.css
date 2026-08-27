@@ -134,7 +134,7 @@
 
 .mc-chooser-choice > .mc-system-symbol {
   color: var(--text-soft);
-  font-size: 22px;
+  font-size: 27px;
 }
 
 .mc-chooser-choice-copy {
@@ -200,7 +200,7 @@
 
 .mc-chooser-secondary-trigger > .mc-system-symbol {
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 19px;
 }
 
 .mc-chooser-secondary-trigger > svg:last-child {

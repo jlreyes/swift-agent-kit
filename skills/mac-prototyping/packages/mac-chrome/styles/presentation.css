@@ -4,6 +4,17 @@
   display: none;
 }
 
+/* Presentation geometry must remain self-contained when this stylesheet is
+   imported without base.css. Inset layers, bounded dialogs, and fixed-height
+   status bars all include their padding and borders in the authored box. */
+.mc-window-modal-layer,
+.mc-window-modal-scrim,
+.mc-sheet,
+.mc-alert,
+.mc-window-status-bar {
+  box-sizing: border-box;
+}
+
 .mc-window-modal-layer {
   position: absolute;
   z-index: 45;
@@ -158,7 +169,7 @@ body > .mc-window-modal-layer-desktop {
 }
 
 .mc-alert-icon .mc-system-symbol {
-  font-size: 28px;
+  font-size: 42px;
 }
 
 .mc-alert-application {

@@ -101,7 +101,10 @@
   flex: 0 0 14px;
 }
 
-.mc-toolbar-button > .mc-system-symbol,
+.mc-toolbar-button > .mc-system-symbol {
+  font-size: 14px;
+}
+
 .mc-search-bubble > button > .mc-system-symbol {
   font-size: 14px;
 }

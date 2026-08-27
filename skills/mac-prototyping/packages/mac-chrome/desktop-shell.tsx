@@ -73,8 +73,47 @@ const cssWallpaperImageFunctions = new Set([
 ]);
 
 function isCssWallpaperImageValue(source: string) {
-  const functionName = /^(-?[a-z][a-z0-9-]*)\(/i.exec(source.trimStart())?.[1];
-  return functionName !== undefined && cssWallpaperImageFunctions.has(functionName.toLowerCase());
+  const value = source.trim();
+  const functionMatch = /^(-?[a-z][a-z0-9-]*)\(/i.exec(value);
+  const functionName = functionMatch?.[1];
+  if (functionName === undefined || !cssWallpaperImageFunctions.has(functionName.toLowerCase())) return false;
+
+  let depth = 0;
+  let quote: "\"" | "'" | null = null;
+  for (let index = (functionMatch?.[0].length ?? 1) - 1; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote !== null) {
+      if (character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "\"" || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "/" && value[index + 1] === "*") {
+      const commentEnd = value.indexOf("*/", index + 2);
+      if (commentEnd === -1) return false;
+      index = commentEnd + 1;
+      continue;
+    }
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (character === "(") {
+      depth += 1;
+      continue;
+    }
+    if (character !== ")") continue;
+    depth -= 1;
+    if (depth < 0) return false;
+    if (depth === 0) return index === value.length - 1;
+  }
+  return false;
 }
 
 function wallpaperImageValue(source: string) {

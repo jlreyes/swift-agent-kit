@@ -465,6 +465,7 @@ function untransformedClientRect(element: HTMLElement): DOMRect {
 type WindowInteraction = {
   readonly kind: "drag" | "resize";
   readonly edge?: WindowResizeEdge;
+  readonly geometryOwned: boolean;
   readonly pointerId: number;
   readonly startX: number;
   readonly startY: number;
@@ -472,6 +473,48 @@ type WindowInteraction = {
   readonly lastY: number;
   readonly origin: WindowGeometry;
 };
+
+const interactiveFrameStyleProperties = [
+  "inset",
+  "insetBlock",
+  "insetBlockEnd",
+  "insetBlockStart",
+  "insetInline",
+  "insetInlineEnd",
+  "insetInlineStart",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "width",
+  "height",
+  "inlineSize",
+  "blockSize",
+  "minWidth",
+  "maxWidth",
+  "minHeight",
+  "maxHeight",
+  "minInlineSize",
+  "maxInlineSize",
+  "minBlockSize",
+  "maxBlockSize",
+  "aspectRatio",
+] as const satisfies readonly (keyof CSSProperties)[];
+
+function withoutInteractiveFrameConstraints(style: CSSProperties): CSSProperties {
+  const unconstrained = { ...style };
+  for (const property of interactiveFrameStyleProperties) delete unconstrained[property];
+  return unconstrained;
+}
+
+function hasResponsiveFrameGeometry(style: CSSProperties): boolean {
+  return interactiveFrameStyleProperties.some((property) => {
+    const value = style[property];
+    if (typeof value !== "string") return false;
+    const normalized = value.trim().toLowerCase();
+    return normalized !== "0" && !/^-?(?:\d+(?:\.\d+)?|\.\d+)px$/.test(normalized);
+  });
+}
 
 const windowGeometryStyleProperties = [
   "position",
@@ -619,6 +662,7 @@ function useWindowGeometry({
   enabled,
   minSize,
   inputSignature,
+  preserveResponsiveFrame,
   resizable,
   visible,
 }: {
@@ -628,6 +672,7 @@ function useWindowGeometry({
   readonly minSize: WindowSize;
   readonly inputSignature: string;
   readonly resizable: boolean;
+  readonly preserveResponsiveFrame: boolean;
   readonly visible: boolean;
 }) {
   const windowRef = useRef<HTMLElement>(null);
@@ -714,15 +759,6 @@ function useWindowGeometry({
     return clampedGeometry(captured, context.bounds);
   }
 
-  function ensureGeometry(): WindowGeometry | null {
-    if (geometryRef.current !== null) return geometryRef.current;
-    const element = windowRef.current;
-    if (element === null) return null;
-    const captured = captureGeometry(element);
-    if (captured !== null) commitGeometry(captured);
-    return captured;
-  }
-
   useLayoutEffect(() => {
     const element = windowRef.current;
     if (inputSignatureRef.current !== inputSignature) {
@@ -739,10 +775,6 @@ function useWindowGeometry({
       return;
     }
     if (element === null) return;
-    /* Zoomed/minimizing windows use a transient authored frame. Keep the
-       normal-frame geometry cached, but do not capture the transient box as
-       the new restore target when controlled inputs change mid-transition. */
-    if (!enabled) return;
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
 
     function containedGeometry() {
@@ -752,7 +784,7 @@ function useWindowGeometry({
       if (context === null) return null;
       const current = geometryRef.current;
       return current === null
-        ? captureGeometry(currentElement)
+        ? preserveResponsiveFrame ? null : captureGeometry(currentElement)
         : clampedGeometry(current, context.bounds);
     }
 
@@ -790,10 +822,11 @@ function useWindowGeometry({
       }, 0);
     }
 
-    /* Canvas windows are captured immediately so their coordinates become
-       canvas-relative before paint. A standalone viewport window keeps its
-       authored CSS placement until interaction or the first viewport resize. */
-    if (canvas !== null) {
+    /* Fixed canvas geometry is captured immediately so coordinates become
+       canvas-relative before paint. Responsive authored CSS remains in charge
+       until a real pointer move; resizing the canvas can then keep resolving
+       percentages without an incidental click freezing them into pixels. */
+    if (canvas !== null && !preserveResponsiveFrame) {
       const initialGeometry = containedGeometry();
       if (initialGeometry !== null) commitContainment(initialGeometry);
     }
@@ -810,7 +843,7 @@ function useWindowGeometry({
         containmentTaskRef.current = null;
       }
     };
-  }, [enabled, inputSignature, minSize.height, minSize.width, visible]);
+  }, [enabled, inputSignature, minSize.height, minSize.width, preserveResponsiveFrame, visible]);
 
   useEffect(() => () => cancelInteraction(), []);
 
@@ -820,10 +853,11 @@ function useWindowGeometry({
     if (!(target instanceof Element) || !target.closest(dragHandleSelector)) return;
     if (target.closest("button, input, textarea, select, a, [role='button'], .traffic-lights, [data-no-window-drag]")) return;
     const element = windowRef.current;
-    const origin = ensureGeometry();
+    const origin = geometryRef.current ?? (element === null ? null : captureGeometry(element));
     if (element === null || origin === null) return;
     interactionRef.current = {
       kind: "drag",
+      geometryOwned: geometryRef.current !== null,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -837,13 +871,14 @@ function useWindowGeometry({
   function beginResize(edge: WindowResizeEdge, event: ReactPointerEvent<HTMLElement>) {
     if (!enabled || !visible || !resizable || event.button !== 0 || !event.isPrimary) return;
     const element = windowRef.current;
-    const origin = ensureGeometry();
+    const origin = geometryRef.current ?? (element === null ? null : captureGeometry(element));
     if (element === null || origin === null) return;
     event.preventDefault();
     event.stopPropagation();
     interactionRef.current = {
       kind: "resize",
       edge,
+      geometryOwned: geometryRef.current !== null,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -861,11 +896,31 @@ function useWindowGeometry({
     if (interaction === null || element === null || interaction.pointerId !== event.pointerId) return;
     const context = geometryContext(element);
     if (context === null) return;
-    const containedOrigin = clampedGeometry(interaction.origin, context.bounds);
-    const activeInteraction = geometryEquals(interaction.origin, containedOrigin)
+    const initialDeltaX = event.clientX - interaction.startX;
+    const initialDeltaY = event.clientY - interaction.startY;
+    if (
+      !interaction.geometryOwned &&
+      Math.max(Math.abs(initialDeltaX), Math.abs(initialDeltaY)) < 2
+    ) {
+      interactionRef.current = { ...interaction, lastX: event.clientX, lastY: event.clientY };
+      return;
+    }
+    const ownedInteraction = interaction.geometryOwned
       ? interaction
       : {
           ...interaction,
+          geometryOwned: true,
+          origin: captureGeometry(element) ?? interaction.origin,
+        };
+    /* From the first intentional move onward, the physical geometry model is
+       authoritative. Setting the ref now lets containment observe that
+       ownership even before the scheduled React commit. */
+    geometryRef.current = ownedInteraction.origin;
+    const containedOrigin = clampedGeometry(ownedInteraction.origin, context.bounds);
+    const activeInteraction = geometryEquals(ownedInteraction.origin, containedOrigin)
+      ? ownedInteraction
+      : {
+          ...ownedInteraction,
           origin: containedOrigin,
           startX: event.clientX,
           startY: event.clientY,
@@ -993,6 +1048,7 @@ export function WindowChrome({
     ...framePlacement(frame, defaultSize),
     ...style,
   };
+  const preserveResponsiveFrame = hasResponsiveFrameGeometry(authoredFrameStyle);
   const activateManagedWindow = manager?.activateWindow;
   const closeManagedWindow = manager?.closeWindow;
   const consumeKeyboardWindowFocusIntent = manager?.consumeKeyboardWindowFocusIntent;
@@ -1004,6 +1060,7 @@ export function WindowChrome({
     enabled: !minimizing && !zoomed,
     inputSignature: windowGeometryInputSignature(authoredFrameStyle),
     minSize,
+    preserveResponsiveFrame,
     resizable,
     visible,
   });
@@ -1037,9 +1094,14 @@ export function WindowChrome({
   const retained = managed && !visible;
   if (!visible && !managed) return null;
 
+  const interactiveGeometryStyle = zoomed ? null : windowGeometry.geometryStyle;
   const composedStyle: CSSProperties = {
-    ...(zoomed ? { ...zoomedPlacement, ...style } : authoredFrameStyle),
-    ...(zoomed || windowGeometry.geometryStyle === null ? undefined : windowGeometry.geometryStyle),
+    ...(zoomed
+      ? { ...zoomedPlacement, ...style }
+      : interactiveGeometryStyle === null
+        ? authoredFrameStyle
+        : withoutInteractiveFrameConstraints(authoredFrameStyle)),
+    ...(interactiveGeometryStyle ?? undefined),
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
     ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };

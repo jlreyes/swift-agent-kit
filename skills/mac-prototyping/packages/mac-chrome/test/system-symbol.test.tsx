@@ -8,7 +8,10 @@ import { getSymbol } from "symbolist";
 import { SystemSymbol, type SystemSymbolName } from "../system-symbol.tsx";
 import { ToolbarButton, ToolbarGlyph, type ToolbarGlyphName } from "../toolbar.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.head.querySelector("style[data-system-symbol-role-test]")?.remove();
+});
 
 describe("SystemSymbol", () => {
   it("renders the typed symbolist glyph without embedding an SVG asset", () => {
@@ -53,20 +56,38 @@ describe("SystemSymbol", () => {
     }
   });
 
-  it("lets the toolbar own its optical size even when a consumer requests another size", () => {
+  it("lets every role own its optical size even when a consumer requests another size", () => {
     const stylesheet = document.createElement("style");
-    stylesheet.textContent = readFileSync("styles/toolbar.css", "utf8");
+    stylesheet.dataset.systemSymbolRoleTest = "";
+    stylesheet.textContent = ["toolbar.css", "content-state.css", "chooser.css", "chat.css", "dock.css"]
+      .map((file) => readFileSync(`styles/${file}`, "utf8"))
+      .join("\n");
     document.head.append(stylesheet);
     const { container } = render(
-      <ToolbarButton label="Oversized symbol">
-        <SystemSymbol name="folder" size={40} />
-      </ToolbarButton>,
+      <>
+        <span data-symbol-role="toolbar">
+          <ToolbarButton label="Oversized symbol"><SystemSymbol name="folder" size={40} /></ToolbarButton>
+        </span>
+        <span data-symbol-role="content" className="mc-content-unavailable-icon"><SystemSymbol name="folder" size={40} /></span>
+        <span data-symbol-role="chooser" className="mc-chooser-choice"><SystemSymbol name="folder" size={40} /></span>
+        <span data-symbol-role="chat" className="mc-chat-send"><SystemSymbol name="folder" size={40} /></span>
+        <span data-symbol-role="dock" className="p0-app-icon-glyph"><SystemSymbol name="folder" size={40} /></span>
+      </>,
     );
-    const symbol = container.querySelector<HTMLElement>("[data-system-symbol='folder']");
+    const expectedSizes = {
+      toolbar: "14px",
+      content: "42px",
+      chooser: "27px",
+      chat: "13px",
+      dock: "26px",
+    } as const;
 
-    expect(symbol?.style.getPropertyValue("--mc-system-symbol-size")).toBe("40px");
-    if (symbol === null) throw new Error("Expected the toolbar symbol to render");
-    expect(getComputedStyle(symbol).fontSize).toBe("14px");
+    for (const [role, expectedSize] of Object.entries(expectedSizes)) {
+      const symbol = container.querySelector<HTMLElement>(`[data-symbol-role='${role}'] .mc-system-symbol`);
+      if (symbol === null) throw new Error(`Expected the ${role} symbol to render`);
+      expect(symbol.style.getPropertyValue("--mc-system-symbol-size")).toBe("40px");
+      expect(getComputedStyle(symbol).fontSize).toBe(expectedSize);
+    }
     stylesheet.remove();
   });
 });

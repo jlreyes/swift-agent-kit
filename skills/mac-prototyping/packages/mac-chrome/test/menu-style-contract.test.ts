@@ -75,6 +75,8 @@ it("uses the same 13px system type contract for the 24px menu bar", () => {
   expect(menuBar).toMatch(/font-size:\s*var\(--font-size-menu\)/);
   expect(menuBar).toMatch(/line-height:\s*var\(--line-height-menu\)/);
   expect(appName).toMatch(/font-weight:\s*var\(--font-weight-semibold\)/);
+  expect(menuPopover).toMatch(/min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
+  expect(menuPopover).not.toMatch(/min-width:\s*224px/);
   expect(menuPopover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
   expect(menuPopover).not.toMatch(/max-width:\s*340px/);
 });

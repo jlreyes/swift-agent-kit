@@ -41,11 +41,18 @@ function cssLength(value: number | string): string {
 function framePlacement(frame: WindowFrame | undefined, defaultSize: WindowSize): CSSProperties {
   const width = cssLength(frame?.width ?? defaultSize.width);
   const height = cssLength(frame?.height ?? defaultSize.height);
+  /* Match the horizontal containment contract before JavaScript captures the
+     frame. When CSS caps an oversized window, its authored center falls below
+     this responsive inset and max() selects the inset; otherwise the authored
+     width remains genuinely centered. The 25% fallback mirrors proportional
+     inset contraction on tiny canvases. */
   return {
     width,
     height,
     top: frame?.top !== undefined ? cssLength(frame.top) : `max(28px, calc(50% - (${height}) / 2 - 28px))`,
-    left: frame?.left !== undefined ? cssLength(frame.left) : `calc(50% - (${width}) / 2)`,
+    left: frame?.left !== undefined
+      ? cssLength(frame.left)
+      : `max(min(24px, 25%), calc(50% - (${width}) / 2))`,
   };
 }
 
@@ -406,24 +413,29 @@ function resizedGeometry(
   deltaY: number,
   bounds: WindowBounds,
 ): WindowGeometry {
-  let left = origin.left;
-  let right = origin.left + origin.width;
-  let top = origin.top;
-  let bottom = origin.top + origin.height;
+  /* ResizeObserver containment is deliberately deferred out of its delivery
+     cycle. A pointer move can therefore see new bounds first. Normalize the
+     fixed edges synchronously so subtraction below cannot produce negative or
+     sub-minimum dimensions from an origin that no longer fits the canvas. */
+  const containedOrigin = clampedGeometry(origin, bounds);
+  let left = containedOrigin.left;
+  let right = containedOrigin.left + containedOrigin.width;
+  let top = containedOrigin.top;
+  let bottom = containedOrigin.top + containedOrigin.height;
 
   if (edge.includes("w")) {
-    left = Math.min(Math.max(origin.left + deltaX, bounds.left), right - bounds.minWidth);
+    left = Math.min(Math.max(containedOrigin.left + deltaX, bounds.left), right - bounds.minWidth);
   } else if (edge.includes("e")) {
     right = Math.min(Math.max(right + deltaX, left + bounds.minWidth), bounds.right);
   }
 
   if (edge.includes("n")) {
-    top = Math.min(Math.max(origin.top + deltaY, bounds.top), bottom - bounds.minHeight);
+    top = Math.min(Math.max(containedOrigin.top + deltaY, bounds.top), bottom - bounds.minHeight);
   } else if (edge.includes("s")) {
     bottom = Math.min(Math.max(bottom + deltaY, top + bounds.minHeight), bounds.bottom);
   }
 
-  return { left, top, width: right - left, height: bottom - top };
+  return clampedGeometry({ left, top, width: right - left, height: bottom - top }, bounds);
 }
 
 function numericInlineLength(value: string, fallback: number): number {
@@ -847,18 +859,33 @@ function useWindowGeometry({
     const interaction = interactionRef.current;
     const element = windowRef.current;
     if (interaction === null || element === null || interaction.pointerId !== event.pointerId) return;
-    interactionRef.current = { ...interaction, lastX: event.clientX, lastY: event.clientY };
     const context = geometryContext(element);
     if (context === null) return;
-    const deltaX = event.clientX - interaction.startX;
-    const deltaY = event.clientY - interaction.startY;
-    const next = interaction.kind === "drag"
+    const containedOrigin = clampedGeometry(interaction.origin, context.bounds);
+    const activeInteraction = geometryEquals(interaction.origin, containedOrigin)
+      ? interaction
+      : {
+          ...interaction,
+          origin: containedOrigin,
+          startX: event.clientX,
+          startY: event.clientY,
+        };
+    interactionRef.current = { ...activeInteraction, lastX: event.clientX, lastY: event.clientY };
+    const deltaX = event.clientX - activeInteraction.startX;
+    const deltaY = event.clientY - activeInteraction.startY;
+    const next = activeInteraction.kind === "drag"
       ? clampedGeometry({
-          ...interaction.origin,
-          left: interaction.origin.left + deltaX,
-          top: interaction.origin.top + deltaY,
+          ...activeInteraction.origin,
+          left: activeInteraction.origin.left + deltaX,
+          top: activeInteraction.origin.top + deltaY,
         }, context.bounds)
-      : resizedGeometry(interaction.origin, interaction.edge ?? "se", deltaX, deltaY, context.bounds);
+      : resizedGeometry(
+          activeInteraction.origin,
+          activeInteraction.edge ?? "se",
+          deltaX,
+          deltaY,
+          context.bounds,
+        );
     scheduleGeometry(next);
   }
 

@@ -51,13 +51,10 @@ function activeModalDialogs(ownerElement: HTMLElement | null) {
 
 function focusTargetOrActiveModal(target: HTMLElement | null, ownerElement: HTMLElement | null) {
   const activeDialogs = activeModalDialogs(ownerElement);
-  if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
-    target.focus();
-    return;
-  }
   const topDialog = activeDialogs.at(-1);
   if (topDialog !== undefined) {
-    (tabbableElements(topDialog)[0] ?? topDialog).focus();
+    if (target !== null && (topDialog === target || topDialog.contains(target))) target.focus();
+    else (tabbableElements(topDialog)[0] ?? topDialog).focus();
     return;
   }
   target?.focus();
@@ -109,10 +106,16 @@ export function useModalFocusTrap({
   return function handleModalKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       onCancel();
       return;
     }
     if (event.key !== "Tab") return;
+    // Portals preserve React ancestry. A modal nested in another modal's
+    // children can therefore bubble key events to the underlay dialog even
+    // though their DOM layers are siblings. The top dialog exclusively owns
+    // Tab navigation, including ordinary non-wrapping moves.
+    event.stopPropagation();
     const dialog = dialogRef.current;
     const controls = dialog === null ? [] : tabbableElements(dialog);
     const first = controls[0];

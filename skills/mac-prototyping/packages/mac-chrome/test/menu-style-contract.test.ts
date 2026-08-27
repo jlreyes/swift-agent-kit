@@ -47,11 +47,20 @@ it("keeps arbitrary content popovers on an explicit inset and layout contract", 
   const dialog = rule(popover, ".mc-popover-dialog");
   const compact = rule(popover, '.mc-popover-dialog[data-content-inset="compact"]');
   const flush = rule(popover, '.mc-popover-dialog[data-content-inset="flush"]');
+  const menu = rule(popover, ".mc-menu-popover");
+  const surface = rule(popover, ".mc-popover-surface");
 
   expect(tokens).toMatch(/--radius-popover:\s*12px/);
   expect(dialog).toMatch(/padding:\s*14px/);
+  expect(dialog).toMatch(/max-height:\s*inherit/);
+  expect(dialog).toMatch(/overflow-y:\s*auto/);
+  expect(dialog).toMatch(/overscroll-behavior:\s*contain/);
   expect(compact).toMatch(/padding:\s*10px/);
   expect(flush).toMatch(/padding:\s*0/);
+  expect(surface).toMatch(/max-height:\s*min\(var\(--available-height, calc\(100vh - 16px\)\), calc\(100vh - 16px\)\)/);
+  expect(surface).toMatch(/overflow:\s*hidden/);
+  expect(menu).toMatch(/max-height:\s*392px/);
+  expect(menu).toMatch(/overflow:\s*auto/);
   expect(popover).toContain('.mc-popover-surface[data-popover-layout="status"]');
 });
 

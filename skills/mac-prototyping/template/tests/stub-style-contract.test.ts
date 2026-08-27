@@ -48,14 +48,15 @@ test("windows cap inside the desktop and retain their implementation's geometry 
   const window = rule(".mac-window");
 
   expect(ownsBorderBox(".mac-window")).toBe(true);
-  expect(window).toMatch(/max-width:\s*calc\(100% - 24px\)/);
   expect(window).toMatch(/max-height:\s*calc\(100% - 88px\)/);
 
   if (importedPackageStyles) {
+    expect(window).toMatch(/max-width:\s*max\(50%,\s*calc\(100% - 48px\)\)/);
     const resizeHandle = rule(".mc-window-resize-handle");
     expect(resizeHandle).toMatch(/position:\s*absolute/);
     expect(resizeHandle).toMatch(/z-index:\s*19/);
   } else {
+    expect(window).toMatch(/max-width:\s*calc\(100% - 24px\)/);
     const centeredWindow = rule('.mac-window[style*="left: calc(50%"]');
     expect(source).toContain('.mac-window[style*="left:calc(50%"]');
     expect(centeredWindow).toMatch(/right:\s*12px/);
@@ -69,6 +70,17 @@ test("stub alerts include their padding in the constrained inline size", () => {
 
   expect(ownsBorderBox(".mc-alert")).toBe(true);
   expect(alert).toMatch(/width:\s*min\(390px, calc\(100% - 24px\)\)/);
+});
+
+test("arbitrary popovers keep tall controls reachable within available viewport height", () => {
+  const surface = rule(".mc-popover-surface");
+  const dialog = rule(".mc-popover-dialog");
+
+  expect(surface).toMatch(/max-height:\s*min\(var\(--available-height, calc\(100vh - 16px\)\), calc\(100vh - 16px\)\)/);
+  expect(surface).toMatch(/overflow:\s*hidden/);
+  expect(dialog).toMatch(/max-height:\s*inherit/);
+  expect(dialog).toMatch(/overflow-y:\s*auto/);
+  expect(dialog).toMatch(/overscroll-behavior:\s*contain/);
 });
 
 test("Dock thumbnails preserve tall capture proportions in their 48 by 44 slot", () => {

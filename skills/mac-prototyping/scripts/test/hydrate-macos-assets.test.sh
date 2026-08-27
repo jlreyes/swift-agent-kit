@@ -25,7 +25,17 @@ assert_contains() {
   local file=$1
   local expected=$2
 
-  /usr/bin/grep -Fq -- "$expected" "$file" || fail "expected '$expected' in $file"
+  /usr/bin/grep -aFq -- "$expected" "$file" || fail "expected '$expected' in $file"
+}
+
+assert_signature() {
+  local file=$1
+  local byte_count=$2
+  local expected=$3
+  local actual
+
+  actual=$(/usr/bin/xxd -p -l "$byte_count" "$file") || fail "could not read signature from $file"
+  [[ "$actual" == "$expected" ]] || fail "expected signature $expected in $file, got $actual"
 }
 
 assert_no_extraction_temporary_directories() {
@@ -59,7 +69,7 @@ for argument do
   destination=$previous
   previous=$argument
 done
-printf "%s\n" "ffmpeg wallpaper" >"$destination"'
+printf "\377\330\377%s\n\377\331" "ffmpeg wallpaper" >"$destination"'
 
 apply_fake_tool "$tools_root/qlmanage" '#!/bin/sh
 printf "%s\n" "called" >>"$FAKE_QLMANAGE_MARKER"
@@ -121,6 +131,11 @@ case "$output" in
   *.png)
     printf "\211PNG\r\n\032\n%s\n" "fake png" >"$output"
     ;;
+  *.jpg|*.jpeg)
+    printf "\377\330\377" >"$output"
+    cat "$input" >>"$output"
+    printf "\377\331" >>"$output"
+    ;;
   *)
     cp "$input" "$output"
     ;;
@@ -167,12 +182,12 @@ run_success_case() {
 
 run_success_case ffmpeg-success success failure
 [[ ! -e "$test_root/ffmpeg-success/qlmanage-marker" ]] || fail "qlmanage ran after ffmpeg succeeded"
-assert_contains "$test_root/ffmpeg-success/prototype/public/mac-assets/wallpapers/tahoe.jpg" "ffmpeg wallpaper"
+assert_signature "$test_root/ffmpeg-success/prototype/public/mac-assets/wallpapers/tahoe.jpg" 3 ffd8ff
 
 run_success_case native-fallback failure success
 [[ -s "$test_root/native-fallback/qlmanage-marker" ]] || fail "qlmanage did not run after ffmpeg failed"
 assert_contains "$test_root/native-fallback/stderr" "ffmpeg failed (exit 23); trying native qlmanage fallback"
-assert_contains "$test_root/native-fallback/prototype/public/mac-assets/wallpapers/tahoe.jpg" "qlmanage wallpaper"
+assert_signature "$test_root/native-fallback/prototype/public/mac-assets/wallpapers/tahoe.jpg" 3 ffd8ff
 
 failure_root="$test_root/all-methods-fail"
 failure_prototype="$failure_root/prototype"
@@ -343,6 +358,131 @@ run_atomic_icon_failure_case \
   icon-invalid-success \
   invalid-success \
   74 \
-  "Google Chrome icon conversion produced an invalid PNG; preserved existing asset"
+  "Google Chrome icon conversion produced an invalid png asset; preserved existing asset"
+
+prepare_directory_destination() {
+  local kind=$1
+  local destination=$2
+  local target_directory=$3
+
+  mkdir -p "${destination:h}"
+  case "$kind" in
+    directory)
+      mkdir -p "$destination"
+      ;;
+    symlink-directory)
+      mkdir -p "$target_directory"
+      /bin/ln -s "$target_directory" "$destination"
+      ;;
+    *)
+      fail "unsupported directory destination kind $kind"
+      ;;
+  esac
+}
+
+assert_directory_destination_preserved() {
+  local kind=$1
+  local destination=$2
+  local target_directory=$3
+  local nested_files=("$target_directory"/*(ND))
+
+  case "$kind" in
+    directory)
+      [[ -d "$destination" && ! -L "$destination" ]] || fail "real directory destination was replaced"
+      ;;
+    symlink-directory)
+      [[ -L "$destination" && -d "$destination" ]] || fail "directory symlink destination was replaced"
+      ;;
+  esac
+  (( ${#nested_files} == 0 )) || fail "candidate was incorrectly nested inside directory destination"
+}
+
+run_icon_directory_destination_case() {
+  local name=$1
+  local kind=$2
+  local case_root="$test_root/$name"
+  local prototype="$case_root/prototype"
+  local chrome_source="$case_root/Google Chrome.icns"
+  local destination="$prototype/public/mac-assets/dock/chrome.png"
+  local target_directory="$case_root/directory-target"
+  local run_status
+
+  mkdir -p "$case_root"
+  print -r -- "source icon" >"$chrome_source"
+  prepare_directory_destination "$kind" "$destination" "$target_directory"
+  if [[ "$kind" == directory ]]; then
+    target_directory=$destination
+  fi
+
+  if env \
+    TMPDIR="$runtime_root" \
+    MAC_PROTOTYPING_PLATFORM=Darwin \
+    MAC_PROTOTYPING_CHROME_ICON_SOURCE="$chrome_source" \
+    MAC_PROTOTYPING_TAHOE_MOVIE="$case_root/Absent Tahoe Day.mov" \
+    MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+    FAKE_SIPS_RESULT=success \
+    "$hydrator" "$prototype" >"$case_root/stdout" 2>"$case_root/stderr"; then
+    fail "$name unexpectedly succeeded"
+  else
+    run_status=$?
+  fi
+
+  [[ "$run_status" -eq 74 ]] || fail "$name returned $run_status instead of 74"
+  [[ ! -s "$case_root/stdout" ]] || fail "$name reported false hydration success"
+  assert_contains "$case_root/stderr" "cannot install Google Chrome icon conversion because destination is a directory"
+  assert_directory_destination_preserved "$kind" "$destination" "$target_directory"
+  assert_no_extraction_temporary_directories
+}
+
+run_icon_directory_destination_case icon-directory-destination directory
+run_icon_directory_destination_case icon-symlink-directory-destination symlink-directory
+
+run_wallpaper_directory_destination_case() {
+  local name=$1
+  local kind=$2
+  local case_root="$test_root/$name"
+  local prototype="$case_root/prototype"
+  local movie="$case_root/Tahoe Day.mov"
+  local destination="$prototype/public/mac-assets/wallpapers/tahoe.jpg"
+  local target_directory="$case_root/directory-target"
+  local run_status
+
+  mkdir -p "$case_root"
+  print -r -- "movie" >"$movie"
+  prepare_directory_destination "$kind" "$destination" "$target_directory"
+  if [[ "$kind" == directory ]]; then
+    target_directory=$destination
+  fi
+
+  if env \
+    TMPDIR="$runtime_root" \
+    MAC_PROTOTYPING_PLATFORM=Darwin \
+    MAC_PROTOTYPING_TAHOE_MOVIE="$movie" \
+    MAC_PROTOTYPING_FFMPEG_COMMAND="$tools_root/ffmpeg" \
+    MAC_PROTOTYPING_QLMANAGE_COMMAND="$tools_root/qlmanage" \
+    MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+    FAKE_FFMPEG_RESULT=success \
+    FAKE_FFMPEG_MARKER="$case_root/ffmpeg-marker" \
+    FAKE_QLMANAGE_RESULT=success \
+    FAKE_QLMANAGE_MARKER="$case_root/qlmanage-marker" \
+    FAKE_SIPS_RESULT=success \
+    "$hydrator" "$prototype" >"$case_root/stdout" 2>"$case_root/stderr"; then
+    fail "$name unexpectedly succeeded"
+  else
+    run_status=$?
+  fi
+
+  [[ "$run_status" -eq 74 ]] || fail "$name returned $run_status instead of 74"
+  [[ -s "$case_root/ffmpeg-marker" ]] || fail "$name did not exercise the ffmpeg installer"
+  [[ -s "$case_root/qlmanage-marker" ]] || fail "$name did not exercise the qlmanage installer"
+  [[ ! -s "$case_root/stdout" ]] || fail "$name reported false hydration success"
+  assert_contains "$case_root/stderr" "cannot install ffmpeg Tahoe wallpaper because destination is a directory"
+  assert_contains "$case_root/stderr" "cannot install qlmanage Tahoe wallpaper because destination is a directory"
+  assert_directory_destination_preserved "$kind" "$destination" "$target_directory"
+  assert_no_extraction_temporary_directories
+}
+
+run_wallpaper_directory_destination_case wallpaper-directory-destination directory
+run_wallpaper_directory_destination_case wallpaper-symlink-directory-destination symlink-directory
 
 print "hydrate-macos-assets.test: passed"

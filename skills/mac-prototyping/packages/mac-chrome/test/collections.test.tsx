@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
 
@@ -7,6 +7,10 @@ import { MacDisclosureGroup, MacList } from "../collections.tsx";
 import { MacContentUnavailable } from "../content-state.tsx";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+function GeneratedSectionTitle() {
+  return <span>Generated</span>;
+}
 
 it("renders sectioned rows and reports one selected id", async () => {
   const container = document.createElement("div");
@@ -61,8 +65,34 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
           { id: "false", title: false, items: [{ id: "false-title", label: "False title" }] },
           { id: "true", title: true, items: [{ id: "true-title", label: "True title" }] },
           { id: "empty-array", title: [null, false, ""], items: [{ id: "empty-array-title", label: "Empty array title" }] },
+          { id: "blank-host", title: <span>   </span>, items: [{ id: "blank-host-title", label: "Blank host title" }] },
+          {
+            id: "empty-nested",
+            title: <><span><></></span></>,
+            items: [{ id: "empty-nested-title", label: "Empty nested title" }],
+          },
+          {
+            id: "empty-iterable",
+            title: new Set<ReactNode>([null, false, " "]),
+            items: [{ id: "empty-iterable-title", label: "Empty iterable title" }],
+          },
           { id: "shared", title: "Shared", items: [{ id: "brief", label: "Brief" }] },
           { id: "zero", title: 0, items: [{ id: "zero-item", label: "Zero item" }] },
+          {
+            id: "nested",
+            title: <span><><strong>Nested</strong></></span>,
+            items: [{ id: "nested-item", label: "Nested item" }],
+          },
+          {
+            id: "iterable",
+            title: new Set<ReactNode>([null, <span key="iterable">Iterable</span>]),
+            items: [{ id: "iterable-item", label: "Iterable item" }],
+          },
+          {
+            id: "custom",
+            title: <GeneratedSectionTitle />,
+            items: [{ id: "custom-item", label: "Custom item" }],
+          },
         ]}
       />,
     );
@@ -73,11 +103,11 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
   const options = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"));
   const option = (label: string) => options.find((item) => item.textContent === label);
   expect(listbox?.getAttribute("aria-label")).toBe("Documents");
-  expect(groups).toHaveLength(2);
+  expect(groups).toHaveLength(5);
   expect(Array.from(groups, (group) => {
     const labelId = group.getAttribute("aria-labelledby") ?? "";
     return document.getElementById(labelId)?.textContent;
-  })).toEqual(["Shared", "0"]);
+  })).toEqual(["Shared", "0", "Nested", "Iterable", "Generated"]);
   for (const label of [
     "Draft",
     "Archive",
@@ -86,11 +116,17 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
     "False title",
     "True title",
     "Empty array title",
+    "Blank host title",
+    "Empty nested title",
+    "Empty iterable title",
   ]) {
     expect(option(label)?.closest("[role='group']")).toBeNull();
   }
   expect(option("Brief")?.closest("[role='group']")).toBe(groups[0]);
   expect(option("Zero item")?.closest("[role='group']")).toBe(groups[1]);
+  expect(option("Nested item")?.closest("[role='group']")).toBe(groups[2]);
+  expect(option("Iterable item")?.closest("[role='group']")).toBe(groups[3]);
+  expect(option("Custom item")?.closest("[role='group']")).toBe(groups[4]);
 
   await act(async () => root.unmount());
   container.remove();

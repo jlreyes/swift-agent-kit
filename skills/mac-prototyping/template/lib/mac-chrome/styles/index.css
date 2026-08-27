@@ -78,6 +78,24 @@
   max-width: min(340px, calc(100vw - 16px));
 }
 
+/* React Aria publishes the vertical room around the trigger. Keep the outer
+   material clipped to its rounded surface and let the dialog own scrolling so
+   tall arbitrary content never disappears below the viewport. */
+.mc-popover-surface {
+  box-sizing: border-box;
+  max-height: min(var(--available-height, calc(100vh - 16px)), calc(100vh - 16px));
+  overflow: hidden;
+}
+
+.mc-popover-dialog {
+  box-sizing: border-box;
+  min-height: 0;
+  max-height: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .apple-mark {
   width: 13px;
   height: 15px;

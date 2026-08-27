@@ -43,6 +43,7 @@ export function SetupAssistant({
   onContinue,
   continueLabel = "Continue",
   continueDisabled = false,
+  modalOpen = false,
   label,
   frame,
   onClose,
@@ -86,7 +87,7 @@ export function SetupAssistant({
       <div className="mc-setup-titlebar" data-window-drag-handle="">
         <TrafficLights />
       </div>
-      <div className="mc-setup-underlay">
+      <div className="mc-setup-underlay" inert={modalOpen ? true : undefined} aria-hidden={modalOpen || undefined}>
         <span className="mc-visually-hidden" aria-live="polite">{currentName}</span>
         <nav className="mc-setup-progress" aria-label="Steps" data-window-drag-handle="">
           {steps.map((step, index) => {

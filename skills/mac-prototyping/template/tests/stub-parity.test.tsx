@@ -621,6 +621,42 @@ describe("template stub public behavior", () => {
     expect(tooltip.dataset.visible).toBe("false");
   });
 
+  test("Dock repositions a stable active tooltip and clears removed tooltip identity before ID reuse", async () => {
+    const activeItem = { id: "active", label: "Active", icon: "/active.png" } as const;
+    const firstItem = { id: "first", label: "First", icon: "/first.png" } as const;
+    const lastItem = { id: "last", label: "Last", icon: "/last.png" } as const;
+    let activeItemLeft = 160;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("p0-mac-dock")) return DOMRect.fromRect({ x: 100, y: 600, width: 300, height: 67 });
+      if (this.classList.contains("p0-dock-scroll")) return DOMRect.fromRect({ x: 100, y: 568, width: 300, height: 105 });
+      if (this.classList.contains("p0-dock-tooltip")) return DOMRect.fromRect({ width: 60, height: 22 });
+      if (this.getAttribute("aria-label") === activeItem.label) return DOMRect.fromRect({ x: activeItemLeft, y: 608, width: 52, height: 52 });
+      return DOMRect.fromRect();
+    });
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+
+    const view = render(<MacDock items={[activeItem, lastItem]} />);
+    fireEvent.pointerEnter(screen.getByRole("button", { name: "Active" }));
+    expect(screen.getByRole("tooltip").style.left).toBe("86px");
+
+    activeItemLeft = 216;
+    view.rerender(<MacDock items={[firstItem, activeItem, lastItem]} />);
+    expect(screen.getByRole("tooltip").style.left).toBe("142px");
+
+    activeItemLeft = 132;
+    view.rerender(<MacDock items={[lastItem, activeItem, firstItem]} />);
+    expect(screen.getByRole("tooltip").style.left).toBe("58px");
+
+    view.rerender(<MacDock items={[lastItem, firstItem]} />);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    view.rerender(<MacDock items={[activeItem, lastItem, firstItem]} />);
+    expect(screen.getByRole("button", { name: "Active" }).hasAttribute("aria-describedby")).toBe(false);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(screen.getByRole("button", { name: "Active" }));
+    expect(screen.getByRole("tooltip").textContent).toBe("Active");
+  });
+
   test("registration cleanup preserves manifest apps and duplicate managed windows", async () => {
     const app = { id: "manifest", name: "Manifest App", icon: <span>Icon</span> } as const;
     function RegistryProbe() {
@@ -1006,6 +1042,25 @@ describe("template stub public behavior", () => {
     expect(stepButtons[2]?.getAttribute("aria-current")).toBe("step");
   });
 
+  test("SetupAssistant preserves deprecated modalOpen underlay suppression", () => {
+    const props = {
+      steps: [{ id: "welcome", name: "Welcome" }],
+      currentStep: "welcome",
+      furthestIndex: 0,
+      onSelectStep: () => {},
+      onBack: () => {},
+      onContinue: () => {},
+    } as const;
+    const view = render(<SetupAssistant {...props} modalOpen>Setup content</SetupAssistant>);
+    const underlay = view.container.querySelector<HTMLElement>(".mc-setup-underlay");
+    expect(underlay?.hasAttribute("inert")).toBe(true);
+    expect(underlay?.getAttribute("aria-hidden")).toBe("true");
+
+    view.rerender(<SetupAssistant {...props} modalOpen={false}>Setup content</SetupAssistant>);
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
   test("stored id subscriptions observe cross-tab writes and localStorage.clear", () => {
     const ids = createStoredIdList("installed", (id) => id.startsWith("valid-"));
     function StoredIds() {
@@ -1146,6 +1201,76 @@ describe("template stub public behavior", () => {
     expect(document.activeElement).toBe(last);
   });
 
+  test("nested modal Escape and Tab stay owned by the top portal layer", async () => {
+    const closeLower = vi.fn();
+    const closeUpper = vi.fn();
+    render(
+      <WindowChrome label="Nested modal owner">
+        <Sheet label="Lower modal" onClose={closeLower} open>
+          <button type="button">Lower first</button>
+          <button type="button">Lower last</button>
+          <Sheet label="Upper modal" onClose={closeUpper} open>
+            <button type="button">Upper first</button>
+            <button type="button">Upper last</button>
+          </Sheet>
+        </Sheet>
+      </WindowChrome>,
+    );
+    const upper = await screen.findByRole("dialog", { name: "Upper modal" });
+    const upperFirst = within(upper).getByRole("button", { name: "Upper first" });
+    const upperLast = within(upper).getByRole("button", { name: "Upper last" });
+    await waitFor(() => expect(document.activeElement).toBe(upperFirst));
+
+    fireEvent.keyDown(upperFirst, { key: "Escape" });
+    expect(closeUpper).toHaveBeenCalledOnce();
+    expect(closeLower).not.toHaveBeenCalled();
+
+    upperLast.focus();
+    fireEvent.keyDown(upperLast, { key: "Tab" });
+    expect(document.activeElement).toBe(upperFirst);
+    upperFirst.focus();
+    fireEvent.keyDown(upperFirst, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(upperLast);
+
+    upperFirst.focus();
+    fireEvent.keyDown(upperFirst, { key: "Tab" });
+    expect(document.activeElement).toBe(upperFirst);
+  });
+
+  test("closing the middle of three modal layers keeps focus in the top dialog", async () => {
+    function ModalStack() {
+      const [middleOpen, setMiddleOpen] = useState(false);
+      const [topOpen, setTopOpen] = useState(false);
+      return (
+        <WindowChrome label="Three-layer modal owner">
+          <Sheet label="Bottom dialog" onClose={() => {}} open>
+            <button type="button" onClick={() => setMiddleOpen(true)}>Open middle</button>
+          </Sheet>
+          <Sheet label="Middle dialog" onClose={() => setMiddleOpen(false)} open={middleOpen}>
+            <button type="button" onClick={() => setTopOpen(true)}>Open top</button>
+          </Sheet>
+          <Sheet label="Top dialog" onClose={() => setTopOpen(false)} open={topOpen}>
+            <button type="button" onClick={() => setMiddleOpen(false)}>Remove middle</button>
+            <button type="button" onClick={() => setTopOpen(false)}>Close top</button>
+          </Sheet>
+        </WindowChrome>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<ModalStack />);
+    await screen.findByRole("dialog", { name: "Bottom dialog" });
+    await user.click(screen.getByRole("button", { name: "Open middle" }));
+    await screen.findByRole("dialog", { name: "Middle dialog" });
+    await user.click(screen.getByRole("button", { name: "Open top" }));
+    const top = await screen.findByRole("dialog", { name: "Top dialog" });
+
+    await user.click(screen.getByRole("button", { name: "Remove middle" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Middle dialog" })).toBeNull());
+    await waitFor(() => expect(top.contains(document.activeElement)).toBe(true));
+    expect(document.querySelector(".mc-sheet[aria-label='Bottom dialog']")).not.toBeNull();
+  });
+
   test("window modals isolate their underlay, focus the dialog fallback, and restore stacked focus", async () => {
     function ModalStack({ lowerOpen, upperOpen }: { readonly lowerOpen: boolean; readonly upperOpen: boolean }) {
       return (
@@ -1217,5 +1342,30 @@ describe("template stub public behavior", () => {
     const dialog = await screen.findByRole("dialog", { name: "Information" });
     await waitFor(() => expect(document.activeElement).toBe(dialog));
     expect(dialog.getAttribute("tabindex")).toBe("-1");
+  });
+
+  test("legacy Sheet remains usable without a window or DesktopShell owner", async () => {
+    function StandaloneSheet() {
+      const [open, setOpen] = useState(true);
+      return (
+        <div className="standalone-sheet-caller">
+          <Sheet label="Legacy standalone sheet" onClose={() => setOpen(false)} open={open}>
+            <p>Legacy freeform content</p>
+            <button type="button" onClick={() => setOpen(false)}>Done</button>
+          </Sheet>
+        </div>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<StandaloneSheet />);
+    const dialog = await screen.findByRole("dialog", { name: "Legacy standalone sheet" });
+    const layer = dialog.closest<HTMLElement>(".mc-window-modal-layer");
+    expect(layer?.dataset.modalScope).toBe("desktop");
+    expect(layer?.parentElement).toBe(document.body);
+    expect(screen.getByText("Legacy freeform content")).toBeDefined();
+
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Legacy standalone sheet" })).toBeNull());
   });
 });

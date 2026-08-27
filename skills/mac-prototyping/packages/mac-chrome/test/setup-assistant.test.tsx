@@ -91,3 +91,38 @@ it("uses shared window chrome and keeps the progress rail draggable around its c
   await act(async () => root.unmount());
   container.remove();
 });
+
+it("preserves deprecated modalOpen underlay suppression and restores interactivity", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const renderSetup = async (modalOpen: boolean) => {
+    await act(async () => {
+      root.render(
+        <SetupAssistant
+          steps={[{ id: "welcome", name: "Welcome" }]}
+          currentStep="welcome"
+          furthestIndex={0}
+          modalOpen={modalOpen}
+          onSelectStep={() => {}}
+          onBack={() => {}}
+          onContinue={() => {}}
+        >
+          <p>Custom modal compatibility</p>
+        </SetupAssistant>,
+      );
+    });
+  };
+
+  await renderSetup(true);
+  const underlay = container.querySelector<HTMLElement>(".mc-setup-underlay");
+  expect(underlay?.hasAttribute("inert")).toBe(true);
+  expect(underlay?.getAttribute("aria-hidden")).toBe("true");
+
+  await renderSetup(false);
+  expect(underlay?.hasAttribute("inert")).toBe(false);
+  expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+
+  await act(async () => root.unmount());
+  container.remove();
+});

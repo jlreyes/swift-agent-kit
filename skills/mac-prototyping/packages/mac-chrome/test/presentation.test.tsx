@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MacAlert, MacSheet, MacWindowStatusBar } from "../presentation.tsx";
+import { MacAlert, MacSheet, MacWindowStatusBar, Sheet } from "../presentation.tsx";
 import { MacWindowModalHost } from "../window-modal-host.tsx";
 
 afterEach(cleanup);
@@ -59,6 +59,18 @@ function SheetHarness() {
         <label>Project name <input defaultValue="Untitled Project" /></label>
       </MacSheet>
     </section>
+  );
+}
+
+function StandaloneLegacySheetHarness() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="standalone-sheet-caller">
+      <Sheet open={open} onClose={() => setOpen(false)} label="Legacy standalone sheet">
+        <p>Legacy freeform content</p>
+        <button type="button" onClick={() => setOpen(false)}>Done</button>
+      </Sheet>
+    </div>
   );
 }
 
@@ -145,6 +157,78 @@ function StackedModalHarness() {
       >
         <button type="button" onClick={() => setLowerOpen(false)}>Remove lower</button>
         <button type="button" onClick={() => setUpperOpen(false)}>Close upper</button>
+      </MacWindowModalHost>
+    </section>
+  );
+}
+
+function ThreeLayerModalHarness() {
+  const [middleOpen, setMiddleOpen] = useState(false);
+  const [topOpen, setTopOpen] = useState(false);
+  return (
+    <section className="mac-window" aria-label="Three-layer modal window">
+      <div className="three-layer-underlay">Underlay</div>
+      <MacWindowModalHost
+        ariaLabel="Bottom dialog"
+        className="bottom-dialog"
+        kind="sheet"
+        onCancel={() => {}}
+        open
+        role="dialog"
+      >
+        <button type="button" onClick={() => setMiddleOpen(true)}>Open middle</button>
+      </MacWindowModalHost>
+      <MacWindowModalHost
+        ariaLabel="Middle dialog"
+        className="middle-dialog"
+        kind="sheet"
+        onCancel={() => setMiddleOpen(false)}
+        open={middleOpen}
+        role="dialog"
+      >
+        <button type="button" onClick={() => setTopOpen(true)}>Open top</button>
+      </MacWindowModalHost>
+      <MacWindowModalHost
+        ariaLabel="Top dialog"
+        className="top-dialog"
+        kind="sheet"
+        onCancel={() => setTopOpen(false)}
+        open={topOpen}
+        role="dialog"
+      >
+        <button type="button" onClick={() => setMiddleOpen(false)}>Remove middle</button>
+        <button type="button" onClick={() => setTopOpen(false)}>Close top</button>
+      </MacWindowModalHost>
+    </section>
+  );
+}
+
+function NestedPortalModalHarness() {
+  const [lowerOpen, setLowerOpen] = useState(true);
+  const [upperOpen, setUpperOpen] = useState(true);
+  return (
+    <section className="mac-window" aria-label="Nested portal modal window">
+      <div className="nested-portal-underlay">Underlay</div>
+      <MacWindowModalHost
+        ariaLabel="Nested lower dialog"
+        className="nested-lower-dialog"
+        kind="sheet"
+        onCancel={() => setLowerOpen(false)}
+        open={lowerOpen}
+        role="dialog"
+      >
+        <button type="button">Lower action</button>
+        <MacWindowModalHost
+          ariaLabel="Nested upper dialog"
+          className="nested-upper-dialog"
+          kind="sheet"
+          onCancel={() => setUpperOpen(false)}
+          open={upperOpen}
+          role="dialog"
+        >
+          <button type="button">Upper first</button>
+          <button type="button">Upper last</button>
+        </MacWindowModalHost>
       </MacWindowModalHost>
     </section>
   );
@@ -326,6 +410,18 @@ describe("native presentation primitives", () => {
     expect(document.activeElement).toBe(dialog);
   });
 
+  it("keeps the legacy freeform Sheet usable without a window or DesktopShell owner", async () => {
+    render(<StandaloneLegacySheetHarness />);
+    const dialog = await screen.findByRole("dialog", { name: "Legacy standalone sheet" });
+    const layer = dialog.closest<HTMLElement>(".mc-window-modal-layer");
+    expect(layer?.dataset.modalScope).toBe("desktop");
+    expect(layer?.parentElement).toBe(document.body);
+    expect(screen.getByText("Legacy freeform content")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Legacy standalone sheet" })).toBeNull());
+  });
+
   it("coordinates stacked modal suppression until the final layer closes", async () => {
     const { container } = render(<StackedModalHarness />);
     const underlay = container.querySelector<HTMLElement>(".stacked-underlay");
@@ -373,6 +469,36 @@ describe("native presentation primitives", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(underlay?.hasAttribute("inert")).toBe(false);
     expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  it("keeps focus in the top surviving dialog when the middle of three layers closes out of order", async () => {
+    render(<ThreeLayerModalHarness />);
+    await screen.findByRole("dialog", { name: "Bottom dialog" });
+    fireEvent.click(screen.getByRole("button", { name: "Open middle" }));
+    await screen.findByRole("dialog", { name: "Middle dialog" });
+    fireEvent.click(screen.getByRole("button", { name: "Open top" }));
+    const top = await screen.findByRole("dialog", { name: "Top dialog" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove middle" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Middle dialog" })).toBeNull());
+    await waitFor(() => expect(top.contains(document.activeElement)).toBe(true));
+    expect(document.querySelector(".bottom-dialog")).toBeTruthy();
+  });
+
+  it("contains Escape and Tab in a modal portalled through another modal's React ancestry", async () => {
+    render(<NestedPortalModalHarness />);
+    const upper = await screen.findByRole("dialog", { name: "Nested upper dialog" });
+    const first = screen.getByRole("button", { name: "Upper first" });
+    const last = screen.getByRole("button", { name: "Upper last" });
+
+    last.focus();
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    expect(upper.contains(document.activeElement)).toBe(true);
+
+    fireEvent.keyDown(first, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nested upper dialog" })).toBeNull());
+    expect(await screen.findByRole("dialog", { name: "Nested lower dialog" })).toBeTruthy();
   });
   it("renders a compact window status bar with optional live feedback", () => {
     render(<MacWindowStatusBar live="polite" trailing="4 items">Ready</MacWindowStatusBar>);

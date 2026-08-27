@@ -73,6 +73,62 @@ remove_stale_hydrated_asset() {
   return 74
 }
 
+hydrated_asset_is_valid() {
+  local asset=$1
+  local format=$2
+  local signature
+
+  if [[ ! -f "$asset" || -L "$asset" || ! -s "$asset" ]]; then
+    return 1
+  fi
+
+  case "$format" in
+    png)
+      signature=$(/usr/bin/xxd -p -l 8 "$asset" 2>/dev/null) || return 1
+      [[ "$signature" == "89504e470d0a1a0a" ]]
+      ;;
+    jpeg)
+      signature=$(/usr/bin/xxd -p -l 3 "$asset" 2>/dev/null) || return 1
+      [[ "$signature" == "ffd8ff" ]]
+      ;;
+    *)
+      print -u2 "mac-prototyping: unsupported hydrated asset format $format"
+      return 64
+      ;;
+  esac
+}
+
+# Returns EX_IOERR (74) without changing an existing destination when the
+# staged asset or destination shape cannot be installed safely.
+install_hydrated_asset() {
+  local candidate=$1
+  local destination=$2
+  local label=$3
+  local format=$4
+
+  if ! hydrated_asset_is_valid "$candidate" "$format"; then
+    print -u2 "mac-prototyping: $label produced an invalid $format asset; preserved existing asset at $destination"
+    return 74
+  fi
+
+  # `mv source existing-directory` changes meaning and nests the candidate.
+  # Reject real directories and symlinks to directories before the rename.
+  if [[ -d "$destination" ]]; then
+    print -u2 "mac-prototyping: cannot install $label because destination is a directory; preserved $destination"
+    return 74
+  fi
+
+  if ! /bin/mv -fh -- "$candidate" "$destination"; then
+    print -u2 "mac-prototyping: could not install $label at $destination; preserved existing asset"
+    return 74
+  fi
+
+  if ! hydrated_asset_is_valid "$destination" "$format"; then
+    print -u2 "mac-prototyping: installed $label failed final $format validation at $destination"
+    return 74
+  fi
+}
+
 if [[ "$platform" != "Darwin" ]]; then
   print -u2 "mac-prototyping: local Apple assets require macOS"
   exit 69
@@ -98,7 +154,6 @@ convert_icon() {
   local label=$3
   local candidate="$temporary_root/icon-${destination:t}"
   local exit_status
-  local png_signature
 
   if [[ ! -f "$source" ]]; then
     print -u2 "mac-prototyping: skipped $label (not found at $source)"
@@ -109,24 +164,14 @@ convert_icon() {
   fi
 
   if "$sips_command" -s format png -z 256 256 "$source" --out "$candidate" >/dev/null; then
-    if [[ ! -s "$candidate" ]]; then
-      print -u2 "mac-prototyping: $label conversion produced no PNG; preserved existing asset at $destination"
-      return 74
-    fi
+    :
   else
     exit_status=$?
     print -u2 "mac-prototyping: $label conversion failed (exit $exit_status); preserved existing asset at $destination"
     return "$exit_status"
   fi
 
-  if ! png_signature=$(/usr/bin/xxd -p -l 8 "$candidate" 2>/dev/null) || \
-    [[ "$png_signature" != "89504e470d0a1a0a" ]]; then
-    print -u2 "mac-prototyping: $label conversion produced an invalid PNG; preserved existing asset at $destination"
-    return 74
-  fi
-
-  if ! /bin/mv -f -- "$candidate" "$destination"; then
-    print -u2 "mac-prototyping: could not install converted $label at $destination; preserved existing asset"
+  if ! install_hydrated_asset "$candidate" "$destination" "$label conversion" png; then
     return 74
   fi
 
@@ -179,13 +224,8 @@ extract_tahoe_with_ffmpeg() {
 
   if "$ffmpeg_command" -hide_banner -loglevel error -ss 1 -i "$tahoe_movie" \
     -frames:v 1 -vf "scale=2560:-2" -q:v 3 "$candidate" -y; then
-    if [[ ! -s "$candidate" ]]; then
-      print -u2 "mac-prototyping: ffmpeg produced no wallpaper; trying native qlmanage fallback"
-      return 1
-    fi
-
-    if ! /bin/mv -f -- "$candidate" "$tahoe_still"; then
-      print -u2 "mac-prototyping: ffmpeg output could not be installed at $tahoe_still"
+    if ! install_hydrated_asset "$candidate" "$tahoe_still" "ffmpeg Tahoe wallpaper" jpeg; then
+      print -u2 "mac-prototyping: ffmpeg wallpaper install failed; trying native qlmanage fallback"
       return 1
     fi
 
@@ -224,18 +264,14 @@ extract_tahoe_with_qlmanage() {
   fi
 
   if "$sips_command" -s format jpeg "$preview" --out "$candidate" >/dev/null; then
-    if [[ ! -s "$candidate" ]]; then
-      print -u2 "mac-prototyping: sips produced no wallpaper from the qlmanage preview"
-      return 1
-    fi
+    :
   else
     exit_status=$?
     print -u2 "mac-prototyping: sips failed to convert the qlmanage preview (exit $exit_status)"
     return 1
   fi
 
-  if ! /bin/mv -f -- "$candidate" "$tahoe_still"; then
-    print -u2 "mac-prototyping: qlmanage output could not be installed at $tahoe_still"
+  if ! install_hydrated_asset "$candidate" "$tahoe_still" "qlmanage Tahoe wallpaper" jpeg; then
     return 1
   fi
 }

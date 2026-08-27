@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+
 import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { act, useState, type CSSProperties } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -381,8 +383,28 @@ describe("WindowChrome geometry", () => {
     const windowElement = container.querySelector<HTMLElement>(".mac-window");
     expect(windowElement?.style.width).toBe("720px");
     expect(windowElement?.style.height).toBe("480px");
-    // Centered placement (jsdom normalizes the calc arithmetic, so match parts).
-    expect(windowElement?.style.left).toMatch(/^calc\(50% - .*720px.*\)$/);
+    // cssstyle algebraically serializes nested min/max, so assert the three
+    // operands that define responsive centering rather than its punctuation.
+    expect(windowElement?.style.left).toContain("720px");
+    expect(windowElement?.style.left).toContain("24px");
+    expect(windowElement?.style.left).toContain("25%");
+  });
+
+  it("centers the first CSS-only frame within a narrow canvas width cap", () => {
+    const { container } = render(
+      <div className="desktop-canvas" style={{ height: 600, width: 375 }}>
+        <WindowChrome label="Narrow first frame">
+          <p>Body</p>
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement?.style.width).toBe("720px");
+    expect(windowElement?.style.left).toContain("720px");
+    expect(windowElement?.style.left).toContain("24px");
+    expect(windowElement?.style.left).toContain("25%");
+    const baseStyles = readFileSync("styles/base.css", "utf8");
+    expect(baseStyles).toMatch(/\.mac-window\s*\{[^}]*max-width:\s*max\(50%, calc\(100% - 48px\)\)/s);
   });
 
   it("gives FinderWindow its ~940x580 default geometry", () => {
@@ -744,6 +766,54 @@ describe("WindowChrome geometry", () => {
     expect(windowElement.style.width).toBe("392px");
   });
 
+  it("synchronously contains resize geometry when the canvas shrinks before observer rebase", () => {
+    vi.useFakeTimers();
+    try {
+      const layout = { ...standardLayout };
+      let notifyResize: () => void = () => undefined;
+      class TestResizeObserver implements ResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = () => callback([], this);
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      }
+      vi.stubGlobal("ResizeObserver", TestResizeObserver);
+      mockLayout(layout);
+      const animationFrames = mockAnimationFrameQueue();
+      const { container } = renderCanvasWindow({ minSize: { width: 50, height: 50 } });
+      const windowElement = container.querySelector<HTMLElement>(".mac-window");
+      const handle = windowElement?.querySelector<HTMLElement>("[data-window-resize-handle='e']");
+      expect(windowElement).toBeTruthy();
+      expect(handle).toBeTruthy();
+      if (windowElement === null || handle === null || handle === undefined) return;
+
+      firePointer(handle, "pointerdown", { clientX: 200, clientY: 200 });
+      layout.canvasWidth = 100;
+      act(() => notifyResize());
+      expect(windowElement.style.width).toBe("500px");
+
+      // ResizeObserver containment is still queued. The pointer path must
+      // synchronously recontain its invalid fixed edge before doing math.
+      firePointer(windowElement, "pointermove", { clientX: 210, clientY: 200 });
+      act(() => animationFrames.queuedFrames.get(1)?.(0));
+      expect(windowElement.style.left).toBe("24px");
+      expect(windowElement.style.width).toBe("52px");
+      expect(Number.parseFloat(windowElement.style.width)).toBeGreaterThanOrEqual(0);
+
+      // The gesture was rebased at the shrink sample, so its next delta is
+      // continuous and respects the available minimum instead of stale edges.
+      firePointer(windowElement, "pointermove", { clientX: 200, clientY: 200 });
+      act(() => animationFrames.queuedFrames.get(2)?.(0));
+      expect(windowElement.style.left).toBe("24px");
+      expect(windowElement.style.width).toBe("50px");
+    } finally {
+      act(() => vi.runOnlyPendingTimers());
+      vi.useRealTimers();
+    }
+  });
+
   it("attaches containment after a default-closed managed window opens from the Dock", async () => {
     const layout = { ...standardLayout };
     let notifyResize: () => void = () => undefined;
@@ -1067,10 +1137,11 @@ describe("window dragging", () => {
     expect(control).toBeTruthy();
     if (!windowElement || !control) return;
 
+    const originalLeft = windowElement.style.left;
     firePointer(control, "pointerdown", { clientX: 300, clientY: 40 });
     firePointer(windowElement, "pointermove", { clientX: 380, clientY: 90 });
     await flushAnimationFrame();
-    expect(windowElement.style.left).toMatch(/^calc\(50% -/);
+    expect(windowElement.style.left).toBe(originalLeft);
   });
 
   it("clamps dragging to the desktop canvas rather than the global viewport", async () => {

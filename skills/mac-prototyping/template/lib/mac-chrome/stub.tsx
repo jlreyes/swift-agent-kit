@@ -1227,6 +1227,10 @@ interface StubDockTooltipPosition {
 
 const stubDockTooltipViewportInset = 8;
 
+function stubDockItemsLayoutKey(items: readonly DockItem[]) {
+  return JSON.stringify(items.map((item) => [item.id, item.label, item.group ?? null]));
+}
+
 export const defaultDockItems: readonly DockItem[] = [
   { id: "finder", label: "Finder", icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" }, running: true, group: "apps" },
   { id: "app-store", label: "App Store", icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" }, group: "apps" },
@@ -1251,6 +1255,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   const activeTooltipItem = activeTooltipItemId === null
     ? undefined
     : items.find((item) => item.id === activeTooltipItemId);
+  const itemsLayoutKey = stubDockItemsLayoutKey(items);
 
   const positionTooltip = useCallback((itemId: string) => {
     const dock = dockRef.current;
@@ -1287,6 +1292,14 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   }, []);
 
   useLayoutEffect(() => {
+    if (activeTooltipItemId === null || activeTooltipItem !== undefined) return;
+    hoveredItemIdRef.current = null;
+    focusedItemIdRef.current = null;
+    setActiveTooltipItemId(null);
+    setTooltipPosition(null);
+  }, [activeTooltipItem, activeTooltipItemId]);
+
+  useLayoutEffect(() => {
     if (activeTooltipItemId === null || activeTooltipItem === undefined) return;
     const scrollport = scrollRef.current;
     if (scrollport === null) return;
@@ -1298,7 +1311,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
       scrollport.removeEventListener("scroll", reposition);
       window.removeEventListener("resize", reposition);
     };
-  }, [activeTooltipItem, activeTooltipItemId, positionTooltip]);
+  }, [activeTooltipItem, activeTooltipItemId, itemsLayoutKey, positionTooltip]);
 
   function stopHovering(itemId: string) {
     if (hoveredItemIdRef.current === itemId) hoveredItemIdRef.current = null;
@@ -2891,7 +2904,7 @@ export function Sheet({ open, onClose, label, fallbackFocusRef, initialFocusSele
   readonly initialFocusSelector?: string;
   readonly children: ReactNode;
 }) {
-  return <StubWindowModalHost className="mc-sheet mc-sheet-legacy" role="dialog" ariaLabel={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector} kind="sheet" onCancel={onClose} open={open}>{children}</StubWindowModalHost>;
+  return <StubWindowModalHost allowDesktopFallback className="mc-sheet mc-sheet-legacy" role="dialog" ariaLabel={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector} kind="sheet" onCancel={onClose} open={open}>{children}</StubWindowModalHost>;
 }
 
 export type MacDialogActionRole = "cancel" | "destructive";
@@ -3061,7 +3074,7 @@ export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep
   return (
     <WindowChrome className="mc-setup-window" label={label ?? "Setup Assistant"} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       <div className="mc-setup-titlebar"><TrafficLights /></div>
-      <div className="mc-setup-underlay" aria-hidden={modalOpen || undefined}>
+      <div className="mc-setup-underlay" inert={modalOpen ? true : undefined} aria-hidden={modalOpen || undefined}>
         <span className="mc-visually-hidden" aria-live="polite">{currentName}</span>
         <nav className="mc-setup-progress" aria-label="Steps" data-window-drag-handle="">
           {steps.map((step, index) => {
@@ -3180,13 +3193,10 @@ function stubActiveModalDialogs(ownerElement?: HTMLElement) {
 
 function stubFocusTargetOrActiveModal(target: HTMLElement | null, ownerElement?: HTMLElement) {
   const activeDialogs = stubActiveModalDialogs(ownerElement);
-  if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
-    target.focus();
-    return;
-  }
   const topDialog = activeDialogs.at(-1);
   if (topDialog !== undefined) {
-    stubInitialFocusTarget(topDialog, stubFocusableSelector).focus();
+    if (target !== null && (topDialog === target || topDialog.contains(target))) target.focus();
+    else stubInitialFocusTarget(topDialog, stubFocusableSelector).focus();
     return;
   }
   target?.focus();
@@ -3224,10 +3234,12 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
   return function handleModalKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       onCancel();
       return;
     }
     if (event.key !== "Tab") return;
+    event.stopPropagation();
     const dialog = dialogRef.current;
     const controls = dialog === null ? [] : stubTabbableElements(dialog);
     const first = controls[0];

@@ -277,7 +277,10 @@ img {
 
 .mac-window {
   position: absolute;
-  max-width: calc(100% - 24px);
+  /* Keep the first CSS-only frame aligned with WindowChrome's 24px safe
+     insets. The 50% floor is the tiny-canvas form of proportional inset
+     contraction, so a window always retains positive reachable width. */
+  max-width: max(50%, calc(100% - 48px));
   max-height: calc(100% - 88px);
   overflow: hidden;
   border: 0.5px solid var(--window-edge);

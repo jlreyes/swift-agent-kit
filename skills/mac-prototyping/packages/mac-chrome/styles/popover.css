@@ -148,6 +148,8 @@
    supplies outside-press dismissal, Escape handling, and focus restoration. */
 .mc-popover-surface {
   z-index: 100;
+  box-sizing: border-box;
+  max-height: min(var(--available-height, calc(100vh - 16px)), calc(100vh - 16px));
   overflow: hidden;
   border: 0.5px solid var(--popover-border);
   border-radius: var(--radius-popover);
@@ -165,6 +167,12 @@
 }
 
 .mc-popover-dialog {
+  box-sizing: border-box;
+  min-height: 0;
+  max-height: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 14px;
   outline: none;
 }

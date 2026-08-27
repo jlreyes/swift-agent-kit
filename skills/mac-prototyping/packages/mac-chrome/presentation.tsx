@@ -156,6 +156,7 @@ export function Sheet({
 }) {
   return (
     <MacWindowModalHost
+      allowDesktopFallback
       ariaLabel={label}
       className="mc-sheet mc-sheet-legacy"
       fallbackFocusRef={fallbackFocusRef}

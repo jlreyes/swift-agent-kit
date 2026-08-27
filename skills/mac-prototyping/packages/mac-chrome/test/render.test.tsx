@@ -218,6 +218,38 @@ it("uses the shared dialog popover for arbitrary toolbar and menu-bar content", 
   container.remove();
 });
 
+it("keeps every tall popover control in the viewport-scrolling dialog", async () => {
+  const previousHeight = window.innerHeight;
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: 240 });
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <MacPopover isOpen label="Tall controls" trigger={<span>Options</span>}>
+          {Array.from({ length: 36 }, (_, index) => (
+            <button key={index} type="button">Control {index + 1}</button>
+          ))}
+        </MacPopover>,
+      );
+    });
+
+    const dialog = document.querySelector<HTMLElement>("[role='dialog'][aria-label='Tall controls']");
+    expect(dialog?.classList.contains("mc-popover-dialog")).toBe(true);
+    expect(dialog?.dataset.contentInset).toBe("regular");
+    const controls = dialog?.querySelectorAll<HTMLButtonElement>("button");
+    expect(controls).toHaveLength(36);
+    const lastControl = controls?.item(35);
+    lastControl?.focus();
+    expect(document.activeElement).toBe(lastControl);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: previousHeight });
+  }
+});
+
 it("lets a controlled MenuBarExtra close before launching another modal", async () => {
   const changes: boolean[] = [];
   const triggerRef = createRef<HTMLButtonElement>();

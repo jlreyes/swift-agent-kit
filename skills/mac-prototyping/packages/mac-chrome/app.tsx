@@ -125,6 +125,11 @@ type OwnedWindowRegistration = {
   readonly registration: WindowRegistration;
 };
 
+type PendingThumbnailCapture = {
+  readonly version: number;
+  readonly registrationOwners: Set<RegistrationOwner>;
+};
+
 interface MacWindowManagerContextValue extends MacWindowManagerValue {
   readonly registerApp: (registration: AppRegistration, owner: RegistrationOwner) => void;
   readonly unregisterApp: (appId: string, owner: RegistrationOwner) => void;
@@ -237,7 +242,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
   // Captures finish asynchronously; a later window command supersedes the
   // capture even when the window has returned to the same visible state.
   const thumbnailCaptureVersionsRef = useRef(new Map<string, number>());
-  const pendingThumbnailCapturesRef = useRef(new Map<string, number>());
+  const pendingThumbnailCapturesRef = useRef(new Map<string, PendingThumbnailCapture>());
 
   const invalidateWindowThumbnailCapture = useCallback((windowId: string) => {
     thumbnailCaptureVersionsRef.current.set(
@@ -394,8 +399,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
   }, []);
 
   const unregisterWindow = useCallback((windowId: string, owner: RegistrationOwner) => {
-    const existing = stateRef.current.windows.find((window) => window.id === windowId);
-    if (existing?.registrations.length === 1 && existing.registrations[0]?.owner === owner) {
+    const pendingCapture = pendingThumbnailCapturesRef.current.get(windowId);
+    const releasedCaptureOwner = pendingCapture?.registrationOwners.delete(owner) === true;
+    if (releasedCaptureOwner && pendingCapture.registrationOwners.size === 0) {
       invalidateWindowThumbnailCapture(windowId);
     }
     setState((current) => {
@@ -486,9 +492,14 @@ export function MacWindowManager({ children, initialApps = [] }: {
 
   const minimizeWindow = useCallback((windowId: string) => {
     if (pendingThumbnailCapturesRef.current.has(windowId)) return;
+    const target = stateRef.current.windows.find((window) => window.id === windowId);
+    if (target === undefined || target.state !== "open") return;
     const captureVersion = (thumbnailCaptureVersionsRef.current.get(windowId) ?? 0) + 1;
     thumbnailCaptureVersionsRef.current.set(windowId, captureVersion);
-    pendingThumbnailCapturesRef.current.set(windowId, captureVersion);
+    pendingThumbnailCapturesRef.current.set(windowId, {
+      version: captureVersion,
+      registrationOwners: new Set(target.registrations.map((registration) => registration.owner)),
+    });
     const element = [...document.querySelectorAll<HTMLElement>("[data-window-id]")]
       .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
     void captureMacWindowThumbnail(element).then((thumbnail) => {
@@ -507,7 +518,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
         });
       });
     }).finally(() => {
-      if (pendingThumbnailCapturesRef.current.get(windowId) === captureVersion) {
+      if (pendingThumbnailCapturesRef.current.get(windowId)?.version === captureVersion) {
         pendingThumbnailCapturesRef.current.delete(windowId);
       }
     });

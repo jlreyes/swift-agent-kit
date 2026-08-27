@@ -201,6 +201,46 @@ function DynamicWindowMetadataContents({ defaultOpen, label, onChangeDefaults, o
   );
 }
 
+function DuplicateWindowCaptureHarness() {
+  return (
+    <MacWindowManager>
+      <DuplicateWindowCaptureContents />
+    </MacWindowManager>
+  );
+}
+
+function DuplicateWindowCaptureContents() {
+  const manager = useMacWindowManager();
+  const [replacementVisible, setReplacementVisible] = useState(false);
+  const window = manager.windows.find((candidate) => candidate.id === "duplicate:shared");
+  return (
+    <>
+      <output aria-label="Duplicate window state">
+        {window === undefined
+          ? "missing"
+          : `${window.label}|${window.state}|${window.thumbnail === undefined ? "no-thumbnail" : "thumbnail"}`}
+      </output>
+      <button type="button" onClick={() => manager.minimizeWindow("duplicate:shared")}>Minimize duplicate</button>
+      <button type="button" onClick={() => setReplacementVisible(true)}>Replace duplicate owners</button>
+      <MacApp
+        id="duplicate"
+        name="Duplicate"
+        icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+      >
+        {replacementVisible ? (
+          <WindowChrome key="replacement" label="Replacement window" windowId="duplicate:shared"><span /></WindowChrome>
+        ) : (
+          <>
+            <WindowChrome key="first" label="First duplicate" windowId="duplicate:shared"><span /></WindowChrome>
+            <WindowChrome key="second" label="Second duplicate" windowId="duplicate:shared"><span /></WindowChrome>
+          </>
+        )}
+      </MacApp>
+      <MacAppDock label="Duplicate Dock" />
+    </>
+  );
+}
+
 describe("Mac app and window management", () => {
   it("server-renders the immutable app manifest before registration effects run", () => {
     const html = renderToStaticMarkup(
@@ -265,6 +305,29 @@ describe("Mac app and window management", () => {
     await waitFor(() => expect(screen.getByLabelText("Window metadata").textContent).toBe(
       "Renamed window|open|zoomed",
     ));
+  });
+
+  it("invalidates a pending capture when duplicate owners are replaced in one commit", async () => {
+    const capture = deferred<string>();
+    vi.mocked(toPng).mockReturnValueOnce(capture.promise);
+    render(<DuplicateWindowCaptureHarness />);
+    await waitFor(() => expect(screen.getByLabelText("Duplicate window state").textContent).toBe(
+      "Second duplicate|open|no-thumbnail",
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "Minimize duplicate" }));
+    await waitFor(() => expect(toPng).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Replace duplicate owners" }));
+    await waitFor(() => expect(screen.getByLabelText("Duplicate window state").textContent).toBe(
+      "Replacement window|open|no-thumbnail",
+    ));
+
+    await act(async () => capture.resolve("data:image/png;base64,c3RhbGU="));
+    expect(screen.getByLabelText("Duplicate window state").textContent).toBe(
+      "Replacement window|open|no-thumbnail",
+    );
+    expect(within(screen.getByRole("navigation", { name: "Duplicate Dock" }))
+      .queryByRole("button", { name: "Replacement window" })).toBeNull();
   });
 
   it("launches apps from the Dock and makes pointer- or focus-activated windows key", async () => {

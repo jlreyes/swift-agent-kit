@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, isValidElement, type ReactNode } from "react";
 import {
   Disclosure,
   DisclosurePanel,
@@ -44,8 +44,23 @@ function rowTextValue(row: MacListRow): string {
 function hasRenderableSectionTitle(title: ReactNode): boolean {
   if (title === null || title === undefined || typeof title === "boolean") return false;
   if (typeof title === "string") return title.trim().length > 0;
+  if (typeof title === "number" || typeof title === "bigint") return true;
   if (Array.isArray(title)) return title.some((part: ReactNode) => hasRenderableSectionTitle(part));
-  // Numbers, including 0, and React elements produce renderable label content.
+  if (isValidElement<{ readonly children?: ReactNode }>(title)) {
+    // Fragments and host elements expose their visible label through children,
+    // so recurse through transparent wrappers. Custom components may produce
+    // content without children and remain conservatively renderable.
+    if (title.type === Fragment || typeof title.type === "string") {
+      return hasRenderableSectionTitle(title.props.children);
+    }
+    return true;
+  }
+  if (typeof title === "object" && Symbol.iterator in title) {
+    for (const part of title as Iterable<ReactNode>) {
+      if (hasRenderableSectionTitle(part)) return true;
+    }
+    return false;
+  }
   return true;
 }
 

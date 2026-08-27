@@ -69,7 +69,8 @@ type AppRecord = {
   readonly presentation: MacAppPresentation;
   /** Boot-manifest records outlive mounted component registrations. */
   readonly fromManifest: boolean;
-  readonly registrationCount: number;
+  readonly manifest?: AppRegistration;
+  readonly registrations: readonly OwnedAppRegistration[];
   readonly registrationOrder: number;
   readonly running: boolean;
 };
@@ -78,7 +79,7 @@ type WindowRecord = {
   readonly id: string;
   readonly appId: string;
   readonly label: string;
-  readonly registrationCount: number;
+  readonly registrations: readonly OwnedWindowRegistration[];
   readonly registrationOrder: number;
   readonly stackOrder: number;
   readonly state: MacWindowState;
@@ -109,12 +110,24 @@ type WindowRegistration = {
   readonly defaultOpen: boolean;
 };
 
+type RegistrationOwner = symbol;
+
+type OwnedAppRegistration = {
+  readonly owner: RegistrationOwner;
+  readonly registration: AppRegistration;
+};
+
+type OwnedWindowRegistration = {
+  readonly owner: RegistrationOwner;
+  readonly registration: WindowRegistration;
+};
+
 interface MacWindowManagerContextValue extends MacWindowManagerValue {
-  readonly registerApp: (registration: AppRegistration) => void;
-  readonly unregisterApp: (appId: string) => void;
-  readonly registerWindow: (registration: WindowRegistration) => void;
-  readonly unregisterWindow: (windowId: string) => void;
-  readonly updateWindowLabel: (windowId: string, label: string) => void;
+  readonly registerApp: (registration: AppRegistration, owner: RegistrationOwner) => void;
+  readonly unregisterApp: (appId: string, owner: RegistrationOwner) => void;
+  readonly registerWindow: (registration: WindowRegistration, owner: RegistrationOwner) => void;
+  readonly unregisterWindow: (windowId: string, owner: RegistrationOwner) => void;
+  readonly updateWindowLabel: (windowId: string, owner: RegistrationOwner, label: string) => void;
   readonly consumeKeyboardWindowFocusIntent: () => boolean;
 }
 
@@ -135,20 +148,40 @@ const initialState: ManagerState = {
 
 function initialStateFor(apps: readonly MacAppDefinition[]): ManagerState {
   return {
-    apps: apps.map((app, index) => ({
-      id: app.id,
-      name: app.name,
-      icon: app.icon,
-      dockGroup: app.dockGroup ?? "apps",
-      presentation: app.presentation ?? "windowed",
-      fromManifest: true,
-      registrationCount: 0,
-      registrationOrder: index + 1,
-      running: app.defaultRunning ?? true,
-    })),
+    apps: apps.map((app, index) => {
+      const manifest: AppRegistration = {
+        id: app.id,
+        name: app.name,
+        icon: app.icon,
+        dockGroup: app.dockGroup ?? "apps",
+        defaultRunning: app.defaultRunning ?? true,
+        presentation: app.presentation ?? "windowed",
+      };
+      return {
+        id: manifest.id,
+        name: manifest.name,
+        icon: manifest.icon,
+        dockGroup: manifest.dockGroup,
+        presentation: manifest.presentation,
+        fromManifest: true,
+        manifest,
+        registrations: [],
+        registrationOrder: index + 1,
+        running: manifest.defaultRunning,
+      };
+    }),
     windows: [],
     nextRegistrationOrder: apps.length + 1,
     nextStackOrder: 1,
+  };
+}
+
+function appMetadata(registration: AppRegistration) {
+  return {
+    name: registration.name,
+    icon: registration.icon,
+    dockGroup: registration.dockGroup,
+    presentation: registration.presentation,
   };
 }
 
@@ -224,20 +257,21 @@ export function MacWindowManager({ children, initialApps = [] }: {
     return true;
   }, []);
 
-  const registerApp = useCallback((registration: AppRegistration) => {
+  const registerApp = useCallback((registration: AppRegistration, owner: RegistrationOwner) => {
     setState((current) => {
       const existing = current.apps.find((app) => app.id === registration.id);
       if (existing !== undefined) {
+        const registrations = [
+          ...existing.registrations.filter((entry) => entry.owner !== owner),
+          { owner, registration },
+        ];
         return {
           ...current,
           apps: current.apps.map((app) => app.id === registration.id
             ? {
                 ...app,
-                name: registration.name,
-                icon: registration.icon,
-                dockGroup: registration.dockGroup,
-                presentation: registration.presentation,
-                registrationCount: app.registrationCount + 1,
+                ...appMetadata(registration),
+                registrations,
               }
             : app),
         };
@@ -251,7 +285,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
           dockGroup: registration.dockGroup,
           presentation: registration.presentation,
           fromManifest: false,
-          registrationCount: 1,
+          registrations: [{ owner, registration }],
           registrationOrder: current.nextRegistrationOrder,
           running: registration.defaultRunning,
         }],
@@ -260,21 +294,30 @@ export function MacWindowManager({ children, initialApps = [] }: {
     });
   }, []);
 
-  const unregisterApp = useCallback((appId: string) => {
+  const unregisterApp = useCallback((appId: string, owner: RegistrationOwner) => {
     const existing = stateRef.current.apps.find((app) => app.id === appId);
-    if (existing !== undefined && !existing.fromManifest && existing.registrationCount === 1) {
+    if (
+      existing !== undefined
+      && !existing.fromManifest
+      && existing.registrations.length === 1
+      && existing.registrations[0]?.owner === owner
+    ) {
       invalidateWindowThumbnailCaptures(
         stateRef.current.windows.filter((window) => window.appId === appId).map((window) => window.id),
       );
     }
     setState((current) => {
       const existing = current.apps.find((app) => app.id === appId);
-      if (existing === undefined || existing.registrationCount === 0) return current;
-      const registrationCount = existing.registrationCount - 1;
-      if (existing.fromManifest || registrationCount > 0) {
+      if (existing === undefined) return current;
+      const registrations = existing.registrations.filter((entry) => entry.owner !== owner);
+      if (registrations.length === existing.registrations.length) return current;
+      const survivingRegistration = registrations.at(-1)?.registration ?? existing.manifest;
+      if (survivingRegistration !== undefined) {
         return {
           ...current,
-          apps: current.apps.map((app) => app.id === appId ? { ...app, registrationCount } : app),
+          apps: current.apps.map((app) => app.id === appId
+            ? { ...app, ...appMetadata(survivingRegistration), registrations }
+            : app),
         };
       }
       return {
@@ -285,13 +328,18 @@ export function MacWindowManager({ children, initialApps = [] }: {
     });
   }, [invalidateWindowThumbnailCaptures]);
 
-  const registerWindow = useCallback((registration: WindowRegistration) => {
+  const registerWindow = useCallback((registration: WindowRegistration, owner: RegistrationOwner) => {
     setState((current) => {
-      if (current.windows.some((window) => window.id === registration.id)) {
+      const existing = current.windows.find((window) => window.id === registration.id);
+      if (existing !== undefined) {
+        const registrations = [
+          ...existing.registrations.filter((entry) => entry.owner !== owner),
+          { owner, registration },
+        ];
         return {
           ...current,
           windows: current.windows.map((window) => window.id === registration.id
-            ? { ...window, label: registration.label, registrationCount: window.registrationCount + 1 }
+            ? { ...window, label: registration.label, registrations }
             : window),
         };
       }
@@ -301,7 +349,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
           id: registration.id,
           appId: registration.appId,
           label: registration.label,
-          registrationCount: 1,
+          registrations: [{ owner, registration }],
           registrationOrder: current.nextRegistrationOrder,
           stackOrder: registration.defaultOpen ? current.nextStackOrder : 0,
           state: registration.defaultOpen ? "open" : "closed",
@@ -313,17 +361,22 @@ export function MacWindowManager({ children, initialApps = [] }: {
     });
   }, []);
 
-  const unregisterWindow = useCallback((windowId: string) => {
+  const unregisterWindow = useCallback((windowId: string, owner: RegistrationOwner) => {
     const existing = stateRef.current.windows.find((window) => window.id === windowId);
-    if (existing?.registrationCount === 1) invalidateWindowThumbnailCapture(windowId);
+    if (existing?.registrations.length === 1 && existing.registrations[0]?.owner === owner) {
+      invalidateWindowThumbnailCapture(windowId);
+    }
     setState((current) => {
       const existing = current.windows.find((window) => window.id === windowId);
       if (existing === undefined) return current;
-      if (existing.registrationCount > 1) {
+      const registrations = existing.registrations.filter((entry) => entry.owner !== owner);
+      if (registrations.length === existing.registrations.length) return current;
+      const survivingRegistration = registrations.at(-1)?.registration;
+      if (survivingRegistration !== undefined) {
         return {
           ...current,
           windows: current.windows.map((window) => window.id === windowId
-            ? { ...window, registrationCount: window.registrationCount - 1 }
+            ? { ...window, label: survivingRegistration.label, registrations }
             : window),
         };
       }
@@ -334,13 +387,23 @@ export function MacWindowManager({ children, initialApps = [] }: {
     });
   }, [invalidateWindowThumbnailCapture]);
 
-  const updateWindowLabel = useCallback((windowId: string, label: string) => {
+  const updateWindowLabel = useCallback((windowId: string, owner: RegistrationOwner, label: string) => {
     setState((current) => {
       const existing = current.windows.find((window) => window.id === windowId);
-      if (existing === undefined || existing.label === label) return current;
+      if (existing === undefined) return current;
+      const registrationIndex = existing.registrations.findIndex((entry) => entry.owner === owner);
+      if (registrationIndex === -1) return current;
+      const registrationEntry = existing.registrations[registrationIndex];
+      if (registrationEntry === undefined || registrationEntry.registration.label === label) return current;
+      const registrations = existing.registrations.map((entry, index) => index === registrationIndex
+        ? { ...entry, registration: { ...entry.registration, label } }
+        : entry);
+      const ownsCurrentMetadata = registrationIndex === registrations.length - 1;
       return {
         ...current,
-        windows: current.windows.map((window) => window.id === windowId ? { ...window, label } : window),
+        windows: current.windows.map((window) => window.id === windowId
+          ? { ...window, label: ownsCurrentMetadata ? label : window.label, registrations }
+          : window),
       };
     });
   }, []);
@@ -557,9 +620,10 @@ export function MacApp({ children, defaultRunning = true, dockGroup = "apps", ic
 }) {
   const manager = useMacWindowManager();
   const initialRegistration = useRef<AppRegistration>({ id, name, icon, dockGroup, defaultRunning, presentation });
+  const registrationOwner = useRef<RegistrationOwner>(Symbol("MacApp registration"));
   useEffect(() => {
-    manager.registerApp(initialRegistration.current);
-    return () => manager.unregisterApp(initialRegistration.current.id);
+    manager.registerApp(initialRegistration.current, registrationOwner.current);
+    return () => manager.unregisterApp(initialRegistration.current.id, registrationOwner.current);
   }, [manager.registerApp, manager.unregisterApp]);
   const value = useMemo<MacAppContextValue>(() => ({ id, defaultRunning }), [defaultRunning, id]);
   return <MacAppContext.Provider value={value}>{children}</MacAppContext.Provider>;
@@ -624,18 +688,19 @@ export function useManagedWindowRegistration({ defaultOpen, label, windowId }: {
   const unregisterWindow = manager?.unregisterWindow;
   const updateWindowLabel = manager?.updateWindowLabel;
   const initialRegistration = useRef({ defaultOpen, label });
+  const registrationOwner = useRef<RegistrationOwner>(Symbol("managed window registration"));
 
   useEffect(() => {
     if (registerWindow === undefined || unregisterWindow === undefined || appId === undefined || resolvedWindowId === null) return;
     // Dynamic labels flow through updateWindowLabel. Defaults belong only to
     // the initial registration and must not reset live window state.
-    registerWindow({ id: resolvedWindowId, appId, ...initialRegistration.current });
-    return () => unregisterWindow(resolvedWindowId);
+    registerWindow({ id: resolvedWindowId, appId, ...initialRegistration.current }, registrationOwner.current);
+    return () => unregisterWindow(resolvedWindowId, registrationOwner.current);
   }, [appId, registerWindow, resolvedWindowId, unregisterWindow]);
 
   useEffect(() => {
     if (updateWindowLabel === undefined || resolvedWindowId === null) return;
-    updateWindowLabel(resolvedWindowId, label);
+    updateWindowLabel(resolvedWindowId, registrationOwner.current, label);
   }, [label, resolvedWindowId, updateWindowLabel]);
 
   const managedWindow = resolvedWindowId === null

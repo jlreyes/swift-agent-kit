@@ -178,6 +178,32 @@
   margin-left: auto;
 }
 
+/* The source list is the sidebar's scroll owner. Keeping the outer navigation
+   column clipped preserves the split-view geometry while long trees remain
+   reachable inside their assigned panel. */
+.mc-navigation-column {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-navigation-sidebar {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-sidebar-tree {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .p0-mac-dock {
   position: absolute;
   z-index: 60;

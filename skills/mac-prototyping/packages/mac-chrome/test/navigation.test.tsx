@@ -77,6 +77,29 @@ describe("MacNavigationSplitView", () => {
     expect(screen.getByTestId("library-detail")).toBeTruthy();
   });
 
+  it("keeps a source-list tree inside the sidebar scroll boundary", () => {
+    render(
+      <MacNavigationSplitView
+        id="scrolling-library"
+        sidebar={
+          <MacSourceList
+            label="Components"
+            sections={sourceSections}
+            selectedId="all"
+            onSelectionChange={() => undefined}
+          />
+        }
+        detail={<div>Selected component</div>}
+      />,
+    );
+
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar" });
+    const tree = screen.getByRole("treegrid", { name: "Components" });
+    expect(sidebar.classList.contains("mc-navigation-sidebar")).toBe(true);
+    expect(tree.classList.contains("mc-sidebar-tree")).toBe(true);
+    expect(sidebar.contains(tree)).toBe(true);
+  });
+
   it("adds the optional middle navigation column and obeys controlled sidebar visibility", () => {
     const { container, rerender } = render(
       <MacNavigationSplitView

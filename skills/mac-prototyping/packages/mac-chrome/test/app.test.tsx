@@ -116,10 +116,17 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
   readonly onHideEphemeral: () => void;
 }) {
   const manager = useMacWindowManager();
+  const manifestRecord = manager.apps.find((app) => app.id === "manifest");
+  const manifestWindow = manager.windows.find((window) => window.id === "manifest:main");
   return (
     <>
       <output aria-label="Registry">
         {manager.apps.map((app) => app.id).join(",")}|{manager.windows.map((window) => window.id).join(",")}
+      </output>
+      <output aria-label="Registration metadata">
+        {manifestRecord === undefined || manifestWindow === undefined
+          ? "missing"
+          : `${manifestRecord.name}|${manifestRecord.dockGroup}|${manifestRecord.presentation}|${manifestWindow.label}`}
       </output>
       <button type="button" onClick={onHideDuplicate}>Hide duplicate</button>
       <button type="button" onClick={onHideEphemeral}>Hide ephemeral</button>
@@ -127,7 +134,12 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
         <WindowChrome label="Manifest primary" windowId="manifest:main"><span /></WindowChrome>
       </MacApp>
       {duplicateVisible ? (
-        <MacApp {...manifestApp}>
+        <MacApp
+          id={manifestApp.id}
+          name="Duplicate Manifest"
+          icon={{ kind: "symbol", symbol: <SystemSymbol name="person.2.fill" /> }}
+          dockGroup="places"
+        >
           <WindowChrome label="Manifest duplicate" windowId="manifest:main"><span /></WindowChrome>
         </MacApp>
       ) : null}
@@ -140,6 +152,7 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
           <WindowChrome label="Ephemeral window" windowId="ephemeral:main"><span /></WindowChrome>
         </MacApp>
       ) : null}
+      <MacAppDock label="Ownership Dock" />
     </>
   );
 }
@@ -213,11 +226,22 @@ describe("Mac app and window management", () => {
     await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe(
       "manifest,ephemeral|manifest:main,ephemeral:main",
     ));
+    await waitFor(() => expect(screen.getByLabelText("Registration metadata").textContent).toBe(
+      "Duplicate Manifest|places|windowed|Manifest duplicate",
+    ));
+    const ownershipDock = within(screen.getByRole("navigation", { name: "Ownership Dock" }));
+    expect(ownershipDock.getByRole("button", { name: "Duplicate Manifest" })
+      .querySelector("[data-system-symbol='person.2.fill']")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide duplicate" }));
     await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe(
       "manifest,ephemeral|manifest:main,ephemeral:main",
     ));
+    await waitFor(() => expect(screen.getByLabelText("Registration metadata").textContent).toBe(
+      "Manifest|apps|windowed|Manifest primary",
+    ));
+    expect(ownershipDock.getByRole("button", { name: "Manifest" })
+      .querySelector("[data-system-symbol='laptopcomputer']")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide ephemeral" }));
     await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe("manifest|manifest:main"));

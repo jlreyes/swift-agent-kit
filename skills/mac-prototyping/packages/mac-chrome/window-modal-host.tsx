@@ -186,6 +186,18 @@ function managedKeyWindow(windowId: string | null): HTMLElement | null {
     .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
 }
 
+function isContentEditableTarget(target: Element) {
+  const editingBoundary = target.closest<HTMLElement>("[contenteditable]");
+  if (editingBoundary === null) {
+    return target instanceof HTMLElement && target.isContentEditable;
+  }
+  const value = editingBoundary.getAttribute("contenteditable")?.toLowerCase();
+  if (value === "false") return false;
+  if (value === "" || value === "true" || value === "plaintext-only") return true;
+  // Invalid/inherited serialized values are resolved by the platform.
+  return editingBoundary.isContentEditable;
+}
+
 function resolveModalOwner({
   allowDesktopFallback,
   anchor,
@@ -264,7 +276,10 @@ function ModalLayer({
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     const target = event.target instanceof Element ? event.target : null;
-    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") instanceof HTMLElement;
+    const consumesReturn = target !== null && (
+      target.closest("button, select, textarea") instanceof HTMLElement
+      || isContentEditableTarget(target)
+    );
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
       onDefault();

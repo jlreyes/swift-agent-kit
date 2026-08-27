@@ -17,6 +17,9 @@
 }
 
 .mc-navigation-sidebar {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sidebar-glass);
 }
 
@@ -63,9 +66,14 @@
 
 /* Source list (SwiftUI List(.sidebar)), rendered by a React Aria Tree. */
 .mc-sidebar-tree {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   outline: none;
 }
 

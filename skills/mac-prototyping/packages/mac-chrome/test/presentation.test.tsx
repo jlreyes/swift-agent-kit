@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -150,6 +150,16 @@ function StackedModalHarness() {
   );
 }
 
+function SerializedContentEditable({ label, testId, value }: {
+  readonly label: string;
+  readonly testId: string;
+  readonly value: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.setAttribute("contenteditable", value), [value]);
+  return <div ref={ref}><span data-testid={testId}>{label}</span></div>;
+}
+
 function EnterTargetHarness() {
   const [defaultCount, setDefaultCount] = useState(0);
   return (
@@ -169,6 +179,9 @@ function EnterTargetHarness() {
           Button target
           <svg data-testid="button-svg"><circle /></svg>
         </button>
+        <SerializedContentEditable label="Empty-value editor" testId="empty-contenteditable-child" value="" />
+        <SerializedContentEditable label="Plain-text editor" testId="plaintext-contenteditable-child" value="plaintext-only" />
+        <SerializedContentEditable label="Noneditable region" testId="false-contenteditable-child" value="false" />
       </MacWindowModalHost>
     </section>
   );
@@ -239,6 +252,18 @@ describe("native presentation primitives", () => {
     expect(screen.getByTestId("default-count").textContent).toBe("1");
 
     fireEvent.keyDown(screen.getByTestId("button-svg"), { key: "Enter" });
+    expect(screen.getByTestId("default-count").textContent).toBe("1");
+  });
+
+  it("lets all valid contenteditable forms consume Return except explicit false", async () => {
+    render(<EnterTargetHarness />);
+    await screen.findByRole("dialog", { name: "Enter target dialog" });
+
+    fireEvent.keyDown(screen.getByTestId("empty-contenteditable-child"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("plaintext-contenteditable-child"), { key: "Enter" });
+    expect(screen.getByTestId("default-count").textContent).toBe("0");
+
+    fireEvent.keyDown(screen.getByTestId("false-contenteditable-child"), { key: "Enter" });
     expect(screen.getByTestId("default-count").textContent).toBe("1");
   });
 

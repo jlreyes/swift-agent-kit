@@ -35,10 +35,11 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
 Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
-The template's `/showcase` route is the canonical interactive catalog: it
-covers every runtime export against a working desktop shell. Use it to
-inspect composition and interactions; use `/example` as the concise product
-starter.
+The template's `/showcase` route is the canonical interactive catalog for
+public building blocks and their main compositions against a working desktop
+shell. Some helpers and recipe-specific or legacy APIs are exercised only
+indirectly through those stories or through tests. Use the catalog to inspect
+composition and interactions; use `/example` as the concise product starter.
 
 Chrome favors faithful, restrained system materials over effect work. Menus,
 status popovers, and toolbar capsules are opaque or near-opaque, compact, and

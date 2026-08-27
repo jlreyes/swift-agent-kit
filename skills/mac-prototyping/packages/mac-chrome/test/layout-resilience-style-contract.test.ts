@@ -80,6 +80,22 @@ it("styles selected source-list headers and every separator focus signal", () =>
   expect(styleSource("finder")).toContain('.mc-preview-resize-handle[data-separator="focus"]::after');
 });
 
+it("keeps long source lists reachable inside the clipped navigation sidebar", () => {
+  const navigation = styleSource("navigation");
+  const sidebar = rule(navigation, ".mc-navigation-sidebar");
+  const tree = rule(navigation, ".mc-sidebar-tree");
+
+  expect(sidebar).toMatch(/display:\s*flex/);
+  expect(sidebar).toMatch(/min-height:\s*0/);
+  expect(sidebar).toMatch(/overflow:\s*hidden/);
+  expect(tree).toMatch(/width:\s*100%/);
+  expect(tree).toMatch(/min-height:\s*0/);
+  expect(tree).toMatch(/flex:\s*1 1 auto/);
+  expect(tree).toMatch(/overflow-x:\s*hidden/);
+  expect(tree).toMatch(/overflow-y:\s*auto/);
+  expect(tree).not.toMatch(/min-height:\s*100%/);
+});
+
 it("keeps standalone text fields border-box sized", () => {
   const controls = styleSource("controls");
   const field = rule(controls, ".mc-text-field");

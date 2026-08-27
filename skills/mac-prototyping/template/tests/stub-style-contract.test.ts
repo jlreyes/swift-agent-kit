@@ -148,3 +148,21 @@ test("the Dock material resolves through defined semantic tokens", () => {
   expect(dockShell).toMatch(/background:\s*var\(--dock-glass\)/);
   expect(dockShell).toMatch(/inset 0 0 0 0\.5px var\(--capsule-border\)/);
 });
+
+test("source lists own scrolling within their clipped navigation sidebar", () => {
+  const column = rule(".mc-navigation-column");
+  const sidebar = rule(".mc-navigation-sidebar");
+  const tree = rule(".mc-sidebar-tree");
+
+  expect(column).toMatch(/min-height:\s*0/);
+  expect(column).toMatch(/overflow:\s*hidden/);
+  expect(sidebar).toMatch(/display:\s*flex/);
+  expect(sidebar).toMatch(/min-height:\s*0/);
+  expect(sidebar).toMatch(/overflow:\s*hidden/);
+  expect(tree).toMatch(/width:\s*100%/);
+  expect(tree).toMatch(/min-height:\s*0/);
+  expect(tree).toMatch(/flex:\s*1 1 auto/);
+  expect(tree).toMatch(/overflow-x:\s*hidden/);
+  expect(tree).toMatch(/overflow-y:\s*auto/);
+  expect(tree).not.toMatch(/min-height:\s*100%/);
+});

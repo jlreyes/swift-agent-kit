@@ -173,18 +173,40 @@
 .p0-mac-dock {
   position: absolute;
   z-index: 60;
-  bottom: 8px;
+  bottom: 7px;
   left: 50%;
+  width: max-content;
+  max-width: calc(100% - 14px);
+  height: 67px;
+  display: block;
+  padding: 7px 9px;
+  border: 0.5px solid rgba(255, 255, 255, 0.66);
+  border-radius: 18px;
+  background: var(--dock-glass);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 0.5px var(--capsule-border),
+    inset 0 0.5px rgba(255, 255, 255, 0.86);
+  overflow: visible;
+  transform: translateX(-50%);
+}
+
+.p0-dock-scroll {
+  width: max-content;
+  max-width: 100%;
+  height: calc(100% + 38px);
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 7px 10px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  border-radius: 18px;
-  background: rgba(224, 229, 238, 0.6);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  transform: translateX(-50%);
-  backdrop-filter: blur(24px) saturate(160%);
+  gap: 4px;
+  margin-top: -32px;
+  padding: 32px 0 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.p0-dock-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .p0-dock-item-wrap {
@@ -213,27 +235,6 @@
 
 .p0-dock-item:hover {
   transform: translateY(-7px);
-}
-
-@media (max-width: 600px) {
-  .p0-mac-dock {
-    box-sizing: border-box;
-    width: calc(100% - 12px);
-    max-width: calc(100% - 12px);
-    justify-content: flex-start;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    overscroll-behavior-inline: contain;
-  }
-
-  .p0-dock-item-wrap {
-    flex: 0 0 auto;
-  }
-
-  .p0-mac-dock::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .p0-app-icon {

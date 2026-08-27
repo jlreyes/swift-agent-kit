@@ -9,6 +9,7 @@ import {
   MacApp,
   MacAppDock,
   MacWindowManager,
+  SystemSymbol,
   type MacAppDefinition,
   type MenuBarMenu,
   type MenuCommand,
@@ -27,7 +28,12 @@ const fileMenu: MenuBarMenu = {
 const exampleApp = {
   id: "finder",
   name: "Finder",
-  icon: { kind: "asset", src: "/mac-assets/dock/finder.png" },
+  icon: {
+    kind: "symbol",
+    symbol: <SystemSymbol name="face.smiling" />,
+    background: "var(--accent)",
+    foreground: "var(--on-accent)",
+  },
 } as const satisfies MacAppDefinition;
 
 const exampleAppManifest: readonly MacAppDefinition[] = [exampleApp];

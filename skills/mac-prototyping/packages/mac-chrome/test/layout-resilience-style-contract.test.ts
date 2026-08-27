@@ -37,6 +37,19 @@ it("contains minimized window art without distorting tall captures", () => {
   expect(image).toMatch(/object-fit:\s*contain/);
 });
 
+it("scrolls narrow Docks without clipping vertical item affordances", () => {
+  const dock = styleSource("dock");
+  const shell = rule(dock, ".p0-mac-dock");
+  const scroller = rule(dock, ".p0-dock-scroll");
+
+  expect(shell).toMatch(/max-width:\s*calc\(100% - 14px\)/);
+  expect(shell).toMatch(/overflow:\s*visible/);
+  expect(scroller).toMatch(/overflow-x:\s*auto/);
+  expect(scroller).toMatch(/overflow-y:\s*hidden/);
+  expect(scroller).toMatch(/margin-top:\s*-32px/);
+  expect(scroller).toMatch(/padding:\s*32px 0 6px/);
+});
+
 it("lets long list secondary values shrink and truncate inside their row", () => {
   const collections = styleSource("collections");
   const row = rule(collections, ".mc-list-row");
@@ -69,9 +82,55 @@ it("styles selected source-list headers and every separator focus signal", () =>
 
 it("keeps standalone text fields border-box sized", () => {
   const controls = styleSource("controls");
+  const field = rule(controls, ".mc-text-field");
 
-  expect(rule(controls, ".mc-text-field")).toMatch(/box-sizing:\s*border-box/);
+  expect(field).toMatch(/box-sizing:\s*border-box/);
+  expect(field).toMatch(/width:\s*180px/);
+  expect(field).toMatch(/min-width:\s*0/);
+  expect(field).toMatch(/max-width:\s*100%/);
   expect(rule(controls, ".mc-field-input")).toMatch(/box-sizing:\s*border-box/);
+});
+
+it("lets joined controls contract inside narrow parents without clipping focus rings", () => {
+  const controls = styleSource("controls");
+  const groups = rule(controls, ".mc-segmented-control,\n.mc-control-group");
+  const segment = rule(controls, ".mc-segmented-option");
+  const segmentLabel = rule(controls, ".mc-segmented-option > span:last-child");
+  const groupedChild = rule(controls, ".mc-control-group > *");
+
+  expect(groups).toMatch(/width:\s*max-content/);
+  expect(groups).toMatch(/max-width:\s*100%/);
+  expect(groups).toMatch(/overflow:\s*visible/);
+  expect(segment).toMatch(/min-width:\s*0/);
+  expect(segment).toMatch(/flex:\s*1 1 auto/);
+  expect(segmentLabel).toMatch(/text-overflow:\s*ellipsis/);
+  expect(groupedChild).toMatch(/min-width:\s*0/);
+  expect(groupedChild).toMatch(/flex:\s*0 1 auto/);
+});
+
+it("keeps both menu-bar command groups reachable on narrow viewports", () => {
+  const base = styleSource("base");
+  const groups = rule(base, ".menu-left,\n  .menu-right");
+  const left = rules(base, ".menu-left");
+  const right = rules(base, ".menu-right");
+
+  expect(base).toMatch(/@media\s*\(max-width:\s*600px\)/);
+  expect(groups).toMatch(/min-width:\s*0/);
+  expect(groups).toMatch(/overflow-x:\s*auto/);
+  expect(left).toMatch(/flex:\s*1 1 58%/);
+  expect(right).toMatch(/overflow-x:\s*auto/);
+  expect(right).toMatch(/max-width:\s*42%/);
+  expect(right).toMatch(/flex:\s*0 1 42%/);
+  expect(rule(base, ".menu-left .mc-menubar-menu,\n  .menu-right > *")).toMatch(/flex:\s*0 0 auto/);
+});
+
+it("gives the Setup Assistant hero symbol an explicit optical size", () => {
+  const setup = styleSource("setup-assistant");
+  const hero = rule(setup, ".mc-setup-hero-symbol");
+
+  expect(hero).toMatch(/width:\s*38px/);
+  expect(hero).toMatch(/height:\s*38px/);
+  expect(hero).toMatch(/font-size:\s*38px/);
 });
 
 it("lets status-bar trailing content shrink before it can collapse the primary status", () => {
@@ -101,16 +160,4 @@ it("supports native-button list and disclosure states used by the public stub", 
   expect(chevron).toMatch(/transform:\s*rotate\(-45deg\)/);
   expect(expandedChevron).toMatch(/transform:\s*rotate\(45deg\)/);
   expect(disabledDisclosure).toMatch(/opacity:\s*0\.45/);
-});
-
-it("makes an overflowing Dock horizontally reachable on narrow viewports", () => {
-  const dock = styleSource("dock");
-  const narrowDockRules = rules(dock, ".p0-mac-dock");
-
-  expect(dock).toMatch(/@media\s*\(max-width:\s*600px\)/);
-  expect(narrowDockRules).toMatch(/width:\s*calc\(100% - 12px\)/);
-  expect(narrowDockRules).toMatch(/max-width:\s*calc\(100% - 12px\)/);
-  expect(narrowDockRules).toMatch(/overflow-x:\s*auto/);
-  expect(narrowDockRules).toMatch(/overscroll-behavior-inline:\s*contain/);
-  expect(rules(dock, ".p0-dock-item-wrap")).toMatch(/flex:\s*0 0 auto/);
 });

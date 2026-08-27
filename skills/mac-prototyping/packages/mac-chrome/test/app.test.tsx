@@ -47,6 +47,10 @@ function ManagedDesktopContents() {
       <button type="button" onClick={() => manager.activateWindow("notes:main")}>Menu Activate</button>
       <button type="button" onClick={() => manager.openWindow("notes:main")}>Menu Open</button>
       <button type="button" onClick={() => manager.restoreWindow("notes:main")}>Menu Restore</button>
+      <button type="button" onClick={() => manager.activateApp("notes")}>Activate Notes App</button>
+      <button type="button" onClick={() => manager.activateApp("showcase")}>Activate Showcase App</button>
+      <button type="button" onClick={() => manager.bringAllToFront("notes")}>Bring Notes Front</button>
+      <button type="button" onClick={() => manager.bringAllToFront("showcase")}>Bring Showcase Front</button>
       <MacApp id="showcase" name="Showcase" icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> }}>
         <WindowChrome label="Showcase window">
           <div data-window-drag-handle="">
@@ -273,6 +277,44 @@ describe("Mac app and window management", () => {
 
       expect(managedWindow("notes")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Notes window" })).toBeNull();
+    },
+  );
+
+  it.each(["Activate Notes App", "Bring Notes Front"])(
+    "discards a pending thumbnail when %s affects its window",
+    async (commandLabel) => {
+      const capture = deferred<string>();
+      vi.mocked(toPng).mockReturnValueOnce(capture.promise);
+      render(<ManagedDesktop />);
+      await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main"));
+      fireEvent.click(managedDockButton("Notes"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+      await waitFor(() => expect(toPng).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("button", { name: commandLabel }));
+      await act(async () => capture.resolve("data:image/png;base64,c3RhbGU="));
+
+      expect(managedWindow("notes")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Notes window" })).toBeNull();
+    },
+  );
+
+  it.each(["Activate Showcase App", "Bring Showcase Front"])(
+    "keeps a pending thumbnail when %s affects only another app",
+    async (commandLabel) => {
+      const capture = deferred<string>();
+      vi.mocked(toPng).mockReturnValueOnce(capture.promise);
+      render(<ManagedDesktop />);
+      await waitFor(() => expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main"));
+      fireEvent.click(managedDockButton("Notes"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+      await waitFor(() => expect(toPng).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("button", { name: commandLabel }));
+      await act(async () => capture.resolve("data:image/png;base64,d2luZG93"));
+
+      await waitFor(() => expect(managedWindow("notes")).toBeNull());
+      expect(managedDockButton("Notes window")).toBeTruthy();
     },
   );
 

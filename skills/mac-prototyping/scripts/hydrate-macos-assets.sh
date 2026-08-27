@@ -10,8 +10,50 @@ fi
 prototype_root=${1:A}
 public_root="$prototype_root/public"
 asset_root="$public_root/mac-assets"
+platform=${MAC_PROTOTYPING_PLATFORM:-$(uname -s)}
+sips_command=${MAC_PROTOTYPING_SIPS_COMMAND:-/usr/bin/sips}
+qlmanage_command=${MAC_PROTOTYPING_QLMANAGE_COMMAND:-/usr/bin/qlmanage}
+ffmpeg_command=${MAC_PROTOTYPING_FFMPEG_COMMAND:-ffmpeg}
+temporary_root=""
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
+cleanup_temporary_root() {
+  local cleanup_path=${temporary_root:-}
+
+  if [[ -z "$cleanup_path" || ! -d "$cleanup_path" ]]; then
+    return 0
+  fi
+
+  if [[ "$cleanup_path" == "/" || "${cleanup_path:t}" != mac-prototyping-assets.* ]]; then
+    print -u2 "mac-prototyping: refused to remove unexpected temporary path $cleanup_path"
+    return 1
+  fi
+
+  /bin/rm -rf -- "$cleanup_path"
+  temporary_root=""
+}
+
+cleanup_and_exit() {
+  local signal_status=$1
+  cleanup_temporary_root
+  exit "$signal_status"
+}
+
+trap cleanup_temporary_root EXIT
+trap 'cleanup_and_exit 129' HUP
+trap 'cleanup_and_exit 130' INT
+trap 'cleanup_and_exit 143' TERM
+
+command_available() {
+  local executable=$1
+
+  if [[ "$executable" == */* ]]; then
+    [[ -x "$executable" ]]
+  else
+    command -v "$executable" >/dev/null 2>&1
+  fi
+}
+
+if [[ "$platform" != "Darwin" ]]; then
   print -u2 "mac-prototyping: local Apple assets require macOS"
   exit 69
 fi
@@ -33,7 +75,7 @@ convert_icon() {
     return 0
   fi
 
-  /usr/bin/sips -s format png -z 256 256 "$source" --out "$destination" >/dev/null
+  "$sips_command" -s format png -z 256 256 "$source" --out "$destination" >/dev/null
 }
 
 convert_icon \
@@ -57,21 +99,90 @@ convert_icon \
   "$asset_root/dock/trash.png" \
   "Trash icon"
 
-tahoe_movie="/System/Library/Desktop Pictures/.wallpapers/Tahoe Day/Tahoe Day.mov"
+tahoe_movie=${MAC_PROTOTYPING_TAHOE_MOVIE:-"/System/Library/Desktop Pictures/.wallpapers/Tahoe Day/Tahoe Day.mov"}
 tahoe_still="$asset_root/wallpapers/tahoe.jpg"
 
-if [[ -f "$tahoe_movie" ]]; then
-  if command -v ffmpeg >/dev/null 2>&1; then
-    ffmpeg -hide_banner -loglevel error -ss 1 -i "$tahoe_movie" \
-      -frames:v 1 -vf "scale=2560:-2" -q:v 3 "$tahoe_still" -y
-  else
-    temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/mac-prototyping-assets.XXXXXX")
-    trap 'rm -rf "$temporary_root"' EXIT
-    if /usr/bin/qlmanage -t -s 2560 -o "$temporary_root" "$tahoe_movie" >/dev/null 2>&1; then
-      /usr/bin/sips -s format jpeg "$temporary_root/Tahoe Day.mov.png" --out "$tahoe_still" >/dev/null
-    else
-      print -u2 "mac-prototyping: install ffmpeg to extract the Tahoe Day wallpaper"
+extract_tahoe_with_ffmpeg() {
+  local candidate="$temporary_root/tahoe-ffmpeg.jpg"
+  local exit_status
+
+  if ! command_available "$ffmpeg_command"; then
+    print -u2 "mac-prototyping: ffmpeg is unavailable; trying native qlmanage fallback"
+    return 1
+  fi
+
+  if "$ffmpeg_command" -hide_banner -loglevel error -ss 1 -i "$tahoe_movie" \
+    -frames:v 1 -vf "scale=2560:-2" -q:v 3 "$candidate" -y; then
+    if [[ ! -s "$candidate" ]]; then
+      print -u2 "mac-prototyping: ffmpeg produced no wallpaper; trying native qlmanage fallback"
+      return 1
     fi
+
+    if ! /bin/mv -f -- "$candidate" "$tahoe_still"; then
+      print -u2 "mac-prototyping: ffmpeg output could not be installed at $tahoe_still"
+      return 1
+    fi
+
+    return 0
+  else
+    exit_status=$?
+    print -u2 "mac-prototyping: ffmpeg failed (exit $exit_status); trying native qlmanage fallback"
+    return 1
+  fi
+}
+
+extract_tahoe_with_qlmanage() {
+  local preview="$temporary_root/${tahoe_movie:t}.png"
+  local candidate="$temporary_root/tahoe-qlmanage.jpg"
+  local exit_status
+
+  if ! command_available "$qlmanage_command"; then
+    print -u2 "mac-prototyping: native qlmanage fallback is unavailable"
+    return 1
+  fi
+
+  if "$qlmanage_command" -t -s 2560 -o "$temporary_root" "$tahoe_movie" >/dev/null 2>&1; then
+    if [[ ! -s "$preview" ]]; then
+      print -u2 "mac-prototyping: qlmanage produced no preview at $preview"
+      return 1
+    fi
+  else
+    exit_status=$?
+    print -u2 "mac-prototyping: qlmanage failed to extract the Tahoe wallpaper (exit $exit_status)"
+    return 1
+  fi
+
+  if ! command_available "$sips_command"; then
+    print -u2 "mac-prototyping: sips is unavailable; qlmanage preview could not be converted"
+    return 1
+  fi
+
+  if "$sips_command" -s format jpeg "$preview" --out "$candidate" >/dev/null; then
+    if [[ ! -s "$candidate" ]]; then
+      print -u2 "mac-prototyping: sips produced no wallpaper from the qlmanage preview"
+      return 1
+    fi
+  else
+    exit_status=$?
+    print -u2 "mac-prototyping: sips failed to convert the qlmanage preview (exit $exit_status)"
+    return 1
+  fi
+
+  if ! /bin/mv -f -- "$candidate" "$tahoe_still"; then
+    print -u2 "mac-prototyping: qlmanage output could not be installed at $tahoe_still"
+    return 1
+  fi
+}
+
+if [[ -f "$tahoe_movie" ]]; then
+  if ! temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/mac-prototyping-assets.XXXXXX"); then
+    print -u2 "mac-prototyping: could not create a temporary directory for wallpaper extraction"
+    exit 74
+  fi
+
+  if ! extract_tahoe_with_ffmpeg && ! extract_tahoe_with_qlmanage; then
+    print -u2 "mac-prototyping: unable to extract the Tahoe Day wallpaper with ffmpeg or qlmanage"
+    exit 74
   fi
 else
   print -u2 "mac-prototyping: Tahoe Day wallpaper is unavailable on this macOS install"

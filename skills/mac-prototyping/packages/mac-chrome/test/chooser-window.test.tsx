@@ -3,7 +3,11 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
 
-import { ChooserWindow } from "../chooser-window.tsx";
+import { ChooserWindow, createStoredIdList } from "../chooser-window.tsx";
+
+function StoredIdsProbe({ store }: { readonly store: ReturnType<typeof createStoredIdList> }) {
+  return <span data-testid="stored-ids">{store.useStoredIds().join(",")}</span>;
+}
 
 it("routes secondary chooser commands through the shared Mac menu system", async () => {
   const container = document.createElement("div");
@@ -157,5 +161,51 @@ it("keeps ordinary commands out of a sibling radio group", async () => {
   expect(menu?.querySelectorAll(".menu-separator")).toHaveLength(1);
 
   await act(async () => root.unmount());
+  container.remove();
+});
+
+it("refreshes stored ids for localStorage.clear but ignores unrelated storage keys", async () => {
+  const key = "chooser-test-stored-ids";
+  const store = createStoredIdList(key);
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  const values = new Map<string, string>();
+  const storage: Storage = {
+    clear: () => values.clear(),
+    getItem: (storageKey) => values.get(storageKey) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    get length() { return values.size; },
+    removeItem: (storageKey) => { values.delete(storageKey); },
+    setItem: (storageKey, value) => { values.set(storageKey, value); },
+  };
+  Object.defineProperty(window, "localStorage", { configurable: true, value: storage });
+  window.localStorage.setItem(key, JSON.stringify(["alpha"]));
+
+  await act(async () => {
+    root.render(<StoredIdsProbe store={store} />);
+  });
+  expect(container.querySelector("[data-testid='stored-ids']")?.textContent).toBe("alpha");
+
+  window.localStorage.setItem(key, JSON.stringify(["beta"]));
+  await act(async () => {
+    window.dispatchEvent(new StorageEvent("storage", { key: "unrelated-key" }));
+  });
+  expect(container.querySelector("[data-testid='stored-ids']")?.textContent).toBe("alpha");
+
+  window.localStorage.clear();
+  await act(async () => {
+    window.dispatchEvent(new StorageEvent("storage", { key: null }));
+  });
+  expect(container.querySelector("[data-testid='stored-ids']")?.textContent).toBe("");
+
+  await act(async () => root.unmount());
+  window.localStorage.removeItem(key);
+  if (originalLocalStorage === undefined) {
+    Reflect.deleteProperty(window, "localStorage");
+  } else {
+    Object.defineProperty(window, "localStorage", originalLocalStorage);
+  }
   container.remove();
 });

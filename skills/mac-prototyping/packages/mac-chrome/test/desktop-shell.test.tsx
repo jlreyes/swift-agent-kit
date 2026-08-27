@@ -9,7 +9,10 @@ import { SystemSymbol } from "../system-symbol";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const fileMenu: MenuBarMenu = {
   title: "File",
@@ -227,6 +230,45 @@ describe("DesktopShell status items", () => {
     expect(container.querySelector("[data-status-icon='battery'][aria-label='Battery'] [data-system-symbol='battery.100percent']")).toBeTruthy();
     expect(container.querySelector("[data-status-icon='wifi'][aria-label='Wi-Fi'] [data-system-symbol='wifi']")).toBeTruthy();
     expect(container.querySelector("[data-status-icon='control-center'][aria-label='Control Center'] [data-system-symbol='switch.2']")).toBeTruthy();
+  });
+
+  it("updates at the next wall-clock minute boundary and stays minute-aligned", () => {
+    vi.useFakeTimers();
+    const mountedAt = new Date("2026-08-26T16:34:45.250Z");
+    vi.setSystemTime(mountedAt);
+    const { container } = renderShell();
+    const clockText = () => container.querySelector(".menu-right > span:last-child")?.textContent;
+    const formatClock = (value: Date) => new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(value);
+
+    expect(clockText()).toBe(formatClock(mountedAt));
+    act(() => vi.advanceTimersByTime(14_749));
+    expect(clockText()).toBe(formatClock(mountedAt));
+
+    const firstBoundary = new Date(mountedAt.getTime() + 14_750);
+    act(() => vi.advanceTimersByTime(1));
+    expect(clockText()).toBe(formatClock(firstBoundary));
+
+    act(() => vi.advanceTimersByTime(59_999));
+    expect(clockText()).toBe(formatClock(firstBoundary));
+    act(() => vi.advanceTimersByTime(1));
+    expect(clockText()).toBe(formatClock(new Date(firstBoundary.getTime() + 60_000)));
+  });
+
+  it("keeps caller-supplied date and clock values without scheduling refreshes", () => {
+    vi.useFakeTimers();
+    const { getByText } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock">
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(getByText("Pinned date")).toBeTruthy();
+    expect(getByText("Pinned clock")).toBeTruthy();
   });
 });
 

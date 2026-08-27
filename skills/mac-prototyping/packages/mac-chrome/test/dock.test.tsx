@@ -76,7 +76,12 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
   });
 
   const dockButtons = container.querySelectorAll<HTMLElement>(".p0-dock-item");
+  const dock = container.querySelector<HTMLElement>(".p0-mac-dock");
+  const scroller = dock?.querySelector<HTMLElement>(":scope > .p0-dock-scroll");
   const iconCanvases = container.querySelectorAll<HTMLElement>(".p0-dock-item > .p0-app-icon");
+  expect(dock?.children).toHaveLength(1);
+  expect(scroller).toBeTruthy();
+  expect(scroller?.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(3);
   expect(dockButtons).toHaveLength(3);
   expect(iconCanvases).toHaveLength(3);
   expect(Array.from(dockButtons, (button) => button.dataset.hoverEffect)).toEqual(["lift", "lift", "lift"]);

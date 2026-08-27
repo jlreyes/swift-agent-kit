@@ -363,6 +363,57 @@ describe("native presentation primitives", () => {
     expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
   });
 
+  it("preserves application writes of suppression-matching attributes while a modal is open", async () => {
+    const { container } = render(<SheetHarness />);
+    const underlay = container.querySelector<HTMLElement>(".window-underlay");
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    await screen.findByRole("dialog", { name: "Create Project" });
+    await waitFor(() => expect(underlay?.getAttribute("aria-hidden")).toBe("true"));
+
+    underlay?.setAttribute("inert", "");
+    underlay?.setAttribute("aria-hidden", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(underlay?.getAttribute("inert")).toBe("");
+    expect(underlay?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("preserves application removal of pre-existing suppression attributes", async () => {
+    const { container } = render(<SheetHarness />);
+    const underlay = container.querySelector<HTMLElement>(".window-underlay");
+    underlay?.setAttribute("inert", "");
+    underlay?.setAttribute("aria-hidden", "true");
+    const trigger = underlay?.querySelector<HTMLButtonElement>("button");
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger as HTMLButtonElement);
+    await screen.findByRole("dialog", { name: "Create Project" });
+
+    underlay?.removeAttribute("inert");
+    underlay?.removeAttribute("aria-hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  it("preserves application changes to both suppression attributes", async () => {
+    const { container } = render(<SheetHarness />);
+    const underlay = container.querySelector<HTMLElement>(".window-underlay");
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    await screen.findByRole("dialog", { name: "Create Project" });
+    await waitFor(() => expect(underlay?.getAttribute("aria-hidden")).toBe("true"));
+
+    underlay?.setAttribute("inert", "application-owned");
+    underlay?.setAttribute("aria-hidden", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(underlay?.getAttribute("inert")).toBe("application-owned");
+    expect(underlay?.getAttribute("aria-hidden")).toBe("false");
+  });
+
   it("maps Return to the independent default action", async () => {
     render(<SheetHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Create project" }));

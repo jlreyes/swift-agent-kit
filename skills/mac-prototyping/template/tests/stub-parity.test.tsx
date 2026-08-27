@@ -15,6 +15,7 @@ import {
   finderKeyTarget,
   FinderWindow,
   MacApp,
+  MacAppDock,
   MacDock,
   MacInspector,
   MacMenu,
@@ -70,7 +71,7 @@ describe("template stub public behavior", () => {
 
   test("DesktopShell defaults to live host-local date and time", () => {
     vi.useFakeTimers();
-    const initial = new Date(2026, 7, 26, 12, 34, 45);
+    const initial = new Date(2026, 7, 26, 12, 34, 45, 250);
     vi.setSystemTime(initial);
     render(<DesktopShell appName="Prototype"><div /></DesktopShell>);
     const status = screen.getByLabelText("Mac status items");
@@ -83,9 +84,40 @@ describe("template stub public behavior", () => {
     expect(status.textContent).toContain(nativeDate(initial));
     expect(status.textContent).toContain(nativeClock(initial));
 
-    const later = new Date(initial.getTime() + 30_000);
-    act(() => vi.advanceTimersByTime(30_000));
-    expect(status.textContent).toContain(nativeClock(later));
+    act(() => vi.advanceTimersByTime(14_749));
+    expect(status.textContent).toContain(nativeClock(initial));
+    const nextMinute = new Date(2026, 7, 26, 12, 35);
+    act(() => vi.advanceTimersByTime(1));
+    expect(status.textContent).toContain(nativeClock(nextMinute));
+    act(() => vi.advanceTimersByTime(59_999));
+    expect(status.textContent).toContain(nativeClock(nextMinute));
+    const followingMinute = new Date(2026, 7, 26, 12, 36);
+    act(() => vi.advanceTimersByTime(1));
+    expect(status.textContent).toContain(nativeClock(followingMinute));
+  });
+
+  test("DesktopShell standard menus expose the complete built-in command groups", async () => {
+    const onMenuAction = vi.fn();
+    const user = userEvent.setup();
+    render(<DesktopShell appName="Prototype" onMenuAction={onMenuAction}><div /></DesktopShell>);
+
+    await user.click(screen.getByRole("button", { name: "File" }));
+    const fileMenu = await screen.findByRole("menu", { name: "File menu" });
+    expect(fileMenu.querySelectorAll('[role="separator"]')).toHaveLength(2);
+    await user.click(within(fileMenu).getByRole("menuitem", { name: /Get Info/ }));
+    expect(onMenuAction).toHaveBeenLastCalledWith({ menu: "File", id: "get-info", label: "Get Info" });
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    const windowMenu = await screen.findByRole("menu", { name: "Window menu" });
+    expect(windowMenu.querySelectorAll('[role="separator"]')).toHaveLength(1);
+    await user.click(within(windowMenu).getByRole("menuitem", { name: "Bring All to Front" }));
+    expect(onMenuAction).toHaveBeenLastCalledWith({ menu: "Window", id: "bring-all-to-front", label: "Bring All to Front" });
+
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    const helpMenu = await screen.findByRole("menu", { name: "Help menu" });
+    expect(helpMenu.querySelectorAll('[role="separator"]')).toHaveLength(1);
+    await user.click(within(helpMenu).getByRole("menuitem", { name: "Search" }));
+    expect(onMenuAction).toHaveBeenLastCalledWith({ menu: "Help", id: "search-help", label: "Search" });
   });
 
   test("MacMenu honors link, detail, checked state, and popover class contracts", async () => {
@@ -241,6 +273,11 @@ describe("template stub public behavior", () => {
   test("default Dock icons are bundled symbol tiles rather than missing asset URLs", () => {
     expect(defaultDockItems.every((item) => typeof item.icon === "object" && item.icon !== null && "kind" in item.icon && item.icon.kind === "symbol")).toBe(true);
     const { container } = render(<MacDock />);
+    const dock = screen.getByRole("navigation", { name: "Dock" });
+    const scroller = dock.querySelector<HTMLElement>(":scope > .p0-dock-scroll");
+    expect(scroller).not.toBeNull();
+    expect(scroller?.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(defaultDockItems.length);
+    expect(dock.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(0);
     expect(container.querySelectorAll(".p0-app-icon-glyph .mc-system-symbol")).toHaveLength(defaultDockItems.length);
     expect(container.querySelectorAll("img")).toHaveLength(0);
   });
@@ -275,6 +312,17 @@ describe("template stub public behavior", () => {
     expect(screen.getByTestId("registry").textContent).toBe("manifest|duplicate");
     await user.click(screen.getByRole("button", { name: "Remove first duplicate window" }));
     expect(screen.getByTestId("registry").textContent).toBe("manifest|duplicate");
+  });
+
+  test("mounted app metadata replaces a manifest icon", async () => {
+    const manifest = { id: "manifest-icon", name: "Manifest", icon: <span>Manifest icon</span> } as const;
+    render(
+      <MacWindowManager initialApps={[manifest]}>
+        <MacApp {...manifest} icon={<span>Mounted icon</span>}><MacAppDock /></MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByText("Mounted icon")).toBeDefined());
+    expect(screen.queryByText("Manifest icon")).toBeNull();
   });
 
   test("unmanaged WindowChrome preserves a caller z-index", () => {
@@ -317,6 +365,69 @@ describe("template stub public behavior", () => {
     await user.click(screen.getByRole("button", { name: "Bring all forward" }));
     expect(screen.getByTestId("key-window").textContent).toBe("first");
     expect(screen.getByTestId("window-order").textContent).toBe("second,third,first");
+  });
+
+  test("changing a managed window label preserves state without re-registering", async () => {
+    const app = { id: "labels", name: "Labels", icon: <span>Icon</span> } as const;
+    function WindowProbe() {
+      const manager = useMacWindowManager();
+      const window = manager.windows.find((candidate) => candidate.id === "main");
+      return (
+        <>
+          <button type="button" onClick={() => manager.minimizeWindow("main")}>Minimize from probe</button>
+          <output data-testid="window-metadata">{window === undefined ? "missing" : `${window.label}|${window.state}`}</output>
+        </>
+      );
+    }
+    function LabelHarness() {
+      const [label, setLabel] = useState("Original label");
+      return (
+        <MacWindowManager initialApps={[app]}>
+          <button type="button" onClick={() => setLabel("Renamed label")}>Rename window</button>
+          <MacApp {...app}>
+            <WindowChrome label={label} windowId="main">Window content</WindowChrome>
+            <WindowProbe />
+          </MacApp>
+        </MacWindowManager>
+      );
+    }
+    const user = userEvent.setup();
+    render(<LabelHarness />);
+    await waitFor(() => expect(screen.getByTestId("window-metadata").textContent).toBe("Original label|open"));
+    await user.click(screen.getByRole("button", { name: "Minimize from probe" }));
+    expect(screen.getByTestId("window-metadata").textContent).toBe("Original label|minimized");
+    await user.click(screen.getByRole("button", { name: "Rename window" }));
+    expect(screen.getByTestId("window-metadata").textContent).toBe("Renamed label|minimized");
+  });
+
+  test("activating an app with all windows closed opens its first registered window", async () => {
+    const app = { id: "primary", name: "Primary", icon: <span>Icon</span> } as const;
+    function ActivationProbe() {
+      const manager = useMacWindowManager();
+      const states = manager.windows.map((window) => `${window.id}:${window.state}`).join(",");
+      return (
+        <>
+          <button type="button" onClick={() => { manager.closeWindow("first"); manager.closeWindow("second"); }}>Close all</button>
+          <button type="button" onClick={() => manager.activateApp("primary")}>Activate app</button>
+          <output data-testid="activation-state">{`${manager.keyWindowId ?? "none"}|${states}`}</output>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <MacWindowManager initialApps={[app]}>
+        <MacApp {...app}>
+          <WindowChrome label="First" windowId="first">First</WindowChrome>
+          <WindowChrome label="Second" windowId="second">Second</WindowChrome>
+          <ActivationProbe />
+        </MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByTestId("activation-state").textContent).toBe("second|first:open,second:open"));
+    await user.click(screen.getByRole("button", { name: "Close all" }));
+    expect(screen.getByTestId("activation-state").textContent).toBe("none|first:closed,second:closed");
+    await user.click(screen.getByRole("button", { name: "Activate app" }));
+    expect(screen.getByTestId("activation-state").textContent).toBe("first|first:open,second:closed");
   });
 
   test("WindowChrome resize handles enforce minimum size and desktop canvas bounds", async () => {
@@ -389,6 +500,44 @@ describe("template stub public behavior", () => {
     expect(onPreviewVisibleChange).toHaveBeenLastCalledWith(true);
   });
 
+  test("Finder content arrows update selection and move the roving focus by icon columns", async () => {
+    const entries = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"].map((name) => ({
+      id: name.toLowerCase(),
+      name,
+      kind: "file",
+      icon: <span>{name.slice(0, 1)}</span>,
+    }));
+    function FinderKeyboardHarness() {
+      const [selectedId, setSelectedId] = useState<string | null>("alpha");
+      return (
+        <FinderWindow
+          title="Keyboard files"
+          sidebar={[]}
+          entries={entries}
+          iconColumns={2}
+          mode="icons"
+          onModeChange={() => {}}
+          search={{ value: "", onChange: () => {} }}
+          selection={{ selectedId, onSelect: setSelectedId }}
+          onOpen={() => {}}
+        />
+      );
+    }
+    const user = userEvent.setup();
+    render(<FinderKeyboardHarness />);
+    const alpha = screen.getByRole("option", { name: "Alpha" });
+    alpha.focus();
+    expect(alpha.tabIndex).toBe(0);
+    await user.keyboard("{ArrowRight}");
+    const beta = screen.getByRole("option", { name: "Beta" });
+    await waitFor(() => expect(document.activeElement).toBe(beta));
+    expect(beta.getAttribute("aria-selected")).toBe("true");
+    await user.keyboard("{ArrowDown}");
+    const delta = screen.getByRole("option", { name: "Delta" });
+    await waitFor(() => expect(document.activeElement).toBe(delta));
+    expect(delta.getAttribute("aria-selected")).toBe("true");
+  });
+
   test("window recipes forward all lifecycle callbacks", async () => {
     const user = userEvent.setup();
     const callbacks = () => ({ onClose: vi.fn(), onMinimize: vi.fn(), onZoom: vi.fn() });
@@ -415,18 +564,23 @@ describe("template stub public behavior", () => {
     }
   });
 
-  test("stored id subscriptions observe cross-tab storage events", () => {
+  test("stored id subscriptions observe cross-tab writes and localStorage.clear", () => {
     const ids = createStoredIdList("installed", (id) => id.startsWith("valid-"));
     function StoredIds() {
       return <output>{ids.useStoredIds().join(",")}</output>;
     }
-    render(<StoredIds />);
+    const view = render(<StoredIds />);
 
     act(() => {
       window.localStorage.setItem("installed", JSON.stringify(["valid-one", "invalid"]));
       window.dispatchEvent(new StorageEvent("storage", { key: "installed" }));
     });
     expect(screen.getByText("valid-one")).toBeDefined();
+    act(() => {
+      window.localStorage.clear();
+      window.dispatchEvent(new StorageEvent("storage", { key: null }));
+    });
+    expect(view.container.querySelector("output")?.textContent).toBe("");
   });
 
   test("finder navigation only resets an invalid selection for arrow keys", () => {

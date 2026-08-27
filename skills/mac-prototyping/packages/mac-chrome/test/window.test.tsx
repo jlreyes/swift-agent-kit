@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { act } from "react";
+import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { act, useState, type CSSProperties } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MacApp, MacAppDock, MacWindowManager } from "../app.tsx";
 import { TrafficLights, useWindowDrag, WindowChrome } from "../window";
 import { FinderWindow } from "../finder";
+
+vi.mock("html-to-image", () => ({
+  toPng: vi.fn(async () => "data:image/png;base64,d2luZG93"),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -82,6 +86,22 @@ function mockLayout(layout: TestLayout) {
   });
 }
 
+function mockAuthoredLayout({ canvasLeft = 40, canvasTop = 20, canvasWidth = 900, canvasHeight = 700 } = {}) {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("desktop-canvas")) {
+      return new DOMRect(canvasLeft, canvasTop, canvasWidth, canvasHeight);
+    }
+    if (this.classList.contains("mac-window")) {
+      const left = Number.parseFloat(this.style.left) || 0;
+      const top = Number.parseFloat(this.style.top) || 0;
+      const width = Number.parseFloat(this.style.width) || 0;
+      const height = Number.parseFloat(this.style.height) || 0;
+      return new DOMRect(canvasLeft + left, canvasTop + top, width, height);
+    }
+    return new DOMRect();
+  });
+}
+
 const standardLayout: TestLayout = {
   canvasLeft: 40,
   canvasTop: 20,
@@ -132,6 +152,16 @@ function DragHarness() {
       >
         <div data-window-drag-handle="">Title</div>
       </section>
+    </div>
+  );
+}
+
+function StatefulWindowBody() {
+  const [count, setCount] = useState(0);
+  return (
+    <div data-window-drag-handle="">
+      <TrafficLights />
+      <button data-state-count="" type="button" onClick={() => setCount((current) => current + 1)}>Count {count}</button>
     </div>
   );
 }
@@ -204,6 +234,72 @@ describe("WindowChrome geometry", () => {
     expect(windowElement?.style.left).toBe("40px");
     expect(windowElement?.style.width).toBe("500px");
     expect(windowElement?.style.height).toBe("480px");
+  });
+
+  it("reapplies changed authored geometry while preserving drag state for equivalent inputs", async () => {
+    mockAuthoredLayout();
+    function geometryWindow({
+      defaultWidth,
+      frameLeft,
+      style,
+    }: {
+      readonly defaultWidth: number;
+      readonly frameLeft: number;
+      readonly style?: CSSProperties;
+    }) {
+      return (
+        <div className="desktop-canvas">
+          <WindowChrome
+            defaultSize={{ width: defaultWidth, height: 360 }}
+            frame={{ left: frameLeft, top: 80 }}
+            label="Reactive geometry"
+            style={style}
+          >
+            <div data-window-drag-handle="">Title <TrafficLights /></div>
+          </WindowChrome>
+        </div>
+      );
+    }
+
+    const { container, getByRole, rerender } = render(geometryWindow({ defaultWidth: 500, frameLeft: 100 }));
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 240, clientY: 100 });
+    await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("140px");
+
+    rerender(geometryWindow({ defaultWidth: 500, frameLeft: 100 }));
+    expect(windowElement.style.left).toBe("140px");
+
+    rerender(geometryWindow({ defaultWidth: 550, frameLeft: 100 }));
+    expect(windowElement.style.left).toBe("100px");
+    expect(windowElement.style.width).toBe("550px");
+
+    rerender(geometryWindow({ defaultWidth: 550, frameLeft: 180 }));
+    expect(windowElement.style.left).toBe("180px");
+
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.width).toBe("calc(100% - 48px)");
+    rerender(geometryWindow({ defaultWidth: 600, frameLeft: 200 }));
+    expect(windowElement.style.width).toBe("calc(100% - 48px)");
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.left).toBe("200px");
+    expect(windowElement.style.width).toBe("600px");
+
+    rerender(geometryWindow({
+      defaultWidth: 550,
+      frameLeft: 180,
+      style: { left: 220, top: 90, width: 480, height: 320 },
+    }));
+    expect(windowElement.style.left).toBe("220px");
+    expect(windowElement.style.top).toBe("90px");
+    expect(windowElement.style.width).toBe("480px");
+    expect(windowElement.style.height).toBe("320px");
   });
 
   it("renders all eight edge and corner resize handles by default", () => {
@@ -472,6 +568,62 @@ describe("WindowChrome geometry", () => {
     expect(observeCount).toBe(2);
     expect(reopenedWindow.style.left).toBe("24px");
     expect(reopenedWindow.style.width).toBe("402px");
+  });
+
+  it("retains managed child state while removing minimized and closed windows from UI and observation", async () => {
+    let observeCount = 0;
+    let disconnectCount = 0;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(_callback: ResizeObserverCallback) {}
+      observe(): void { observeCount += 1; }
+      unobserve(): void {}
+      disconnect(): void { disconnectCount += 1; }
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    mockAuthoredLayout();
+    const { container, getByRole, queryByRole } = render(
+      <MacWindowManager>
+        <div className="desktop-canvas">
+          <MacApp id="stateful" name="Stateful app" icon="/stateful.png">
+            <WindowChrome frame={{ left: 100, top: 80, width: 500, height: 360 }} label="Stateful window">
+              <StatefulWindowBody />
+            </WindowChrome>
+          </MacApp>
+          <MacAppDock label="State Dock" />
+        </div>
+      </MacWindowManager>,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Count 0" }));
+    expect(getByRole("button", { name: "Count 1" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Minimize window" }));
+    const minimizedItem = await waitFor(() =>
+      within(getByRole("navigation", { name: "State Dock" })).getByRole("button", { name: "Stateful window" }));
+    expect(queryByRole("region", { name: "Stateful window" })).toBeNull();
+    const retainedAfterMinimize = container.querySelector<HTMLElement>(".mac-window.mc-retained");
+    expect(retainedAfterMinimize?.hidden).toBe(true);
+    expect(retainedAfterMinimize?.hasAttribute("inert")).toBe(true);
+    expect(retainedAfterMinimize?.style.display).toBe("none");
+    expect(retainedAfterMinimize?.hasAttribute("data-window-id")).toBe(false);
+    expect(retainedAfterMinimize?.querySelector("[data-state-count]")?.textContent).toBe("Count 1");
+    expect(disconnectCount).toBe(1);
+
+    fireEvent.click(minimizedItem);
+    await waitFor(() => expect(getByRole("region", { name: "Stateful window" })).toBeTruthy());
+    expect(getByRole("button", { name: "Count 1" })).toBeTruthy();
+    expect(observeCount).toBe(2);
+
+    fireEvent.click(getByRole("button", { name: "Close window" }));
+    expect(queryByRole("region", { name: "Stateful window" })).toBeNull();
+    expect(container.querySelector(".mc-retained [data-state-count]")?.textContent).toBe("Count 1");
+    expect(disconnectCount).toBe(2);
+
+    const appItem = within(getByRole("navigation", { name: "State Dock" }))
+      .getByRole("button", { name: "Stateful app" });
+    fireEvent.click(appItem);
+    expect(getByRole("region", { name: "Stateful window" })).toBeTruthy();
+    expect(getByRole("button", { name: "Count 1" })).toBeTruthy();
+    expect(observeCount).toBe(3);
   });
 
   it("restores the resized frame after zooming", async () => {

@@ -288,6 +288,11 @@ type WindowGeometry = {
   readonly height: number;
 };
 
+type WindowGeometryState = {
+  readonly inputSignature: string;
+  readonly value: WindowGeometry;
+};
+
 type WindowResizeEdge = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 type WindowBounds = {
@@ -421,11 +426,53 @@ type WindowInteraction = {
   readonly origin: WindowGeometry;
 };
 
+const windowGeometryStyleProperties = [
+  "position",
+  "inset",
+  "insetBlock",
+  "insetBlockEnd",
+  "insetBlockStart",
+  "insetInline",
+  "insetInlineEnd",
+  "insetInlineStart",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "width",
+  "height",
+  "inlineSize",
+  "blockSize",
+  "minWidth",
+  "maxWidth",
+  "minHeight",
+  "maxHeight",
+  "minInlineSize",
+  "maxInlineSize",
+  "minBlockSize",
+  "maxBlockSize",
+  "margin",
+  "marginTop",
+  "marginRight",
+  "marginBottom",
+  "marginLeft",
+  "aspectRatio",
+  "boxSizing",
+] as const satisfies readonly (keyof CSSProperties)[];
+
+function windowGeometryInputSignature(style: CSSProperties): string {
+  return windowGeometryStyleProperties.map((property) => {
+    const value = style[property];
+    return `${property}:${typeof value}:${String(value)}`;
+  }).join("|");
+}
+
 function useWindowGeometry({
   draggable,
   dragHandleSelector = "[data-window-drag-handle]",
   enabled,
   minSize,
+  inputSignature,
   resizable,
   visible,
 }: {
@@ -433,12 +480,14 @@ function useWindowGeometry({
   readonly dragHandleSelector?: string;
   readonly enabled: boolean;
   readonly minSize: WindowSize;
+  readonly inputSignature: string;
   readonly resizable: boolean;
   readonly visible: boolean;
 }) {
   const windowRef = useRef<HTMLElement>(null);
-  const [geometry, setGeometry] = useState<WindowGeometry | null>(null);
+  const [geometryState, setGeometryState] = useState<WindowGeometryState | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
+  const inputSignatureRef = useRef(inputSignature);
   const interactionRef = useRef<WindowInteraction | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const containmentTaskRef = useRef<number | null>(null);
@@ -446,7 +495,11 @@ function useWindowGeometry({
 
   function commitGeometry(nextGeometry: WindowGeometry) {
     geometryRef.current = nextGeometry;
-    setGeometry((current) => geometryEquals(current, nextGeometry) ? current : nextGeometry);
+    const currentInputSignature = inputSignatureRef.current;
+    setGeometryState((current) =>
+      current?.inputSignature === currentInputSignature && geometryEquals(current.value, nextGeometry)
+        ? current
+        : { inputSignature: currentInputSignature, value: nextGeometry });
   }
 
   function scheduleGeometry(nextGeometry: WindowGeometry) {
@@ -500,6 +553,20 @@ function useWindowGeometry({
     if (!visible) return;
     const element = windowRef.current;
     if (element === null) return;
+    if (inputSignatureRef.current !== inputSignature) {
+      inputSignatureRef.current = inputSignature;
+      geometryRef.current = null;
+      interactionRef.current = null;
+      pendingGeometryRef.current = null;
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    }
+    /* Zoomed/minimizing windows use a transient authored frame. Keep the
+       normal-frame geometry cached, but do not capture the transient box as
+       the new restore target when controlled inputs change mid-transition. */
+    if (!enabled) return;
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
 
     function containedGeometry() {
@@ -567,7 +634,7 @@ function useWindowGeometry({
         containmentTaskRef.current = null;
       }
     };
-  }, [minSize.height, minSize.width, visible]);
+  }, [enabled, inputSignature, minSize.height, minSize.width, visible]);
 
   useEffect(() => () => {
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
@@ -646,6 +713,10 @@ function useWindowGeometry({
     }
   }
 
+  const geometry = geometryState?.inputSignature === inputSignature
+    ? geometryState.value
+    : null;
+
   return {
     beginDrag,
     beginResize,
@@ -720,6 +791,10 @@ export function WindowChrome({
   const managedOpen = appRunning && (managedWindow?.state === "open" || (managedWindow === null && defaultOpen));
   const visible = managed ? managedOpen : !hidden;
   const zoomed = managedWindow?.zoomed ?? localZoomed;
+  const authoredFrameStyle: CSSProperties = {
+    ...framePlacement(frame, defaultSize),
+    ...style,
+  };
   const activateManagedWindow = manager?.activateWindow;
   const closeManagedWindow = manager?.closeWindow;
   const consumeKeyboardWindowFocusIntent = manager?.consumeKeyboardWindowFocusIntent;
@@ -729,6 +804,7 @@ export function WindowChrome({
     draggable,
     dragHandleSelector,
     enabled: !minimizing && !zoomed,
+    inputSignature: windowGeometryInputSignature(authoredFrameStyle),
     minSize,
     resizable,
     visible,
@@ -760,11 +836,11 @@ export function WindowChrome({
     return () => window.clearTimeout(timer);
   }, [minimizing]);
 
-  if (!visible) return null;
+  const retained = managed && !visible;
+  if (!visible && !managed) return null;
 
   const composedStyle: CSSProperties = {
-    ...(zoomed ? zoomedPlacement : framePlacement(frame, defaultSize)),
-    ...style,
+    ...(zoomed ? { ...zoomedPlacement, ...style } : authoredFrameStyle),
     ...(zoomed || windowGeometry.geometry === null ? undefined : {
       left: windowGeometry.geometry.left,
       top: windowGeometry.geometry.top,
@@ -779,44 +855,48 @@ export function WindowChrome({
     composedStyle.transform = `${existingTransform === undefined || existingTransform === "none" ? "" : `${existingTransform} `}translateY(42px) scale(0.5)`;
     composedStyle.opacity = 0;
   }
+  if (retained) composedStyle.display = "none";
 
   return (
     <WindowControlsContext.Provider value={controls}>
       <section
         ref={windowGeometry.windowRef}
         style={composedStyle}
-        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}`}
-        aria-label={label}
+        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}${retained ? " mc-retained" : ""}`}
+        aria-label={retained ? undefined : label}
+        aria-hidden={retained ? true : undefined}
+        hidden={retained}
+        inert={retained ? true : undefined}
         data-app-id={app?.id}
         data-key-window={managedWindow === null ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
-        data-window-id={resolvedWindowId ?? undefined}
+        data-window-id={retained ? undefined : resolvedWindowId ?? undefined}
         data-window-resizable={resizable ? "true" : "false"}
         data-window-state={managedWindow?.state}
-        onPointerDownCapture={() => {
+        onPointerDownCapture={retained ? undefined : () => {
           // Interactive descendants such as React Aria collections may stop
           // pointer events during their own press handling. Window activation
           // is a frame-level behavior, so observe it before descendants can
           // consume the event.
           if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
         }}
-        onFocusCapture={() => {
+        onFocusCapture={retained ? undefined : () => {
           if (resolvedWindowId !== null && consumeKeyboardWindowFocusIntent?.()) {
             activateManagedWindow?.(resolvedWindowId);
           }
         }}
-        onPointerDown={(event) => {
+        onPointerDown={retained ? undefined : (event) => {
           windowGeometry.beginDrag(event);
         }}
-        onPointerMove={windowGeometry.onPointerMove}
-        onPointerUp={windowGeometry.onPointerUp}
-        onPointerCancel={windowGeometry.onPointerCancel}
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        onPointerMove={retained ? undefined : windowGeometry.onPointerMove}
+        onPointerUp={retained ? undefined : windowGeometry.onPointerUp}
+        onPointerCancel={retained ? undefined : windowGeometry.onPointerCancel}
+        onDragEnter={retained ? undefined : onDragEnter}
+        onDragLeave={retained ? undefined : onDragLeave}
+        onDragOver={retained ? undefined : onDragOver}
+        onDrop={retained ? undefined : onDrop}
       >
         {children}
-        {resizable && !zoomed && !minimizing ? resizeEdges.map((edge) => (
+        {!retained && resizable && !zoomed && !minimizing ? resizeEdges.map((edge) => (
           <span
             aria-hidden="true"
             className={`mc-window-resize-handle mc-window-resize-${edge}`}

@@ -164,56 +164,58 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
 }) {
   return (
     <nav className="p0-mac-dock" aria-label={label}>
-      {items.map((item, index) => {
-        const previousItem = items[index - 1];
-        const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
-        const payload = item.draggablePayload;
-        const draggable = payload !== undefined && Object.keys(payload).length > 0;
-        const thumbnailSize = item.windowThumbnail === undefined
-          ? undefined
-          : containedThumbnailSize(item.windowThumbnail);
-        return (
-          <span className="p0-dock-item-wrap" key={item.id}>
-            {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
-            <button
-              className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
-              type="button"
-              aria-label={item.label}
-              data-hover-effect="lift"
-              draggable={draggable}
-              onClick={item.onActivate}
-              onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
-                if (!payload) return;
-                for (const [type, data] of Object.entries(payload)) {
-                  event.dataTransfer.setData(type, data);
-                }
-                event.dataTransfer.effectAllowed = "copy";
-              }}
-            >
-              {item.windowThumbnail && thumbnailSize ? (
-                <span className="p0-window-thumbnail-slot">
-                  <span
-                    className="p0-window-thumbnail"
-                    style={{
-                      width: thumbnailSize.width,
-                      height: thumbnailSize.height,
-                      viewTransitionName: item.viewTransitionName,
-                    }}
-                  >
-                    {item.windowThumbnail.src ? (
-                      <img src={item.windowThumbnail.src} alt="" draggable={false} />
-                    ) : (
-                      <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>
-                    )}
+      <span className="p0-dock-scroll">
+        {items.map((item, index) => {
+          const previousItem = items[index - 1];
+          const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
+          const payload = item.draggablePayload;
+          const draggable = payload !== undefined && Object.keys(payload).length > 0;
+          const thumbnailSize = item.windowThumbnail === undefined
+            ? undefined
+            : containedThumbnailSize(item.windowThumbnail);
+          return (
+            <span className="p0-dock-item-wrap" key={item.id}>
+              {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
+              <button
+                className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
+                type="button"
+                aria-label={item.label}
+                data-hover-effect="lift"
+                draggable={draggable}
+                onClick={item.onActivate}
+                onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
+                  if (!payload) return;
+                  for (const [type, data] of Object.entries(payload)) {
+                    event.dataTransfer.setData(type, data);
+                  }
+                  event.dataTransfer.effectAllowed = "copy";
+                }}
+              >
+                {item.windowThumbnail && thumbnailSize ? (
+                  <span className="p0-window-thumbnail-slot">
+                    <span
+                      className="p0-window-thumbnail"
+                      style={{
+                        width: thumbnailSize.width,
+                        height: thumbnailSize.height,
+                        viewTransitionName: item.viewTransitionName,
+                      }}
+                    >
+                      {item.windowThumbnail.src ? (
+                        <img src={item.windowThumbnail.src} alt="" draggable={false} />
+                      ) : (
+                        <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>
+                      )}
+                    </span>
                   </span>
-                </span>
-              ) : <MacDockAppIcon icon={item.icon} />}
-              <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
-              <span className="p0-dock-running-dot" aria-hidden="true" />
-            </button>
-          </span>
-        );
-      })}
+                ) : <MacDockAppIcon icon={item.icon} />}
+                <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
+                <span className="p0-dock-running-dot" aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+      </span>
     </nav>
   );
 }

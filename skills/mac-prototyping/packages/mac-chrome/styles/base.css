@@ -240,6 +240,41 @@ img {
   min-width: 24px;
 }
 
+@media (max-width: 600px) {
+  .mac-menu-bar {
+    gap: 6px;
+  }
+
+  .menu-left,
+  .menu-right {
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .menu-left {
+    flex: 1 1 58%;
+  }
+
+  .menu-right {
+    max-width: 42%;
+    flex: 0 1 42%;
+  }
+
+  .menu-left .mc-menubar-menu,
+  .menu-right > * {
+    flex: 0 0 auto;
+  }
+
+  .menu-left::-webkit-scrollbar,
+  .menu-right::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .mac-window {
   position: absolute;
   max-width: calc(100% - 24px);

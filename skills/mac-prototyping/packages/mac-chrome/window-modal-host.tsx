@@ -22,8 +22,10 @@ type ModalOwner = {
 
 type SuppressionState = {
   count: number;
-  readonly ariaHidden: string | null;
-  readonly inert: boolean;
+  readonly baselineAriaHidden: string | null;
+  readonly baselineInert: string | null;
+  readonly changedAttributes: Set<"aria-hidden" | "inert">;
+  readonly observer: MutationObserver;
 };
 
 type ModalOwnerStack = {
@@ -37,19 +39,45 @@ type ModalOwnerStack = {
 const suppressionStates = new WeakMap<HTMLElement, SuppressionState>();
 const modalOwnerStacks = new WeakMap<HTMLElement, ModalOwnerStack>();
 
+function recordSuppressionMutations(state: SuppressionState, records: readonly MutationRecord[]) {
+  for (const record of records) {
+    if (record.attributeName === "aria-hidden" || record.attributeName === "inert") {
+      state.changedAttributes.add(record.attributeName);
+    }
+  }
+}
+
+function restoreAttribute(element: HTMLElement, name: "aria-hidden" | "inert", value: string | null) {
+  if (value === null) element.removeAttribute(name);
+  else element.setAttribute(name, value);
+}
+
 function suppress(element: HTMLElement) {
-  const state = suppressionStates.get(element);
-  if (state !== undefined) {
-    state.count += 1;
+  const existingState = suppressionStates.get(element);
+  if (existingState !== undefined) {
+    existingState.count += 1;
     return;
   }
-  suppressionStates.set(element, {
-    count: 1,
-    ariaHidden: element.getAttribute("aria-hidden"),
-    inert: element.hasAttribute("inert"),
-  });
+  const baselineAriaHidden = element.getAttribute("aria-hidden");
+  const baselineInert = element.getAttribute("inert");
   element.setAttribute("inert", "");
   element.setAttribute("aria-hidden", "true");
+
+  const changedAttributes = new Set<"aria-hidden" | "inert">();
+  const state: SuppressionState = {
+    count: 1,
+    baselineAriaHidden,
+    baselineInert,
+    changedAttributes,
+    observer: new MutationObserver((records) => recordSuppressionMutations(state, records)),
+  };
+  suppressionStates.set(element, state);
+  // Start after the suppression writes so only application-owned mutations
+  // invalidate our right to roll an attribute back.
+  state.observer.observe(element, {
+    attributeFilter: ["aria-hidden", "inert"],
+    attributes: true,
+  });
 }
 
 function restore(element: HTMLElement) {
@@ -58,10 +86,18 @@ function restore(element: HTMLElement) {
   state.count -= 1;
   if (state.count > 0) return;
   suppressionStates.delete(element);
-  if (state.inert) element.setAttribute("inert", "");
-  else element.removeAttribute("inert");
-  if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
-  else element.setAttribute("aria-hidden", state.ariaHidden);
+  recordSuppressionMutations(state, state.observer.takeRecords());
+  state.observer.disconnect();
+
+  // Roll back only values that still belong to this suppression claim. If
+  // application code touched an attribute while the modal was open—even if it
+  // deliberately wrote the same value—its latest state remains authoritative.
+  if (!state.changedAttributes.has("inert") && element.getAttribute("inert") === "") {
+    restoreAttribute(element, "inert", state.baselineInert);
+  }
+  if (!state.changedAttributes.has("aria-hidden") && element.getAttribute("aria-hidden") === "true") {
+    restoreAttribute(element, "aria-hidden", state.baselineAriaHidden);
+  }
 }
 
 function reconcileModalStack(stack: ModalOwnerStack) {

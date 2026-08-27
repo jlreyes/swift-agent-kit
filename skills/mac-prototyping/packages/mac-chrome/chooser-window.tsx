@@ -105,7 +105,7 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   }
 
   function handleStorage(event: StorageEvent) {
-    if (event.key === key) notify();
+    if (event.key === key || event.key === null) notify();
   }
 
   function subscribe(subscriber: () => void) {

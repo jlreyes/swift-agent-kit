@@ -309,9 +309,21 @@ export function DesktopShell({
   openMenuIndexRef.current = openMenuIndex;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
+    if (date !== undefined && clock !== undefined) return;
+
+    let timer: number | undefined;
+    function scheduleNextMinute() {
+      const delay = 60_000 - (Date.now() % 60_000);
+      timer = window.setTimeout(() => {
+        setNow(new Date());
+        scheduleNextMinute();
+      }, delay);
+    }
+    scheduleNextMinute();
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [clock, date]);
   useEffect(() => {
     if (openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {

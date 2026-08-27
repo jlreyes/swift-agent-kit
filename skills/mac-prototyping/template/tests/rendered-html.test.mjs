@@ -40,6 +40,8 @@ test("the example surface renders the mac shell", async () => {
   assert.match(html, /class="mac-menu-bar"/);
   assert.match(html, /aria-label="Finder"/);
   assert.match(html, /class="p0-app-icon p0-app-icon--(?:asset|tile)"/);
+  assert.match(html, /data-system-symbol="face\.smiling"/);
+  assert.doesNotMatch(html, /\/mac-assets\/dock\/finder\.png/);
   const usesBundledDefaultSymbols = /data-system-symbol="app\.gift\.fill"/.test(html);
   const usesScaffoldAssetFallbacks = /\/mac-assets\/dock\/app-store\.png/.test(html);
   assert.equal(usesBundledDefaultSymbols || usesScaffoldAssetFallbacks, true);

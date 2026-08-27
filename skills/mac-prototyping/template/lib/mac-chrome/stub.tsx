@@ -80,6 +80,8 @@ const stubStandardMenus: Readonly<Record<string, MenuSpec>> = {
     { kind: "separator", id: "file-separator-1" },
     { kind: "action", id: "close-window", label: "Close Window", shortcut: "⌘W" },
     { kind: "action", id: "save", label: "Save", shortcut: "⌘S" },
+    { kind: "separator", id: "file-separator-2" },
+    { kind: "action", id: "get-info", label: "Get Info", shortcut: "⌘I" },
   ],
   Edit: [
     { kind: "action", id: "undo", label: "Undo", shortcut: "⌘Z" },
@@ -98,9 +100,13 @@ const stubStandardMenus: Readonly<Record<string, MenuSpec>> = {
   Window: [
     { kind: "action", id: "minimize", label: "Minimize", shortcut: "⌘M" },
     { kind: "action", id: "zoom", label: "Zoom" },
+    { kind: "separator", id: "window-separator-1" },
+    { kind: "action", id: "bring-all-to-front", label: "Bring All to Front" },
   ],
   Help: [
     { kind: "action", id: "app-help", label: "App Help", shortcut: "⌘?" },
+    { kind: "separator", id: "help-separator-1" },
+    { kind: "action", id: "search-help", label: "Search" },
   ],
 };
 
@@ -411,8 +417,16 @@ export function DesktopShell({
   const menuBarRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(timer);
+    let interval: number | null = null;
+    const delay = 60_000 - (Date.now() % 60_000);
+    const timeout = window.setTimeout(() => {
+      setNow(new Date());
+      interval = window.setInterval(() => setNow(new Date()), 60_000);
+    }, delay);
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval !== null) window.clearInterval(interval);
+    };
   }, []);
   const menus: readonly MenuBarMenu[] = [
     { title: "Apple", items: appleMenuItems ?? stubAppleMenu() },
@@ -541,6 +555,7 @@ type StubManagerContextValue = MacWindowManagerValue & {
   readonly unregisterApp: (appId: string) => void;
   readonly registerWindow: (window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => void;
   readonly unregisterWindow: (windowId: string) => void;
+  readonly updateWindowLabel: (windowId: string, label: string) => void;
   readonly consumeKeyboardWindowFocusIntent: () => boolean;
 };
 type StubAppContextValue = { readonly id: string; readonly defaultRunning: boolean };
@@ -589,8 +604,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
     setState((current) => {
       const existing = current.apps.find((candidate) => candidate.id === app.id);
       if (existing !== undefined) {
-        if (existing.name === app.name && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) return current;
-        return { ...current, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
+        if (existing.name === app.name && existing.icon === app.icon && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) return current;
+        return { ...current, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
       }
       return {
         ...current,
@@ -627,6 +642,11 @@ export function MacWindowManager({ children, initialApps = [] }: {
     windowRegistrationCountsRef.current.delete(windowId);
     setState((current) => ({ ...current, windows: current.windows.filter((window) => window.id !== windowId) }));
   }, []);
+  const updateWindowLabel = useCallback((windowId: string, label: string) => setState((current) => {
+    const existing = current.windows.find((window) => window.id === windowId);
+    if (existing === undefined || existing.label === label) return current;
+    return { ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, label } : window) };
+  }), []);
   const activateWindow = useCallback((windowId: string) => setState((current) => {
     const target = current.windows.find((window) => window.id === windowId);
     if (target === undefined) return current;
@@ -638,8 +658,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
     };
   }), []);
   const activateApp = useCallback((appId: string) => setState((current) => {
-    const appWindows = current.windows.filter((window) => window.appId === appId).slice().sort((left, right) => right.order - left.order);
-    const target = appWindows.find((window) => window.state !== "closed") ?? appWindows[0];
+    const registeredWindows = current.windows.filter((window) => window.appId === appId);
+    const stackedWindows = registeredWindows.slice().sort((left, right) => right.order - left.order);
+    const target = stackedWindows.find((window) => window.state !== "closed") ?? registeredWindows[0];
     return {
       ...current,
       apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
@@ -694,8 +715,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
     unregisterApp,
     registerWindow,
     unregisterWindow,
+    updateWindowLabel,
     consumeKeyboardWindowFocusIntent,
-  }), [activateApp, activateWindow, apps, bringAllToFront, closeWindow, consumeKeyboardWindowFocusIntent, keyWindow?.appId, keyWindow?.id, minimizeWindow, quitApp, registerApp, registerWindow, toggleZoom, unregisterApp, unregisterWindow, windows]);
+  }), [activateApp, activateWindow, apps, bringAllToFront, closeWindow, consumeKeyboardWindowFocusIntent, keyWindow?.appId, keyWindow?.id, minimizeWindow, quitApp, registerApp, registerWindow, toggleZoom, unregisterApp, unregisterWindow, updateWindowLabel, windows]);
   return <StubManagerContext.Provider value={value}>{children}</StubManagerContext.Provider>;
 }
 
@@ -774,11 +796,18 @@ export function WindowChrome({
   const [geometry, setGeometry] = useState<StubWindowGeometry | null>(null);
   const resizeRef = useRef<{ readonly edge: StubResizeEdge; readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: StubWindowGeometry; readonly bounds: StubWindowBounds } | null>(null);
   const resolvedWindowId = manager !== null && app !== null ? windowId ?? `${app.id}:main` : null;
+  const registerWindow = manager?.registerWindow;
+  const unregisterWindow = manager?.unregisterWindow;
+  const updateWindowLabel = manager?.updateWindowLabel;
   useEffect(() => {
-    if (manager === null || app === null || resolvedWindowId === null) return;
-    manager.registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen });
-    return () => manager.unregisterWindow(resolvedWindowId);
-  }, [app, defaultOpen, label, manager?.registerWindow, manager?.unregisterWindow, resolvedWindowId]);
+    if (registerWindow === undefined || unregisterWindow === undefined || app === null || resolvedWindowId === null) return;
+    registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen });
+    return () => unregisterWindow(resolvedWindowId);
+  }, [app, defaultOpen, registerWindow, resolvedWindowId, unregisterWindow]);
+  useEffect(() => {
+    if (updateWindowLabel === undefined || resolvedWindowId === null) return;
+    updateWindowLabel(resolvedWindowId, label);
+  }, [label, resolvedWindowId, updateWindowLabel]);
   const managedWindow = resolvedWindowId === null ? undefined : manager?.windows.find((window) => window.id === resolvedWindowId);
   const appRunning = app === null ? true : manager?.apps.find((candidate) => candidate.id === app.id)?.running ?? app.defaultRunning;
   const visible = manager === null || resolvedWindowId === null || (appRunning && (managedWindow?.state === "open" || managedWindow === undefined && defaultOpen));
@@ -1025,38 +1054,40 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
 }) {
   return (
     <nav className="p0-mac-dock" aria-label={label}>
-      {items.map((item, index) => {
-        const previousItem = items[index - 1];
-        const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
-        const payload = item.draggablePayload;
-        const draggable = payload !== undefined && Object.keys(payload).length > 0;
-        return (
-          <span className="p0-dock-item-wrap" key={item.id}>
-            {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
-            <button
-              className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
-              type="button"
-              aria-label={item.label}
-              data-hover-effect="lift"
-              draggable={draggable}
-              onClick={item.onActivate}
-              onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
-                if (payload === undefined) return;
-                for (const [type, data] of Object.entries(payload)) event.dataTransfer.setData(type, data);
-                event.dataTransfer.effectAllowed = "copy";
-              }}
-            >
-              {item.windowThumbnail ? (
-                <span className="p0-window-thumbnail" style={{ aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`, viewTransitionName: item.viewTransitionName }}>
-                  {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
-                </span>
-              ) : <MacDockAppIcon icon={item.icon} />}
-              <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
-              <span className="p0-dock-running-dot" aria-hidden="true" />
-            </button>
-          </span>
-        );
-      })}
+      <span className="p0-dock-scroll">
+        {items.map((item, index) => {
+          const previousItem = items[index - 1];
+          const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
+          const payload = item.draggablePayload;
+          const draggable = payload !== undefined && Object.keys(payload).length > 0;
+          return (
+            <span className="p0-dock-item-wrap" key={item.id}>
+              {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
+              <button
+                className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
+                type="button"
+                aria-label={item.label}
+                data-hover-effect="lift"
+                draggable={draggable}
+                onClick={item.onActivate}
+                onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
+                  if (payload === undefined) return;
+                  for (const [type, data] of Object.entries(payload)) event.dataTransfer.setData(type, data);
+                  event.dataTransfer.effectAllowed = "copy";
+                }}
+              >
+                {item.windowThumbnail ? (
+                  <span className="p0-window-thumbnail" style={{ aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`, viewTransitionName: item.viewTransitionName }}>
+                    {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
+                  </span>
+                ) : <MacDockAppIcon icon={item.icon} />}
+                <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
+                <span className="p0-dock-running-dot" aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+      </span>
     </nav>
   );
 }
@@ -1737,7 +1768,7 @@ function stubFinderItemId(sectionId: string, itemId: string): string { return `f
 
 // Finder shell mirroring the real package's rendered structure (window label,
 // sidebar header/sections, listbox/option roles, and mc-finder-* classes).
-export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom }: {
+export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom, iconColumns }: {
   readonly sidebar: readonly SidebarSection[];
   readonly sidebarHeader?: ReactNode;
   readonly sidebarVisible?: boolean;
@@ -1767,6 +1798,8 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
   const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const contentRef = useRef<HTMLDivElement>(null);
+  const keyboardFocusPending = useRef<string | null>(null);
   const sourceListSections: readonly MacSourceListSection[] = sidebar.map((section) => ({
     id: stubFinderSectionId(section.id),
     title: section.title,
@@ -1780,6 +1813,8 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   const collapsibleSectionIds = sourceListSections.filter((section) => section.title !== undefined && section.collapsible === true).map((section) => section.id);
   const expandedSectionIds = new Set(collapsibleSectionIds.filter((id) => !collapsedSectionIds.has(id)));
   const selectedSectionId = sidebar.find((section) => section.title !== undefined && section.selected)?.id;
+  const selectedEntry = entries.find((entry) => entry.id === selection.selectedId) ?? null;
+  const tabStopId = selectedEntry?.id ?? entries[0]?.id;
   let selectedItemId: string | null = null;
   for (const section of sidebar) {
     const selectedItem = section.items.find((item) => item.selected);
@@ -1811,6 +1846,49 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
   }
   function handleExpandedChange(expanded: ReadonlySet<string>) {
     setCollapsedSectionIds(new Set(collapsibleSectionIds.filter((id) => !expanded.has(id))));
+  }
+  useEffect(() => {
+    const pending = keyboardFocusPending.current;
+    if (pending === null) return;
+    keyboardFocusPending.current = null;
+    const content = contentRef.current;
+    if (content === null) return;
+    for (const option of content.querySelectorAll<HTMLElement>("[data-mc-entry-id]")) {
+      if (option.dataset["mcEntryId"] === pending) {
+        option.focus();
+        return;
+      }
+    }
+    content.focus();
+  });
+  function columnsForNavigation(): number {
+    if (mode === "list") return 1;
+    if (iconColumns !== undefined && iconColumns >= 1) return Math.floor(iconColumns);
+    const content = contentRef.current;
+    if (content === null) return 1;
+    const tracks = window.getComputedStyle(content).gridTemplateColumns.split(" ").filter((track) => track !== "" && track !== "none");
+    if (tracks.length > 0) return tracks.length;
+    const options = content.querySelectorAll<HTMLElement>("[data-mc-entry-id]");
+    const first = options[0];
+    if (first === undefined) return 1;
+    let columns = 0;
+    for (const option of options) {
+      if (option.offsetTop !== first.offsetTop) break;
+      columns += 1;
+    }
+    return Math.max(columns, 1);
+  }
+  function handleContentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const index = entries.findIndex((entry) => entry.id === selection.selectedId);
+    const next = finderKeyTarget(event.key, index, columnsForNavigation(), entries.length);
+    if (next === null) return;
+    const entry = entries[next];
+    if (entry === undefined) return;
+    keyboardFocusPending.current = entry.id;
+    selection.onSelect(entry.id);
   }
   return (
     <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
@@ -1860,7 +1938,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
             </>
           }
         />
-        <div role="listbox" aria-label={title ?? "Files"} className={`mc-finder-content mc-${mode}`}>
+        <div ref={contentRef} role="listbox" aria-label={title ?? "Files"} tabIndex={-1} className={`mc-finder-content mc-${mode}`} onKeyDown={handleContentKeyDown}>
           {entries.map((entry) => (
             <button
               type="button"
@@ -1868,6 +1946,8 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
               key={entry.id}
               className={`mc-finder-entry${selection.selectedId === entry.id ? " mc-selected" : ""}`}
               aria-selected={selection.selectedId === entry.id}
+              tabIndex={entry.id === tabStopId ? 0 : -1}
+              data-mc-entry-id={entry.id}
               onClick={() => selection.onSelect(entry.id)}
               onDoubleClick={() => onOpen(entry)}
             >
@@ -1980,7 +2060,7 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
     subscribers.forEach((subscriber) => subscriber());
   }
   function handleStorage(event: StorageEvent) {
-    if (event.key === key) notify();
+    if (event.key === key || event.key === null) notify();
   }
   function subscribe(subscriber: () => void) {
     subscribers.add(subscriber);

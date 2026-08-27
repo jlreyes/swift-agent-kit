@@ -163,6 +163,15 @@ function visibleWindows(state: ManagerState) {
     .sort((left, right) => left.stackOrder - right.stackOrder);
 }
 
+function appActivationTarget(state: ManagerState, appId: string) {
+  const appWindows = state.windows
+    .filter((window) => window.appId === appId)
+    .slice()
+    .sort((left, right) => right.stackOrder - left.stackOrder || left.registrationOrder - right.registrationOrder);
+  const primaryWindow = appWindows.slice().sort((left, right) => left.registrationOrder - right.registrationOrder)[0];
+  return appWindows.find((window) => window.state !== "closed") ?? primaryWindow;
+}
+
 export function MacWindowManager({ children, initialApps = [] }: {
   readonly children: ReactNode;
   /** Immutable boot manifest: keeps app identity and Dock geometry SSR-stable. */
@@ -172,6 +181,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
   const [state, setState] = useState<ManagerState>(() => initialAppsRef.current.length === 0
     ? initialState
     : initialStateFor(initialAppsRef.current));
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
   // Captures finish asynchronously; a later window command supersedes the
   // capture even when the window has returned to the same visible state.
@@ -186,15 +197,11 @@ export function MacWindowManager({ children, initialApps = [] }: {
     pendingThumbnailCapturesRef.current.delete(windowId);
   }, []);
 
-  const invalidateAllThumbnailCaptures = useCallback(() => {
-    for (const windowId of thumbnailCaptureVersionsRef.current.keys()) {
-      thumbnailCaptureVersionsRef.current.set(
-        windowId,
-        (thumbnailCaptureVersionsRef.current.get(windowId) ?? 0) + 1,
-      );
+  const invalidateWindowThumbnailCaptures = useCallback((windowIds: readonly string[]) => {
+    for (const windowId of windowIds) {
+      invalidateWindowThumbnailCapture(windowId);
     }
-    pendingThumbnailCapturesRef.current.clear();
-  }, []);
+  }, [invalidateWindowThumbnailCapture]);
 
   useEffect(() => {
     function recordKeyboardInteraction() {
@@ -254,7 +261,12 @@ export function MacWindowManager({ children, initialApps = [] }: {
   }, []);
 
   const unregisterApp = useCallback((appId: string) => {
-    invalidateAllThumbnailCaptures();
+    const existing = stateRef.current.apps.find((app) => app.id === appId);
+    if (existing !== undefined && !existing.fromManifest && existing.registrationCount === 1) {
+      invalidateWindowThumbnailCaptures(
+        stateRef.current.windows.filter((window) => window.appId === appId).map((window) => window.id),
+      );
+    }
     setState((current) => {
       const existing = current.apps.find((app) => app.id === appId);
       if (existing === undefined || existing.registrationCount === 0) return current;
@@ -271,7 +283,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
         windows: current.windows.filter((window) => window.appId !== appId),
       };
     });
-  }, [invalidateAllThumbnailCaptures]);
+  }, [invalidateWindowThumbnailCaptures]);
 
   const registerWindow = useCallback((registration: WindowRegistration) => {
     setState((current) => {
@@ -302,7 +314,8 @@ export function MacWindowManager({ children, initialApps = [] }: {
   }, []);
 
   const unregisterWindow = useCallback((windowId: string) => {
-    invalidateWindowThumbnailCapture(windowId);
+    const existing = stateRef.current.windows.find((window) => window.id === windowId);
+    if (existing?.registrationCount === 1) invalidateWindowThumbnailCapture(windowId);
     setState((current) => {
       const existing = current.windows.find((window) => window.id === windowId);
       if (existing === undefined) return current;
@@ -349,14 +362,10 @@ export function MacWindowManager({ children, initialApps = [] }: {
   }, [invalidateWindowThumbnailCapture]);
 
   const activateApp = useCallback((appId: string) => {
-    invalidateAllThumbnailCaptures();
+    const currentTarget = appActivationTarget(stateRef.current, appId);
+    if (currentTarget !== undefined) invalidateWindowThumbnailCapture(currentTarget.id);
     setState((current) => {
-      const appWindows = current.windows
-        .filter((window) => window.appId === appId)
-        .slice()
-        .sort((left, right) => right.stackOrder - left.stackOrder || left.registrationOrder - right.registrationOrder);
-      const primaryWindow = appWindows.slice().sort((left, right) => left.registrationOrder - right.registrationOrder)[0];
-      const target = appWindows.find((window) => window.state !== "closed") ?? primaryWindow;
+      const target = appActivationTarget(current, appId);
       return {
         ...current,
         apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
@@ -366,7 +375,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
         nextStackOrder: target === undefined ? current.nextStackOrder : current.nextStackOrder + 1,
       };
     });
-  }, [invalidateAllThumbnailCaptures]);
+  }, [invalidateWindowThumbnailCapture]);
 
   const closeWindow = useCallback((windowId: string) => {
     invalidateWindowThumbnailCapture(windowId);
@@ -422,7 +431,11 @@ export function MacWindowManager({ children, initialApps = [] }: {
   }, [invalidateWindowThumbnailCapture]);
 
   const bringAllToFront = useCallback((appId?: string) => {
-    invalidateAllThumbnailCaptures();
+    invalidateWindowThumbnailCaptures(
+      visibleWindows(stateRef.current)
+        .filter((window) => appId === undefined || window.appId === appId)
+        .map((window) => window.id),
+    );
     setState((current) => {
       const targets = visibleWindows(current).filter((window) => appId === undefined || window.appId === appId);
       if (targets.length === 0) return current;
@@ -436,10 +449,12 @@ export function MacWindowManager({ children, initialApps = [] }: {
         nextStackOrder: current.nextStackOrder + targets.length,
       };
     });
-  }, [invalidateAllThumbnailCaptures]);
+  }, [invalidateWindowThumbnailCaptures]);
 
   const quitApp = useCallback((appId: string) => {
-    invalidateAllThumbnailCaptures();
+    invalidateWindowThumbnailCaptures(
+      stateRef.current.windows.filter((window) => window.appId === appId).map((window) => window.id),
+    );
     setState((current) => ({
       ...current,
       apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
@@ -447,7 +462,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
         ? { ...window, state: "closed", thumbnail: undefined }
         : window),
     }));
-  }, [invalidateAllThumbnailCaptures]);
+  }, [invalidateWindowThumbnailCaptures]);
 
   const orderedVisibleWindows = visibleWindows(state);
   const keyWindow = orderedVisibleWindows.at(-1) ?? null;

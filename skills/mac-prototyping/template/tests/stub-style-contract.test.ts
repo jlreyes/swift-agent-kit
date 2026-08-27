@@ -117,13 +117,20 @@ test("status, native collection states, and disclosure affordances survive eithe
   expect(disabledDisclosure).toMatch(/opacity:\s*0\.45/);
 });
 
-test("the Dock remains horizontally reachable when the public shell is narrow", () => {
-  const dockRules = rules(".p0-mac-dock");
+test("the Dock keeps its shell visible while its inner strip scrolls", () => {
+  const dockShell = rule(".p0-mac-dock");
+  const dockScroll = rule(".p0-dock-scroll");
 
-  expect(source).toMatch(/@media\s*\(max-width:\s*600px\)/);
-  expect(dockRules).toMatch(/width:\s*calc\(100% - 12px\)/);
-  expect(dockRules).toMatch(/max-width:\s*calc\(100% - 12px\)/);
-  expect(dockRules).toMatch(/overflow-x:\s*auto/);
-  expect(dockRules).toMatch(/overscroll-behavior-inline:\s*contain/);
-  expect(rules(".p0-dock-item-wrap")).toMatch(/flex:\s*0 0 auto/);
+  expect(dockShell).toMatch(/width:\s*max-content/);
+  expect(dockShell).toMatch(/max-width:\s*calc\(100% - 14px\)/);
+  expect(dockShell).toMatch(/overflow:\s*visible/);
+  expect(dockShell).not.toMatch(/overflow-x:\s*auto/);
+  expect(dockScroll).toMatch(/width:\s*max-content/);
+  expect(dockScroll).toMatch(/max-width:\s*100%/);
+  expect(dockScroll).toMatch(/height:\s*calc\(100% \+ 38px\)/);
+  expect(dockScroll).toMatch(/margin-top:\s*-32px/);
+  expect(dockScroll).toMatch(/padding:\s*32px 0 6px/);
+  expect(dockScroll).toMatch(/overflow-x:\s*auto/);
+  expect(dockScroll).toMatch(/overflow-y:\s*hidden/);
+  expect(rule(".p0-dock-scroll::-webkit-scrollbar")).toMatch(/display:\s*none/);
 });

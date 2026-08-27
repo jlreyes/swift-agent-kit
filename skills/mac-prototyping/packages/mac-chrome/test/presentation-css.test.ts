@@ -24,4 +24,19 @@ describe("presentation anatomy", () => {
     expect(rule(".mc-window-modal-layer-alert.mc-window-modal-layer-desktop")).toMatch(/padding:\s*22px/);
     expect(rule(".mc-window-modal-layer-desktop")).toMatch(/z-index:\s*1000/);
   });
+
+  it("contains tall presentations while leaving only their content regions scrollable", () => {
+    expect(rule(".mc-sheet")).toMatch(/max-height:\s*calc\(100% - 20px\)/);
+    expect(rule(".mc-sheet")).toMatch(/display:\s*flex/);
+    expect(rule(".mc-sheet-body")).toMatch(/min-height:\s*0/);
+    expect(rule(".mc-sheet-body")).toMatch(/overflow:\s*auto/);
+    expect(rule(".mc-sheet-header")).toMatch(/flex:\s*0 0 auto/);
+    expect(rule(".mc-sheet-footer")).toMatch(/flex:\s*0 0 auto/);
+    expect(rule(".mc-sheet-legacy")).toMatch(/overflow:\s*auto/);
+
+    expect(source).toMatch(/\.mc-alert\s*\{[^}]*max-height:\s*calc\(100% - 22px\)[^}]*\}/s);
+    expect(source).toMatch(/\.mc-alert\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\) auto[^}]*\}/s);
+    expect(rule(".mc-alert-message")).toMatch(/min-height:\s*0/);
+    expect(rule(".mc-alert-message")).toMatch(/overflow:\s*auto/);
+  });
 });

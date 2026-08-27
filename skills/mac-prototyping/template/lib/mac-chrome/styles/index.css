@@ -249,6 +249,7 @@
 }
 
 .p0-dock-scroll {
+  box-sizing: border-box;
   width: max-content;
   max-width: 100%;
   height: calc(100% + 38px);
@@ -376,9 +377,18 @@
   transform: translateX(-50%);
 }
 
-.p0-window-thumbnail {
+.p0-window-thumbnail-slot {
   width: 48px;
   height: 44px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.p0-window-thumbnail {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -389,10 +399,9 @@
 }
 
 .p0-window-thumbnail > img {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  display: block;
   object-fit: contain;
 }
 
@@ -627,12 +636,16 @@
 
 .mc-sheet {
   width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 20px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border-top: 0;
   border-radius: 0 0 10px 10px;
 }
 
 .mc-sheet-header {
+  flex: 0 0 auto;
   padding: 18px 22px 7px;
 }
 
@@ -642,14 +655,21 @@
 }
 
 .mc-sheet-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 0 22px 18px;
 }
 
 .mc-sheet-footer {
+  flex: 0 0 auto;
   padding: 11px 22px 18px;
 }
 
 .mc-sheet-legacy {
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px 22px;
 }
 
@@ -663,8 +683,11 @@
 .mc-alert {
   box-sizing: border-box;
   width: min(390px, calc(100% - 24px));
+  max-height: calc(100% - 22px);
+  overflow: hidden;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 13px 16px;
   padding: 20px 22px 18px;
   border-top: 0;
@@ -689,16 +712,27 @@
   font-size: 11px;
 }
 
+.mc-alert-copy {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .mc-alert-copy h2 {
   margin: 2px 0 5px;
   font-size: 13.5px;
 }
 
 .mc-alert-message {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   line-height: 1.36;
 }
 
 .mc-alert-footer {
+  min-width: 0;
   grid-column: 2;
 }
 

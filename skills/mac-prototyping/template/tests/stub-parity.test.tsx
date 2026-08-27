@@ -14,9 +14,11 @@ import {
   DesktopShell,
   finderKeyTarget,
   FinderWindow,
+  MacAlert,
   MacApp,
   MacAppDock,
   MacDock,
+  MacDisclosureGroup,
   MacInspector,
   MacList,
   MacMenu,
@@ -163,6 +165,66 @@ describe("template stub public behavior", () => {
     expect(screen.getByTestId("list-selection").textContent).toBe("bravo");
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "After list" }));
+  });
+
+  test("collection titles normalize once and expose explicit, derived, and compatibility names", () => {
+    let generatorReads = 0;
+    function* generatedTitle() {
+      generatorReads += 1;
+      yield <span key="generated">Generated title</span>;
+    }
+    const generator = generatedTitle();
+    const opaqueRenders = vi.fn();
+    function OpaqueTitle() {
+      opaqueRenders();
+      return <span>Opaque visual title</span>;
+    }
+    const sections = [
+      { id: "plain", items: [{ id: "plain-item", label: "Plain item" }] },
+      { id: "false", title: false, items: [{ id: "false-item", label: "False item" }] },
+      { id: "fragment", title: <><span> </span><></></>, items: [{ id: "fragment-item", label: "Fragment item" }] },
+      { id: "array", title: [null, false, "  "], items: [{ id: "array-item", label: "Array item" }] },
+      { id: "explicit", ariaLabel: "  Explicit section  ", title: null, items: [{ id: "explicit-item", label: "Explicit item" }] },
+      { id: "nested", title: <span>Nested <strong>title</strong></span>, items: [{ id: "nested-item", label: "Nested item" }] },
+      { id: "generated", title: generator, items: [{ id: "generated-item", label: "Generated item" }] },
+      { id: "opaque", title: <OpaqueTitle />, items: [{ id: "opaque-item", label: "Opaque item" }] },
+    ] as const;
+    const props = {
+      ariaLabel: "Title normalization",
+      onSelectionChange: () => {},
+      sections,
+      selectedId: null,
+    } as const;
+    const view = render(<MacList {...props} />);
+
+    for (const label of ["Plain item", "False item", "Fragment item", "Array item"]) {
+      expect(screen.getByRole("option", { name: label }).closest("[role='group']")).toBeNull();
+    }
+    const explicit = screen.getByRole("group", { name: "Explicit section" });
+    expect(explicit.querySelector(".mc-list-section-title")).toBeNull();
+    expect(screen.getByRole("group", { name: "Nested title" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Generated title" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "opaque" })).toBeDefined();
+    expect(generatorReads).toBe(1);
+    expect(opaqueRenders).toHaveBeenCalledOnce();
+
+    view.rerender(<MacList {...props} />);
+    expect(screen.getByText("Generated title")).toBeDefined();
+    expect(generatorReads).toBe(1);
+    expect(opaqueRenders).toHaveBeenCalledOnce();
+  });
+
+  test("disclosure titles use explicit, normalized, and compatibility accessible names", () => {
+    render(
+      <>
+        <MacDisclosureGroup ariaLabel="  Explicit disclosure  " expanded={false} title={<><span> </span></>} onExpandedChange={() => {}}>Explicit body</MacDisclosureGroup>
+        <MacDisclosureGroup expanded={false} title={<span>Derived <strong>disclosure</strong></span>} onExpandedChange={() => {}}>Derived body</MacDisclosureGroup>
+        <MacDisclosureGroup expanded={false} title={false} onExpandedChange={() => {}}>Fallback body</MacDisclosureGroup>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "Explicit disclosure" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Derived disclosure" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Disclosure" })).toBeDefined();
   });
 
   test("MacSegmentedControl roves one tab stop and keyboard activation selects", async () => {
@@ -572,6 +634,27 @@ describe("template stub public behavior", () => {
     expect(dock.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(0);
     expect(container.querySelectorAll(".p0-app-icon-glyph .mc-system-symbol")).toHaveLength(defaultDockItems.length);
     expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  test("Dock contains landscape, portrait, and wide minimized windows in canonical thumbnail slots", () => {
+    const { container } = render(
+      <MacDock
+        items={[
+          { id: "landscape", label: "Landscape window", icon: "/app.png", windowThumbnail: { src: "/landscape.png", width: 900, height: 600 } },
+          { id: "portrait", label: "Portrait window", icon: "/app.png", windowThumbnail: { src: "/portrait.png", width: 600, height: 900 } },
+          { id: "wide", label: "Wide window", icon: "/app.png", windowThumbnail: { src: "/wide.png", width: 1600, height: 400 } },
+        ]}
+      />,
+    );
+    const slots = container.querySelectorAll<HTMLElement>(".p0-window-thumbnail-slot");
+    const thumbnails = container.querySelectorAll<HTMLElement>(".p0-window-thumbnail");
+    expect(slots).toHaveLength(3);
+    expect(Number.parseFloat(thumbnails[0]?.style.width ?? "0")).toBeCloseTo(48);
+    expect(Number.parseFloat(thumbnails[0]?.style.height ?? "0")).toBeCloseTo(32);
+    expect(Number.parseFloat(thumbnails[1]?.style.width ?? "0")).toBeCloseTo(29.333, 3);
+    expect(Number.parseFloat(thumbnails[1]?.style.height ?? "0")).toBeCloseTo(44);
+    expect(Number.parseFloat(thumbnails[2]?.style.width ?? "0")).toBeCloseTo(48);
+    expect(Number.parseFloat(thumbnails[2]?.style.height ?? "0")).toBeCloseTo(12);
   });
 
   test("Dock owns one clamped tooltip outside its scrolling item strip", async () => {
@@ -1235,6 +1318,75 @@ describe("template stub public behavior", () => {
     upperFirst.focus();
     fireEvent.keyDown(upperFirst, { key: "Tab" });
     expect(document.activeElement).toBe(upperFirst);
+  });
+
+  test("nested modal default Enter stays owned by the top portal layer", async () => {
+    const lowerDefault = vi.fn();
+    const upperDefault = vi.fn();
+    render(
+      <WindowChrome label="Nested default owner">
+        <MacSheet
+          actions={[{ id: "lower-default", label: "Lower Default", isDefault: true, onPress: lowerDefault }]}
+          onClose={() => {}}
+          open
+          title="Lower default sheet"
+        >
+          <MacSheet
+            actions={[{ id: "upper-default", label: "Upper Default", isDefault: true, onPress: upperDefault }]}
+            onClose={() => {}}
+            open
+            title="Upper default sheet"
+          >
+            <span data-testid="upper-default-target">Upper default target</span>
+          </MacSheet>
+        </MacSheet>
+      </WindowChrome>,
+    );
+    await screen.findByRole("dialog", { name: "Upper default sheet" });
+
+    fireEvent.keyDown(screen.getByTestId("upper-default-target"), { key: "Enter" });
+    expect(upperDefault).toHaveBeenCalledOnce();
+    expect(lowerDefault).not.toHaveBeenCalled();
+  });
+
+  test("tall sheet content and alert messages keep actions in dedicated regions", async () => {
+    const sheetView = render(
+      <section className="mac-window" aria-label="Short sheet owner" style={{ height: 150 }}>
+        <MacSheet
+          actions={[{ id: "save", label: "Save", isDefault: true }]}
+          onClose={() => {}}
+          open
+          title="Tall sheet"
+        >
+          <div data-testid="tall-sheet-content" style={{ height: 480 }}>Tall body content</div>
+        </MacSheet>
+      </section>,
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Tall sheet" });
+    const sheetBody = sheet.querySelector<HTMLElement>(".mc-sheet-body");
+    const sheetFooter = sheet.querySelector<HTMLElement>(".mc-sheet-footer");
+    expect(sheetBody?.contains(screen.getByTestId("tall-sheet-content"))).toBe(true);
+    expect(sheetFooter?.contains(screen.getByRole("button", { name: "Save" }))).toBe(true);
+    expect(sheetBody?.contains(sheetFooter)).toBe(false);
+    sheetView.unmount();
+
+    render(
+      <section className="mac-window" aria-label="Short alert owner" style={{ height: 150 }}>
+        <MacAlert
+          actions={[{ id: "okay", label: "OK", isDefault: true }]}
+          message={<div data-testid="tall-alert-content" style={{ height: 480 }}>Long alert message</div>}
+          onClose={() => {}}
+          open
+          title="Tall alert"
+        />
+      </section>,
+    );
+    const alert = await screen.findByRole("alertdialog", { name: "Tall alert" });
+    const alertMessage = alert.querySelector<HTMLElement>(".mc-alert-message");
+    const alertFooter = alert.querySelector<HTMLElement>(".mc-alert-footer");
+    expect(alertMessage?.contains(screen.getByTestId("tall-alert-content"))).toBe(true);
+    expect(alertFooter?.contains(screen.getByRole("button", { name: "OK" }))).toBe(true);
+    expect(alertMessage?.contains(alertFooter)).toBe(false);
   });
 
   test("closing the middle of three modal layers keeps focus in the top dialog", async () => {

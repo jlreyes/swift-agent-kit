@@ -8,6 +8,10 @@ import { DesktopShell, type MenuBarMenu } from "../desktop-shell.tsx";
 import { SystemSymbol } from "../system-symbol.tsx";
 import { WindowChrome } from "../window.tsx";
 
+vi.mock("html-to-image", () => ({
+  toPng: vi.fn(async () => "data:image/png;base64,d2luZG93"),
+}));
+
 afterEach(cleanup);
 
 const app = {
@@ -31,15 +35,16 @@ function ManagedMenuHarness({
   readonly secondaryWindow?: boolean;
   readonly windowId?: string;
 }) {
+  const managedApp = { ...app, name: appName };
   return (
-    <MacWindowManager initialApps={[app]}>
+    <MacWindowManager initialApps={[managedApp]}>
       <DesktopShell
         appName={appName}
         appMenuItems={appMenuItems}
         menuItems={menuItems}
         onMenuAction={onMenuAction}
       >
-        <MacApp {...app}>
+        <MacApp {...managedApp}>
           <WindowChrome label="Managed window" windowId={windowId}><p>Managed content</p></WindowChrome>
           {secondaryWindow ? (
             <WindowChrome label="Secondary window" windowId="secondary"><p>Secondary content</p></WindowChrome>
@@ -61,6 +66,64 @@ async function openMenuButton(button: HTMLElement) {
 }
 
 describe("managed menu command composition", () => {
+  it("retargets the application menu identity and lifecycle commands to the active app", async () => {
+    const firstApp = {
+      id: "first",
+      name: "First App",
+      icon: { kind: "symbol" as const, symbol: <SystemSymbol name="app" /> },
+    };
+    const secondApp = {
+      id: "second",
+      name: "Second App",
+      icon: { kind: "symbol" as const, symbol: <SystemSymbol name="app" /> },
+    };
+    render(
+      <MacWindowManager initialApps={[firstApp, secondApp]}>
+        <DesktopShell appName="Mac Chrome" menuItems={[]}>
+          <MacApp {...firstApp}>
+            <WindowChrome label="First window"><p>First content</p></WindowChrome>
+          </MacApp>
+          <MacApp {...secondApp}>
+            <WindowChrome label="Second window"><p>Second content</p></WindowChrome>
+          </MacApp>
+        </DesktopShell>
+      </MacWindowManager>,
+    );
+    const firstWindow = await waitFor(() => screen.getByRole("region", { name: "First window" }));
+    const secondWindow = screen.getByRole("region", { name: "Second window" });
+    fireEvent.pointerDown(secondWindow);
+    const secondMenu = await waitFor(() => screen.getByRole("button", { name: "Second App" }));
+    expect(screen.queryByRole("button", { name: "Mac Chrome" })).toBeNull();
+
+    await openMenuButton(secondMenu);
+    expect(screen.getByRole("menuitem", { name: "About Second App" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Hide Second App" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Quit Second App" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Hide Second App" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Second window" })).toBeNull());
+    expect(screen.getByRole("region", { name: "First window" })).toBe(firstWindow);
+
+    await openMenu("Second App");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Quit Second App" }));
+    expect(screen.getByRole("region", { name: "First window" })).toBe(firstWindow);
+    await waitFor(() => expect(screen.getByRole("button", { name: "First App" })).toBeTruthy());
+  });
+
+  it("falls back to DesktopShell appName when a manager has no active app", async () => {
+    render(
+      <MacWindowManager>
+        <DesktopShell appName="Mac Chrome" menuItems={[]}>
+          <p>Desktop</p>
+        </DesktopShell>
+      </MacWindowManager>,
+    );
+
+    await openMenu("Mac Chrome");
+    expect(screen.getByRole("menuitem", { name: "About Mac Chrome" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Hide Mac Chrome" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Quit Mac Chrome" })).toBeTruthy();
+  });
+
   it("distinguishes an app named File from the actual File menu", async () => {
     render(
       <ManagedMenuHarness

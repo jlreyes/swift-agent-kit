@@ -350,14 +350,19 @@ maps to: SwiftUI `List` / `NSTableView`'s simple list usage.
 `MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange })`
 Rows may contain an icon, label, description, secondary text, accessory,
 disabled state, and action. Selection is single and controlled. This is a
-selectable list, not a table or outline view.
+selectable list, not a table or outline view. `MacListSection` accepts an
+optional `ariaLabel`.
 
 ### MacDisclosureGroup
 maps to: SwiftUI `DisclosureGroup` / `NSDisclosureButton`.
-`MacDisclosureGroup({ children, className = "", disabled = false, expanded, title, onExpandedChange })`
+`MacDisclosureGroup({ ariaLabel, children, className = "", disabled = false, expanded, title, onExpandedChange })`
 Expansion is controlled and inherits React Aria's disclosure keyboard and
 accessibility semantics. Its shared SF Symbol indicator replaces CSS-drawn
-chevrons and its panel does not use reveal-scale animation.
+chevrons and its panel does not use reveal-scale animation. For both
+`MacListSection` and `MacDisclosureGroup`, the accessible label resolves once
+in this order: explicit `ariaLabel`, text derived from the title, then a
+compatibility fallback. Supply `ariaLabel` when a title is custom,
+decorative, opaque, or generated; generators are normalized once.
 
 ### Controls, forms, and unavailable content
 maps to: SwiftUI `Button`, `TextField`, `Toggle`, `Picker` (segmented),

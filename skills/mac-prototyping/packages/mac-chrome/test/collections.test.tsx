@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { getByRole } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import { MacDisclosureGroup, MacList } from "../collections.tsx";
@@ -10,6 +11,10 @@ import { MacContentUnavailable } from "../content-state.tsx";
 
 function GeneratedSectionTitle() {
   return <span>Generated</span>;
+}
+
+function EmptyCustomSectionTitle() {
+  return null;
 }
 
 it("renders sectioned rows and reports one selected id", async () => {
@@ -91,7 +96,24 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
           {
             id: "custom",
             title: <GeneratedSectionTitle />,
+            ariaLabel: "Explicit generated label",
             items: [{ id: "custom-item", label: "Custom item" }],
+          },
+          {
+            id: "opaque-fallback",
+            title: <GeneratedSectionTitle />,
+            items: [{ id: "opaque-fallback-item", label: "Opaque fallback item" }],
+          },
+          {
+            id: "custom-null",
+            title: <EmptyCustomSectionTitle />,
+            items: [{ id: "custom-null-item", label: "Custom null item" }],
+          },
+          {
+            id: "named-headerless",
+            title: null,
+            ariaLabel: "Named without header",
+            items: [{ id: "named-headerless-item", label: "Named headerless item" }],
           },
         ]}
       />,
@@ -103,11 +125,20 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
   const options = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"));
   const option = (label: string) => options.find((item) => item.textContent === label);
   expect(listbox?.getAttribute("aria-label")).toBe("Documents");
-  expect(groups).toHaveLength(5);
+  expect(groups).toHaveLength(8);
   expect(Array.from(groups, (group) => {
     const labelId = group.getAttribute("aria-labelledby") ?? "";
-    return document.getElementById(labelId)?.textContent;
-  })).toEqual(["Shared", "0", "Nested", "Iterable", "Generated"]);
+    return group.getAttribute("aria-label") ?? document.getElementById(labelId)?.textContent;
+  })).toEqual([
+    "Shared",
+    "0",
+    "Nested",
+    "Iterable",
+    "Explicit generated label",
+    "opaque-fallback",
+    "custom-null",
+    "Named without header",
+  ]);
   for (const label of [
     "Draft",
     "Archive",
@@ -127,6 +158,61 @@ it("groups only sections whose ReactNode title renders an accessible label", asy
   expect(option("Nested item")?.closest("[role='group']")).toBe(groups[2]);
   expect(option("Iterable item")?.closest("[role='group']")).toBe(groups[3]);
   expect(option("Custom item")?.closest("[role='group']")).toBe(groups[4]);
+  expect(option("Opaque fallback item")?.closest("[role='group']")).toBe(groups[5]);
+  expect(option("Custom null item")?.closest("[role='group']")).toBe(groups[6]);
+  expect(option("Named headerless item")?.closest("[role='group']")).toBe(groups[7]);
+  expect(getByRole(container, "group", { name: "Explicit generated label" })).toBe(groups[4]);
+  expect(getByRole(container, "group", { name: "opaque-fallback" })).toBe(groups[5]);
+  expect(getByRole(container, "group", { name: "Shared" })).toBe(groups[0]);
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("materializes a one-shot iterable section title once and reuses its content", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  let iterations = 0;
+  function* title() {
+    iterations += 1;
+    yield "Generated";
+    yield <strong key="title">Title</strong>;
+  }
+  const generatedTitle = title();
+  const sections = [{
+    id: "generated",
+    title: generatedTitle,
+    items: [{ id: "generated-item", label: "Generated item" }],
+  }] as const;
+
+  await act(async () => {
+    root.render(
+      <MacList
+        ariaLabel="Generated documents"
+        selectedId={null}
+        onSelectionChange={() => undefined}
+        sections={sections}
+      />,
+    );
+  });
+  expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe("Generated Title");
+  expect(container.querySelector(".mc-list-section-title")?.textContent).toBe("GeneratedTitle");
+  expect(iterations).toBe(1);
+
+  await act(async () => {
+    root.render(
+      <MacList
+        ariaLabel="Generated documents"
+        selectedId={null}
+        onSelectionChange={() => undefined}
+        sections={sections}
+      />,
+    );
+  });
+  expect(container.querySelector("[role='group']")?.getAttribute("aria-label")).toBe("Generated Title");
+  expect(container.querySelector(".mc-list-section-title")?.textContent).toBe("GeneratedTitle");
+  expect(iterations).toBe(1);
 
   await act(async () => root.unmount());
   container.remove();
@@ -205,6 +291,45 @@ it("owns disabled disclosure state at the group while disabling its trigger", as
   expect(disclosure?.hasAttribute("data-disabled")).toBe(true);
   expect(trigger?.disabled).toBe(true);
   expect(disclosure?.textContent).toContain("Advanced content");
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("always gives disclosure triggers a reliable accessible label", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <>
+        <MacDisclosureGroup expanded={false} title="" onExpandedChange={() => undefined}>
+          Empty title content
+        </MacDisclosureGroup>
+        <MacDisclosureGroup
+          ariaLabel="Formatting options"
+          expanded={false}
+          title={<span aria-hidden="true">★</span>}
+          onExpandedChange={() => undefined}
+        >
+          Decorative title content
+        </MacDisclosureGroup>
+        <MacDisclosureGroup
+          expanded={false}
+          title={<span>Advanced <strong>Options</strong></span>}
+          onExpandedChange={() => undefined}
+        >
+          Nested title content
+        </MacDisclosureGroup>
+      </>,
+    );
+  });
+
+  const labels = Array.from(
+    container.querySelectorAll<HTMLButtonElement>(".mc-disclosure-trigger"),
+    (trigger) => trigger.getAttribute("aria-label"),
+  );
+  expect(labels).toEqual(["Disclosure", "Formatting options", "Advanced Options"]);
 
   await act(async () => root.unmount());
   container.remove();

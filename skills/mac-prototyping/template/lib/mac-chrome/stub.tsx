@@ -5,7 +5,7 @@
 // interaction contracts honest so template code remains functional before
 // vendoring. Advanced window dragging, visual transitions, and screenshot-
 // thumbnail machinery remain exclusive to the real package.
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { Fragment, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import {
   Button,
   Dialog,
@@ -1225,7 +1225,25 @@ interface StubDockTooltipPosition {
   readonly visible: boolean;
 }
 
+const stubWindowThumbnailGeometry = {
+  maxWidth: 48,
+  maxHeight: 44,
+} as const;
+
 const stubDockTooltipViewportInset = 8;
+
+function stubContainedThumbnailSize(thumbnail: MacWindowThumbnail) {
+  const sourceWidth = Number.isFinite(thumbnail.width) && thumbnail.width > 0 ? thumbnail.width : 720;
+  const sourceHeight = Number.isFinite(thumbnail.height) && thumbnail.height > 0 ? thumbnail.height : 480;
+  const scale = Math.min(
+    stubWindowThumbnailGeometry.maxWidth / sourceWidth,
+    stubWindowThumbnailGeometry.maxHeight / sourceHeight,
+  );
+  return {
+    width: sourceWidth * scale,
+    height: sourceHeight * scale,
+  };
+}
 
 function stubDockItemsLayoutKey(items: readonly DockItem[]) {
   return JSON.stringify(items.map((item) => [item.id, item.label, item.group ?? null]));
@@ -1332,6 +1350,9 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
           const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
           const payload = item.draggablePayload;
           const draggable = payload !== undefined && Object.keys(payload).length > 0;
+          const thumbnailSize = item.windowThumbnail === undefined
+            ? undefined
+            : stubContainedThumbnailSize(item.windowThumbnail);
           return (
             <span className="p0-dock-item-wrap" key={item.id}>
               {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
@@ -1363,9 +1384,11 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                   event.dataTransfer.effectAllowed = "copy";
                 }}
               >
-                {item.windowThumbnail ? (
-                  <span className="p0-window-thumbnail" style={{ aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`, viewTransitionName: item.viewTransitionName }}>
-                    {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
+                {item.windowThumbnail && thumbnailSize ? (
+                  <span className="p0-window-thumbnail-slot">
+                    <span className="p0-window-thumbnail" style={{ width: thumbnailSize.width, height: thumbnailSize.height, viewTransitionName: item.viewTransitionName }}>
+                      {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
+                    </span>
                   </span>
                 ) : <MacDockAppIcon icon={item.icon} />}
                 <span className="p0-dock-running-dot" aria-hidden="true" />
@@ -1864,12 +1887,89 @@ export type MacListRow = {
 export type MacListSection = {
   readonly id: string;
   readonly title?: ReactNode;
+  readonly ariaLabel?: string;
   readonly items: readonly MacListRow[];
 };
 
 function stubRowTextValue(row: MacListRow): string {
   if (row.textValue !== undefined) return row.textValue;
   return typeof row.label === "string" ? row.label : row.id;
+}
+
+type StubNormalizedAccessibleTitle = {
+  readonly node: ReactNode;
+  readonly renderable: boolean;
+  readonly text: string;
+};
+
+const stubNormalizedIterableTitles = new WeakMap<object, StubNormalizedAccessibleTitle>();
+
+function stubNormalizedTitleText(parts: readonly StubNormalizedAccessibleTitle[]) {
+  return parts.map((part) => part.text).filter((text) => text !== "").join(" ");
+}
+
+function stubNormalizeTitleParts(parts: Iterable<ReactNode>): StubNormalizedAccessibleTitle {
+  const normalized = Array.from(parts, stubNormalizeAccessibleTitle);
+  return {
+    node: normalized.map((part, index) => <Fragment key={index}>{part.node}</Fragment>),
+    renderable: normalized.some((part) => part.renderable),
+    text: stubNormalizedTitleText(normalized),
+  };
+}
+
+function stubNormalizeAccessibleTitle(title: ReactNode): StubNormalizedAccessibleTitle {
+  if (title === null || title === undefined || typeof title === "boolean") {
+    return { node: title, renderable: false, text: "" };
+  }
+  if (typeof title === "string") {
+    const text = title.trim();
+    return { node: title, renderable: text !== "", text };
+  }
+  if (typeof title === "number" || typeof title === "bigint") {
+    return { node: title, renderable: true, text: String(title) };
+  }
+  if (Array.isArray(title)) return stubNormalizeTitleParts(title);
+  if (isValidElement<{ readonly children?: ReactNode }>(title)) {
+    if (title.type === Fragment) {
+      const children = stubNormalizeAccessibleTitle(title.props.children);
+      return { ...children, node: cloneElement(title, undefined, children.node) };
+    }
+    if (typeof title.type === "string") {
+      const props = title.props as {
+        readonly "aria-hidden"?: boolean | string;
+        readonly "aria-label"?: string;
+        readonly alt?: string;
+        readonly children?: ReactNode;
+        readonly dangerouslySetInnerHTML?: unknown;
+      };
+      const children = stubNormalizeAccessibleTitle(props.children);
+      const hidden = props["aria-hidden"] === true || props["aria-hidden"] === "true";
+      const ownLabel = (props["aria-label"] ?? props.alt ?? "").trim();
+      return {
+        node: cloneElement(title, undefined, children.node),
+        renderable: children.renderable || ownLabel !== "" || props.dangerouslySetInnerHTML !== undefined,
+        text: hidden ? "" : ownLabel || children.text,
+      };
+    }
+    return { node: title, renderable: true, text: "" };
+  }
+  if (typeof title === "object" && Symbol.iterator in title) {
+    const cached = stubNormalizedIterableTitles.get(title);
+    if (cached !== undefined) return cached;
+    const normalized = stubNormalizeTitleParts(title as Iterable<ReactNode>);
+    stubNormalizedIterableTitles.set(title, normalized);
+    return normalized;
+  }
+  return { node: title, renderable: true, text: "" };
+}
+
+function stubNonEmptyLabel(label: string | undefined) {
+  const normalized = label?.trim() ?? "";
+  return normalized === "" ? null : normalized;
+}
+
+function stubAccessibleTitleLabel(explicit: string | undefined, derived: string, fallback: string) {
+  return stubNonEmptyLabel(explicit) ?? stubNonEmptyLabel(derived) ?? stubNonEmptyLabel(fallback) ?? "Section";
 }
 
 export function MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange }: {
@@ -1919,10 +2019,13 @@ export function MacList({ ariaLabel, className = "", emptyState = "No items", se
     >
       {sections.flatMap((section) => {
         const sectionRows = rows(section);
-        if (section.title === undefined || section.title === null) return sectionRows;
+        const normalizedTitle = stubNormalizeAccessibleTitle(section.title);
+        const explicitLabel = stubNonEmptyLabel(section.ariaLabel);
+        if (!normalizedTitle.renderable && explicitLabel === null) return sectionRows;
+        const accessibleLabel = stubAccessibleTitleLabel(explicitLabel ?? undefined, normalizedTitle.text, section.id);
         return [
-          <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
-            <Header className="mc-list-section-title">{section.title}</Header>
+          <ListBoxSection key={section.id} id={section.id} aria-label={accessibleLabel} className="mc-list-section">
+            {normalizedTitle.renderable ? <Header aria-label={accessibleLabel} className="mc-list-section-title">{normalizedTitle.node}</Header> : null}
             {sectionRows}
           </ListBoxSection>,
         ];
@@ -1931,7 +2034,8 @@ export function MacList({ ariaLabel, className = "", emptyState = "No items", se
   );
 }
 
-export function MacDisclosureGroup({ children, className = "", disabled = false, expanded, title, onExpandedChange }: {
+export function MacDisclosureGroup({ ariaLabel, children, className = "", disabled = false, expanded, title, onExpandedChange }: {
+  readonly ariaLabel?: string;
   readonly children: ReactNode;
   readonly className?: string;
   readonly disabled?: boolean;
@@ -1939,9 +2043,11 @@ export function MacDisclosureGroup({ children, className = "", disabled = false,
   readonly title: ReactNode;
   readonly onExpandedChange: (expanded: boolean) => void;
 }) {
+  const normalizedTitle = stubNormalizeAccessibleTitle(title);
+  const accessibleLabel = stubAccessibleTitleLabel(ariaLabel, normalizedTitle.text, "Disclosure");
   return (
     <section className={`mc-disclosure ${className}`.trim()} data-expanded={expanded ? "" : undefined}>
-      <h3 className="mc-disclosure-heading"><button type="button" className="mc-disclosure-trigger" disabled={disabled} aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><span className="mc-disclosure-chevron" aria-hidden="true" /><span>{title}</span></button></h3>
+      <h3 className="mc-disclosure-heading"><button type="button" aria-label={accessibleLabel} className="mc-disclosure-trigger" disabled={disabled} aria-expanded={expanded} onClick={() => onExpandedChange(!expanded)}><span className="mc-disclosure-chevron" aria-hidden="true" /><span>{normalizedTitle.node}</span></button></h3>
       {expanded ? <div className="mc-disclosure-panel">{children}</div> : null}
     </section>
   );
@@ -2807,6 +2913,7 @@ function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, 
     const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") instanceof HTMLElement;
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
+      event.stopPropagation();
       onDefault();
       return;
     }

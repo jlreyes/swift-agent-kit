@@ -64,12 +64,16 @@ body > .mc-window-modal-layer-desktop {
 /* A sheet is attached to the top edge of its owning window. */
 .mc-sheet {
   width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 20px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   border-top: 0;
   border-radius: 0 0 10px 10px;
 }
 
 .mc-sheet-header {
+  flex: 0 0 auto;
   padding: 18px 22px 7px;
 }
 
@@ -82,16 +86,23 @@ body > .mc-window-modal-layer-desktop {
 }
 
 .mc-sheet-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 0 22px 18px;
   color: var(--text);
 }
 
 .mc-sheet-footer {
+  flex: 0 0 auto;
   padding: 11px 22px 18px;
 }
 
 /* Compatibility surface for callers that still provide freeform children. */
 .mc-sheet-legacy {
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px 22px;
 }
 
@@ -112,8 +123,11 @@ body > .mc-window-modal-layer-desktop {
 
 .mc-alert {
   width: min(390px, calc(100% - 24px));
+  max-height: calc(100% - 22px);
+  overflow: hidden;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 13px 16px;
   padding: 20px 22px 18px;
   border-top: 0;
@@ -154,6 +168,13 @@ body > .mc-window-modal-layer-desktop {
   font-weight: 560;
 }
 
+.mc-alert-copy {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .mc-alert-copy h2 {
   margin: 0 0 5px;
   font-size: 13.5px;
@@ -163,12 +184,16 @@ body > .mc-window-modal-layer-desktop {
 }
 
 .mc-alert-message {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   color: var(--text);
   font-size: 13px;
   line-height: 1.36;
 }
 
 .mc-alert-footer {
+  min-width: 0;
   grid-column: 2;
 }
 

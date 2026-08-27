@@ -212,7 +212,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   titled section may opt into a controlled selection destination with
   `selectable: true` and `selectedSectionId` / `onSectionSelectionChange`;
   its disclosure chevron remains a separate action. Do not draw chevrons in
-  CSS or animate a reveal by scaling it.
+  CSS or animate a reveal by scaling it. For `MacListSection` and
+  `MacDisclosureGroup`, accessible labels resolve as explicit `ariaLabel`,
+  derived title text, then a compatibility fallback. Supply `ariaLabel` for
+  custom, decorative, opaque, or generated titles; generators are normalized
+  once.
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small

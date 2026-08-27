@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, isValidElement, type ReactNode } from "react";
+import { Fragment, cloneElement, isValidElement, type ReactNode } from "react";
 import {
   Disclosure,
   DisclosurePanel,
@@ -33,6 +33,8 @@ export type MacListRow = {
 export type MacListSection = {
   readonly id: string;
   readonly title?: ReactNode;
+  /** Accessible section name for opaque, decorative, or generated titles. */
+  readonly ariaLabel?: string;
   readonly items: readonly MacListRow[];
 };
 
@@ -41,27 +43,82 @@ function rowTextValue(row: MacListRow): string {
   return typeof row.label === "string" ? row.label : row.id;
 }
 
-function hasRenderableSectionTitle(title: ReactNode): boolean {
-  if (title === null || title === undefined || typeof title === "boolean") return false;
-  if (typeof title === "string") return title.trim().length > 0;
-  if (typeof title === "number" || typeof title === "bigint") return true;
-  if (Array.isArray(title)) return title.some((part: ReactNode) => hasRenderableSectionTitle(part));
+type NormalizedAccessibleTitle = {
+  readonly node: ReactNode;
+  readonly renderable: boolean;
+  readonly text: string;
+};
+
+const normalizedIterableTitles = new WeakMap<object, NormalizedAccessibleTitle>();
+
+function normalizedText(parts: readonly NormalizedAccessibleTitle[]): string {
+  return parts.map((part) => part.text).filter((text) => text !== "").join(" ");
+}
+
+function normalizedParts(parts: Iterable<ReactNode>): NormalizedAccessibleTitle {
+  const normalized = Array.from(parts, normalizeAccessibleTitle);
+  return {
+    node: normalized.map((part, index) => <Fragment key={index}>{part.node}</Fragment>),
+    renderable: normalized.some((part) => part.renderable),
+    text: normalizedText(normalized),
+  };
+}
+
+function normalizeAccessibleTitle(title: ReactNode): NormalizedAccessibleTitle {
+  if (title === null || title === undefined || typeof title === "boolean") {
+    return { node: title, renderable: false, text: "" };
+  }
+  if (typeof title === "string") {
+    const text = title.trim();
+    return { node: title, renderable: text !== "", text };
+  }
+  if (typeof title === "number" || typeof title === "bigint") {
+    return { node: title, renderable: true, text: String(title) };
+  }
+  if (Array.isArray(title)) return normalizedParts(title);
   if (isValidElement<{ readonly children?: ReactNode }>(title)) {
-    // Fragments and host elements expose their visible label through children,
-    // so recurse through transparent wrappers. Custom components may produce
-    // content without children and remain conservatively renderable.
-    if (title.type === Fragment || typeof title.type === "string") {
-      return hasRenderableSectionTitle(title.props.children);
+    if (title.type === Fragment) {
+      const children = normalizeAccessibleTitle(title.props.children);
+      return { ...children, node: cloneElement(title, undefined, children.node) };
     }
-    return true;
+    if (typeof title.type === "string") {
+      const props = title.props as {
+        readonly "aria-hidden"?: boolean | string;
+        readonly "aria-label"?: string;
+        readonly alt?: string;
+        readonly children?: ReactNode;
+        readonly dangerouslySetInnerHTML?: unknown;
+      };
+      const children = normalizeAccessibleTitle(props.children);
+      const hidden = props["aria-hidden"] === true || props["aria-hidden"] === "true";
+      const ownLabel = (props["aria-label"] ?? props.alt ?? "").trim();
+      return {
+        node: cloneElement(title, undefined, children.node),
+        renderable: children.renderable || ownLabel !== "" || props.dangerouslySetInnerHTML !== undefined,
+        text: hidden ? "" : ownLabel || children.text,
+      };
+    }
+    // Never invoke opaque custom components to discover their output. Preserve
+    // them and let the explicit/compatibility aria-label contract name them.
+    return { node: title, renderable: true, text: "" };
   }
   if (typeof title === "object" && Symbol.iterator in title) {
-    for (const part of title as Iterable<ReactNode>) {
-      if (hasRenderableSectionTitle(part)) return true;
-    }
-    return false;
+    const cached = normalizedIterableTitles.get(title);
+    if (cached !== undefined) return cached;
+    const normalized = normalizedParts(title as Iterable<ReactNode>);
+    normalizedIterableTitles.set(title, normalized);
+    return normalized;
   }
-  return true;
+  return { node: title, renderable: true, text: "" };
+}
+
+function nonEmptyLabel(label: string | undefined): string | null {
+  const normalized = label?.trim() ?? "";
+  return normalized === "" ? null : normalized;
+}
+
+function accessibleTitleLabel(explicit: string | undefined, derived: string, fallback: string): string {
+  return nonEmptyLabel(explicit) ?? nonEmptyLabel(derived) ?? nonEmptyLabel(fallback) ?? "Section";
 }
 
 export function MacList({
@@ -118,13 +175,27 @@ export function MacList({
     >
       {sections.flatMap((section) => {
         const sectionRows = rows(section);
+        const normalizedTitle = normalizeAccessibleTitle(section.title);
+        const explicitLabel = nonEmptyLabel(section.ariaLabel);
         // An unnamed ARIA group gives assistive technology no useful boundary.
-        // Headerless API sections are visual/data organization only, so expose
-        // their options directly under the named listbox.
-        if (!hasRenderableSectionTitle(section.title)) return sectionRows;
+        // Headerless API sections without an explicit label are visual/data
+        // organization only, so expose their options under the named listbox.
+        if (!normalizedTitle.renderable && explicitLabel === null) return sectionRows;
+        const accessibleLabel = accessibleTitleLabel(explicitLabel ?? undefined, normalizedTitle.text, section.id);
         return [
-          <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
-            <Header className="mc-list-section-title">{section.title}</Header>
+          <ListBoxSection
+            key={section.id}
+            id={section.id}
+            aria-label={accessibleLabel}
+            className="mc-list-section"
+          >
+            {normalizedTitle.renderable
+              ? (
+                <Header aria-label={accessibleLabel} className="mc-list-section-title">
+                  {normalizedTitle.node}
+                </Header>
+              )
+              : null}
             {sectionRows}
           </ListBoxSection>,
         ];
@@ -134,6 +205,7 @@ export function MacList({
 }
 
 export function MacDisclosureGroup({
+  ariaLabel,
   children,
   className = "",
   disabled = false,
@@ -141,6 +213,7 @@ export function MacDisclosureGroup({
   title,
   onExpandedChange,
 }: {
+  readonly ariaLabel?: string;
   readonly children: ReactNode;
   readonly className?: string;
   readonly disabled?: boolean;
@@ -148,6 +221,8 @@ export function MacDisclosureGroup({
   readonly title: ReactNode;
   readonly onExpandedChange: (expanded: boolean) => void;
 }) {
+  const normalizedTitle = normalizeAccessibleTitle(title);
+  const accessibleLabel = accessibleTitleLabel(ariaLabel, normalizedTitle.text, "Disclosure");
   return (
     <Disclosure
       className={`mc-disclosure ${className}`.trim()}
@@ -156,9 +231,9 @@ export function MacDisclosureGroup({
       onExpandedChange={onExpandedChange}
     >
       <h3 className="mc-disclosure-heading">
-        <AriaButton slot="trigger" className="mc-disclosure-trigger">
+        <AriaButton slot="trigger" aria-label={accessibleLabel} className="mc-disclosure-trigger">
           <DisclosureIndicator expanded={expanded} />
-          <span>{title}</span>
+          <span>{normalizedTitle.node}</span>
         </AriaButton>
       </h3>
       <DisclosurePanel className="mc-disclosure-panel">{children}</DisclosurePanel>

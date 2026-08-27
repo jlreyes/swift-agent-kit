@@ -282,6 +282,7 @@ function ModalLayer({
     );
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
+      event.stopPropagation();
       onDefault();
       return;
     }

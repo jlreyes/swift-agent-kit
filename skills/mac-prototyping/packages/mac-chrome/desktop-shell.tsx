@@ -410,9 +410,10 @@ export function DesktopShell({
   const canvasStyle: DesktopCanvasStyle | undefined = wallpaper
     ? { "--mc-wallpaper": wallpaperImageValue(wallpaper) }
     : undefined;
+  const activeApplicationName = windowManager?.apps.find((app) => app.id === windowManager.keyAppId)?.name ?? appName;
   const menus: readonly MenuBarMenu[] = [
     { title: "Apple", items: appleMenuItems ?? defaultAppleMenu() },
-    { title: appName, items: appMenuItems ?? defaultAppMenu(appName) },
+    { title: activeApplicationName, items: appMenuItems ?? defaultAppMenu(activeApplicationName) },
     ...menuItems.map(resolveMenu),
   ]
     .map((menu, index) => windowManager === null

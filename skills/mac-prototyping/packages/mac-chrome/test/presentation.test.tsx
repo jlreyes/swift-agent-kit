@@ -74,6 +74,37 @@ function StandaloneLegacySheetHarness() {
   );
 }
 
+function TallSheetHarness() {
+  return (
+    <section className="mac-window" aria-label="Short sheet owner" style={{ height: 150 }}>
+      <div>Short owner underlay</div>
+      <MacSheet
+        open
+        onClose={() => {}}
+        title="Tall sheet"
+        actions={[{ id: "save", label: "Save", isDefault: true }]}
+      >
+        <div data-testid="tall-sheet-content" style={{ height: 480 }}>Tall body content</div>
+      </MacSheet>
+    </section>
+  );
+}
+
+function TallAlertHarness() {
+  return (
+    <section className="mac-window" aria-label="Short alert owner" style={{ height: 150 }}>
+      <div>Short owner underlay</div>
+      <MacAlert
+        open
+        onClose={() => {}}
+        title="Tall alert"
+        message={<div data-testid="tall-alert-content" style={{ height: 480 }}>Long alert message</div>}
+        actions={[{ id: "okay", label: "OK", isDefault: true }]}
+      />
+    </section>
+  );
+}
+
 function DesktopAlertWithExternalPortal({ portalHost }: { readonly portalHost: HTMLElement }) {
   const [open, setOpen] = useState(true);
   return (
@@ -206,14 +237,19 @@ function ThreeLayerModalHarness() {
 function NestedPortalModalHarness() {
   const [lowerOpen, setLowerOpen] = useState(true);
   const [upperOpen, setUpperOpen] = useState(true);
+  const [lowerDefaultCount, setLowerDefaultCount] = useState(0);
+  const [upperDefaultCount, setUpperDefaultCount] = useState(0);
   return (
     <section className="mac-window" aria-label="Nested portal modal window">
       <div className="nested-portal-underlay">Underlay</div>
+      <output data-testid="nested-lower-default-count">{lowerDefaultCount}</output>
+      <output data-testid="nested-upper-default-count">{upperDefaultCount}</output>
       <MacWindowModalHost
         ariaLabel="Nested lower dialog"
         className="nested-lower-dialog"
         kind="sheet"
         onCancel={() => setLowerOpen(false)}
+        onDefault={() => setLowerDefaultCount((current) => current + 1)}
         open={lowerOpen}
         role="dialog"
       >
@@ -223,9 +259,11 @@ function NestedPortalModalHarness() {
           className="nested-upper-dialog"
           kind="sheet"
           onCancel={() => setUpperOpen(false)}
+          onDefault={() => setUpperDefaultCount((current) => current + 1)}
           open={upperOpen}
           role="dialog"
         >
+          <span data-testid="nested-upper-enter-target">Upper default target</span>
           <button type="button">Upper first</button>
           <button type="button">Upper last</button>
         </MacWindowModalHost>
@@ -491,6 +529,10 @@ describe("native presentation primitives", () => {
     const first = screen.getByRole("button", { name: "Upper first" });
     const last = screen.getByRole("button", { name: "Upper last" });
 
+    fireEvent.keyDown(screen.getByTestId("nested-upper-enter-target"), { key: "Enter" });
+    expect(screen.getByTestId("nested-upper-default-count").textContent).toBe("1");
+    expect(screen.getByTestId("nested-lower-default-count").textContent).toBe("0");
+
     last.focus();
     fireEvent.keyDown(last, { key: "Tab" });
     expect(document.activeElement).toBe(first);
@@ -520,6 +562,26 @@ describe("native presentation primitives", () => {
     expect(labels).toEqual(["Remove", "Cancel", "Create"]);
     expect(within(dialog).getByRole("button", { name: "Remove" }).classList.contains("mc-dialog-action-destructive")).toBe(true);
     expect(within(dialog).getByRole("button", { name: "Create" }).classList.contains("mc-dialog-action-default")).toBe(true);
+  });
+
+  it("keeps tall sheet content in a dedicated body region with actions outside it", async () => {
+    render(<TallSheetHarness />);
+    const dialog = await screen.findByRole("dialog", { name: "Tall sheet" });
+    const body = dialog.querySelector<HTMLElement>(".mc-sheet-body");
+    const footer = dialog.querySelector<HTMLElement>(".mc-sheet-footer");
+    expect(body?.contains(screen.getByTestId("tall-sheet-content"))).toBe(true);
+    expect(footer?.contains(screen.getByRole("button", { name: "Save" }))).toBe(true);
+    expect(body?.contains(footer)).toBe(false);
+  });
+
+  it("keeps a tall alert message in a dedicated region with actions outside it", async () => {
+    render(<TallAlertHarness />);
+    const dialog = await screen.findByRole("alertdialog", { name: "Tall alert" });
+    const message = dialog.querySelector<HTMLElement>(".mc-alert-message");
+    const footer = dialog.querySelector<HTMLElement>(".mc-alert-footer");
+    expect(message?.contains(screen.getByTestId("tall-alert-content"))).toBe(true);
+    expect(footer?.contains(screen.getByRole("button", { name: "OK" }))).toBe(true);
+    expect(message?.contains(footer)).toBe(false);
   });
 
   it("makes the owning window underlay inert and restores it after the modal closes", async () => {

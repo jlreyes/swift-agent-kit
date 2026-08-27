@@ -72,6 +72,25 @@ test("stub alerts include their padding in the constrained inline size", () => {
   expect(alert).toMatch(/width:\s*min\(390px, calc\(100% - 24px\)\)/);
 });
 
+test("tall sheets and alerts keep actions fixed while only content regions scroll", () => {
+  const sheet = rule(".mc-sheet");
+  expect(sheet).toMatch(/max-height:\s*calc\(100% - 20px\)/);
+  expect(sheet).toMatch(/display:\s*flex/);
+  expect(rule(".mc-sheet-header")).toMatch(/flex:\s*0 0 auto/);
+  expect(rule(".mc-sheet-body")).toMatch(/min-height:\s*0/);
+  expect(rule(".mc-sheet-body")).toMatch(/overflow:\s*auto/);
+  expect(rule(".mc-sheet-footer")).toMatch(/flex:\s*0 0 auto/);
+  expect(rule(".mc-sheet-legacy")).toMatch(/display:\s*block/);
+  expect(rule(".mc-sheet-legacy")).toMatch(/overflow:\s*auto/);
+
+  const alert = rules(".mc-alert");
+  expect(alert).toMatch(/max-height:\s*calc\(100% - 22px\)/);
+  expect(alert).toMatch(/grid-template-rows:\s*minmax\(0, 1fr\) auto/);
+  expect(rule(".mc-alert-copy")).toMatch(/min-height:\s*0/);
+  expect(rule(".mc-alert-message")).toMatch(/min-height:\s*0/);
+  expect(rule(".mc-alert-message")).toMatch(/overflow:\s*auto/);
+});
+
 test("arbitrary popovers keep tall controls reachable within available viewport height", () => {
   const surface = rule(".mc-popover-surface");
   const dialog = rule(".mc-popover-dialog");
@@ -84,25 +103,16 @@ test("arbitrary popovers keep tall controls reachable within available viewport 
 });
 
 test("Dock thumbnails preserve tall capture proportions in their 48 by 44 slot", () => {
+  const slot = rule(".p0-window-thumbnail-slot");
   const thumbnail = rule(".p0-window-thumbnail");
   const image = rule(".p0-window-thumbnail > img");
 
-  if (importedPackageStyles) {
-    const slot = rule(".p0-window-thumbnail-slot");
-    expect(slot).toMatch(/width:\s*48px/);
-    expect(slot).toMatch(/height:\s*44px/);
-    expect(thumbnail).toMatch(/max-width:\s*100%/);
-    expect(thumbnail).toMatch(/max-height:\s*100%/);
-    expect(image).toMatch(/width:\s*100%/);
-    expect(image).toMatch(/height:\s*100%/);
-  } else {
-    expect(thumbnail).toMatch(/width:\s*48px/);
-    expect(thumbnail).toMatch(/height:\s*44px/);
-    expect(image).toMatch(/width:\s*auto/);
-    expect(image).toMatch(/height:\s*auto/);
-    expect(image).toMatch(/max-width:\s*100%/);
-    expect(image).toMatch(/max-height:\s*100%/);
-  }
+  expect(slot).toMatch(/width:\s*48px/);
+  expect(slot).toMatch(/height:\s*44px/);
+  expect(thumbnail).toMatch(/max-width:\s*100%/);
+  expect(thumbnail).toMatch(/max-height:\s*100%/);
+  expect(image).toMatch(/width:\s*100%/);
+  expect(image).toMatch(/height:\s*100%/);
   expect(image).toMatch(/object-fit:\s*contain/);
 });
 
@@ -145,6 +155,7 @@ test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   expect(dockShell).toMatch(/max-width:\s*calc\(100% - 14px\)/);
   expect(dockShell).toMatch(/overflow:\s*visible/);
   expect(dockShell).not.toMatch(/overflow-x:\s*auto/);
+  expect(ownsBorderBox(".p0-dock-scroll")).toBe(true);
   expect(dockScroll).toMatch(/width:\s*max-content/);
   expect(dockScroll).toMatch(/max-width:\s*100%/);
   expect(dockScroll).toMatch(/height:\s*calc\(100% \+ 38px\)/);

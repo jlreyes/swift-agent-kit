@@ -162,9 +162,11 @@ function SerializedContentEditable({ label, testId, value }: {
 
 function EnterTargetHarness() {
   const [defaultCount, setDefaultCount] = useState(0);
+  const [linkCount, setLinkCount] = useState(0);
   return (
     <section className="mac-window" aria-label="Enter target window">
       <output data-testid="default-count">{defaultCount}</output>
+      <output data-testid="link-count">{linkCount}</output>
       <MacWindowModalHost
         ariaLabel="Enter target dialog"
         className="enter-target-dialog"
@@ -179,6 +181,13 @@ function EnterTargetHarness() {
           Button target
           <svg data-testid="button-svg"><circle /></svg>
         </button>
+        <a href="/modal-help" onClick={(event) => {
+          event.preventDefault();
+          setLinkCount((current) => current + 1);
+        }}>
+          Modal help
+          <svg data-testid="link-svg"><circle /></svg>
+        </a>
         <SerializedContentEditable label="Empty-value editor" testId="empty-contenteditable-child" value="" />
         <SerializedContentEditable label="Plain-text editor" testId="plaintext-contenteditable-child" value="plaintext-only" />
         <SerializedContentEditable label="Noneditable region" testId="false-contenteditable-child" value="false" />
@@ -265,6 +274,20 @@ describe("native presentation primitives", () => {
 
     fireEvent.keyDown(screen.getByTestId("false-contenteditable-child"), { key: "Enter" });
     expect(screen.getByTestId("default-count").textContent).toBe("1");
+  });
+
+  it("leaves Return and click activation owned by actionable links", async () => {
+    render(<EnterTargetHarness />);
+    await screen.findByRole("dialog", { name: "Enter target dialog" });
+    const link = screen.getByRole("link", { name: "Modal help" });
+
+    expect(fireEvent.keyDown(link, { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(screen.getByTestId("link-svg"), { key: "Enter" })).toBe(true);
+    expect(screen.getByTestId("default-count").textContent).toBe("0");
+
+    fireEvent.click(screen.getByTestId("link-svg"));
+    expect(screen.getByTestId("link-count").textContent).toBe("1");
+    expect(screen.getByTestId("default-count").textContent).toBe("0");
   });
 
   it("suppresses siblings beside a nested desktop canvas and restores their state", async () => {

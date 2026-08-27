@@ -53,6 +53,53 @@ it("renders the reusable form and button anatomy", async () => {
   container.remove();
 });
 
+it("inherits native disabled state through a form section", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  let pressCount = 0;
+  await act(async () => {
+    root.render(
+      <MacFormSection title="Locked" disabled>
+        <MacLabeledContent label="Name">
+          <MacTextField ariaLabel="Name" value="Ada" onChange={() => {}} />
+        </MacLabeledContent>
+        <MacLabeledContent label="Options">
+          <MacToggle selected={false} onChange={() => {}}>Pinned</MacToggle>
+        </MacLabeledContent>
+        <MacLabeledContent label="View">
+          <MacSegmentedControl
+            ariaLabel="View"
+            value="grid"
+            options={[{ id: "grid", label: "Grid" }, { id: "list", label: "List" }]}
+            onChange={() => {}}
+          />
+        </MacLabeledContent>
+        <MacLabeledContent label="Action">
+          <MacButton onPress={() => { pressCount += 1; }}>Save</MacButton>
+        </MacLabeledContent>
+      </MacFormSection>,
+    );
+  });
+
+  const fieldset = container.querySelector<HTMLFieldSetElement>("fieldset");
+  const textInput = container.querySelector<HTMLInputElement>(".mc-field-input");
+  const toggleInput = container.querySelector<HTMLInputElement>(".mc-toggle input");
+  const segments = container.querySelectorAll<HTMLButtonElement>(".mc-segmented-option");
+  const save = container.querySelector<HTMLButtonElement>(".mc-button");
+  expect(fieldset?.disabled).toBe(true);
+  expect(textInput?.matches(":disabled")).toBe(true);
+  expect(toggleInput?.matches(":disabled")).toBe(true);
+  expect(Array.from(segments).every((segment) => segment.matches(":disabled"))).toBe(true);
+  expect(save?.matches(":disabled")).toBe(true);
+  expect(container.querySelector("[data-disabled]")).toBeNull();
+  await act(async () => save?.click());
+  expect(pressCount).toBe(0);
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
 it("keeps text, toggle, and segmented values controlled", async () => {
   const container = document.createElement("div");
   document.body.append(container);

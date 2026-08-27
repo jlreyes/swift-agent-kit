@@ -74,6 +74,10 @@
   font: inherit;
 }
 
+.mc-menu-popover.mc-menubar-menu-popover {
+  max-width: min(340px, calc(100vw - 16px));
+}
+
 .apple-mark {
   width: 13px;
   height: 15px;

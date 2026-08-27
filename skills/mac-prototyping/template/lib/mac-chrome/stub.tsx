@@ -27,6 +27,13 @@ import { Group, Panel, Separator as PanelSeparator } from "react-resizable-panel
 import { createPortal } from "react-dom";
 import { getSymbol, type SymbolName } from "symbolist";
 
+/* Accepts a full CSS <image> value or a bare URL for the wallpaper prop. */
+const stubCssImagePattern = /^(url\(|linear-gradient\(|radial-gradient\(|conic-gradient\(|image-set\(|var\()/;
+
+function stubWallpaperSource(wallpaper: string) {
+  return stubCssImagePattern.test(wallpaper) ? wallpaper : `url("${wallpaper}")`;
+}
+
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
 
 export interface MenuAction {
@@ -537,7 +544,7 @@ export function DesktopShell({
     .map((menu, index) => windowManager === null ? menu : stubWithManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
     .map((menu) => stubWithCommandTarget(menu, onMenuAction));
   const canvasStyle = wallpaper
-    ? ({ "--mc-wallpaper": wallpaper.startsWith("url(") ? wallpaper : `url("${wallpaper}")` } as CSSProperties)
+    ? ({ "--mc-wallpaper": stubWallpaperSource(wallpaper) } as CSSProperties)
     : undefined;
   return (
     <main className="showcase-viewport">

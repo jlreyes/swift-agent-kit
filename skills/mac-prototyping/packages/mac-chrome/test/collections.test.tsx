@@ -43,7 +43,7 @@ it("renders sectioned rows and reports one selected id", async () => {
   container.remove();
 });
 
-it("does not expose unnamed accessibility groups for headerless sections", async () => {
+it("does not expose unnamed accessibility groups for undefined or null section titles", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -55,6 +55,7 @@ it("does not expose unnamed accessibility groups for headerless sections", async
         onSelectionChange={() => undefined}
         sections={[
           { id: "recent", items: [{ id: "draft", label: "Draft" }] },
+          { id: "archived", title: null, items: [{ id: "archive", label: "Archive" }] },
           { id: "shared", title: "Shared", items: [{ id: "brief", label: "Brief" }] },
         ]}
       />,
@@ -65,6 +66,8 @@ it("does not expose unnamed accessibility groups for headerless sections", async
   const groups = container.querySelectorAll<HTMLElement>("[role='group']");
   const draft = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
     .find((option) => option.textContent === "Draft");
+  const archive = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
+    .find((option) => option.textContent === "Archive");
   const brief = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
     .find((option) => option.textContent === "Brief");
   expect(listbox?.getAttribute("aria-label")).toBe("Documents");
@@ -72,6 +75,7 @@ it("does not expose unnamed accessibility groups for headerless sections", async
   const groupLabelId = groups[0]?.getAttribute("aria-labelledby") ?? "";
   expect(document.getElementById(groupLabelId)?.textContent).toBe("Shared");
   expect(draft?.closest("[role='group']")).toBeNull();
+  expect(archive?.closest("[role='group']")).toBeNull();
   expect(brief?.closest("[role='group']")).toBe(groups[0]);
 
   await act(async () => root.unmount());

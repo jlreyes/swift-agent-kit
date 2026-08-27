@@ -96,6 +96,17 @@ describe("template stub public behavior", () => {
     expect(status.textContent).toContain(nativeClock(followingMinute));
   });
 
+  test.each([
+    ["plain URL", "/mac-assets/wallpapers/tahoe.jpg", 'url("/mac-assets/wallpapers/tahoe.jpg")'],
+    ["CSS URL", 'url("/wallpapers/custom.jpg")', 'url("/wallpapers/custom.jpg")'],
+    ["gradient", "linear-gradient(135deg, #2579b7, #83c3df)", "linear-gradient(135deg, #2579b7, #83c3df)"],
+    ["CSS variable", "var(--prototype-wallpaper)", "var(--prototype-wallpaper)"],
+  ])("DesktopShell classifies a %s wallpaper source", (_case, wallpaper, expected) => {
+    const { container } = render(<DesktopShell appName="Prototype" wallpaper={wallpaper}><div /></DesktopShell>);
+    const canvas = container.querySelector<HTMLElement>(".desktop-canvas");
+    expect(canvas?.style.getPropertyValue("--mc-wallpaper")).toBe(expected);
+  });
+
   test("DesktopShell standard menus expose the complete built-in command groups", async () => {
     const onMenuAction = vi.fn();
     const user = userEvent.setup();

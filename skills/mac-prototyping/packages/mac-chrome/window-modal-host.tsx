@@ -277,7 +277,7 @@ function ModalLayer({
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     const target = event.target instanceof Element ? event.target : null;
     const consumesReturn = target !== null && (
-      target.closest("button, select, textarea") instanceof HTMLElement
+      target.closest("a[href], button, select, textarea") instanceof HTMLElement
       || isContentEditableTarget(target)
     );
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {

@@ -59,10 +59,13 @@ it("uses the same 13px system type contract for the 24px menu bar", () => {
   const base = styleSource("base");
   const menuBar = rule(base, ".mac-menu-bar");
   const appName = rule(base, ".mc-app-menu .mc-menubar-menu-title");
+  const menuPopover = rule(base, ".mc-menu-popover.mc-menubar-menu-popover");
 
   expect(menuBar).toMatch(/height:\s*24px/);
   expect(menuBar).toMatch(/font-family:\s*var\(--font-mac\)/);
   expect(menuBar).toMatch(/font-size:\s*var\(--font-size-menu\)/);
   expect(menuBar).toMatch(/line-height:\s*var\(--line-height-menu\)/);
   expect(appName).toMatch(/font-weight:\s*var\(--font-weight-semibold\)/);
+  expect(menuPopover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
+  expect(menuPopover).not.toMatch(/max-width:\s*340px/);
 });

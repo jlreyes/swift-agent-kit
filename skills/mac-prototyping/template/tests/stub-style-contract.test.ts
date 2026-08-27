@@ -166,3 +166,10 @@ test("source lists own scrolling within their clipped navigation sidebar", () =>
   expect(tree).toMatch(/overflow-y:\s*auto/);
   expect(tree).not.toMatch(/min-height:\s*100%/);
 });
+
+test("menu-bar popovers preserve their native cap without exceeding the viewport", () => {
+  const popover = rule(".mc-menu-popover.mc-menubar-menu-popover");
+
+  expect(popover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
+  expect(popover).not.toMatch(/max-width:\s*340px/);
+});

@@ -210,7 +210,7 @@ img {
 .mc-menu-popover.mc-menubar-menu-popover {
   width: max-content;
   min-width: 224px;
-  max-width: 340px;
+  max-width: min(340px, calc(100vw - 16px));
   border-radius: var(--radius-menu-popover);
   text-shadow: none;
 }

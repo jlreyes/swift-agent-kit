@@ -98,7 +98,7 @@ export function MacList({
         // An unnamed ARIA group gives assistive technology no useful boundary.
         // Headerless API sections are visual/data organization only, so expose
         // their options directly under the named listbox.
-        if (section.title === undefined) return sectionRows;
+        if (section.title === undefined || section.title === null) return sectionRows;
         return [
           <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
             <Header className="mc-list-section-title">{section.title}</Header>

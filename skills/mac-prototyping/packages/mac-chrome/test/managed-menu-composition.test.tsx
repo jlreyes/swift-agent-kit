@@ -141,6 +141,35 @@ describe("managed menu command composition", () => {
     expect(screen.getByRole("menuitemradio", { name: "Managed window" })).toBeTruthy();
   });
 
+  it("reserves a collision-free ID for the generated window-list separator", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      render(
+        <ManagedMenuHarness
+          menuItems={[{
+            title: "Window",
+            items: [{
+              kind: "action",
+              id: "managed-window-list-separator",
+              label: "Consumer Separator Command",
+              onSelect: () => undefined,
+            }],
+          }]}
+        />,
+      );
+      await waitFor(() => expect(document.querySelector("[data-window-id='managed:main']")).toBeTruthy());
+
+      await openMenu("Window");
+      const menu = screen.getByRole("menu", { name: "Window menu" });
+      expect(screen.getByRole("menuitem", { name: "Consumer Separator Command" })).toBeTruthy();
+      expect(screen.getByRole("menuitemradio", { name: "Managed window" })).toBeTruthy();
+      expect(menu.querySelectorAll(".menu-separator")).toHaveLength(1);
+      expect(consoleError.mock.calls.flat().join("\n")).not.toMatch(/same key|two children with the same key/i);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("preserves consumer application-menu lifecycle commands", async () => {
     const quit = vi.fn();
     render(

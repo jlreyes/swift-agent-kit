@@ -158,6 +158,17 @@ function resolveMenu(item: string | MenuBarMenu): MenuBarMenu {
     : item;
 }
 
+function reserveUniqueMenuEntryId(reservedIds: Set<string>, preferredId: string) {
+  let candidate = preferredId;
+  let suffix = 2;
+  while (reservedIds.has(candidate)) {
+    candidate = `${preferredId}-${suffix}`;
+    suffix += 1;
+  }
+  reservedIds.add(candidate);
+  return candidate;
+}
+
 function withManagedWindowCommands(
   menu: MenuBarMenu,
   manager: MacWindowManagerValue,
@@ -250,13 +261,15 @@ function withManagedWindowCommands(
     }
     return entry;
   });
-  const consumerIds = new Set(managedItems.map((entry) => entry.id));
-  const managedWindows = keyAppWindows.filter((window) => !consumerIds.has(`window-${window.id}`));
+  const reservedIds = new Set(managedItems.map((entry) => entry.id));
+  const managedWindows = keyAppWindows.filter((window) => !reservedIds.has(`window-${window.id}`));
+  for (const window of managedWindows) reservedIds.add(`window-${window.id}`);
+  const separatorId = managedItems.length === 0 || managedWindows.length === 0
+    ? null
+    : reserveUniqueMenuEntryId(reservedIds, "managed-window-list-separator");
   const items: MenuSpec = [
     ...managedItems,
-    ...(managedItems.length === 0 || managedWindows.length === 0
-      ? []
-      : [{ kind: "separator" as const, id: "managed-window-list-separator" }]),
+    ...(separatorId === null ? [] : [{ kind: "separator" as const, id: separatorId }]),
     ...managedWindows.map((window) => ({
       kind: "action" as const,
       id: `window-${window.id}`,

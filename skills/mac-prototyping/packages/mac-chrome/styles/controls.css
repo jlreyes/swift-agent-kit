@@ -1,5 +1,22 @@
 /* Reusable content controls: compact, opaque AppKit-like geometry. */
 
+/* This sheet is also a supported standalone import, so fixed-size primitives
+   cannot depend on base.css's global border-box reset. Keep the declared
+   control dimensions inclusive of their padding and hairlines. */
+.mc-button,
+.mc-field-input,
+.mc-checkbox-box,
+.mc-checkbox-check,
+.mc-switch-track,
+.mc-switch-thumb,
+.mc-segmented-control,
+.mc-control-group,
+.mc-segmented-option,
+.mc-segmented-icon,
+.mc-labeled-content {
+  box-sizing: border-box;
+}
+
 .mc-button {
   min-width: 68px;
   min-height: 28px;
@@ -57,7 +74,8 @@
   background: rgba(0, 0, 0, 0.055);
 }
 
-.mc-button[data-disabled] {
+.mc-button[data-disabled],
+.mc-button:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -88,6 +106,8 @@
 }
 
 .mc-field-input {
+  /* Repeated here as a local contract because consumers audit this field's
+     standalone width/height rule directly. */
   box-sizing: border-box;
   width: 100%;
   height: 28px;
@@ -109,7 +129,8 @@
   border-color: #d44a44;
 }
 
-.mc-text-field[data-disabled] {
+.mc-text-field[data-disabled],
+.mc-form-section:disabled .mc-text-field {
   opacity: 0.5;
 }
 
@@ -137,7 +158,8 @@
   user-select: none;
 }
 
-.mc-toggle[data-disabled] {
+.mc-toggle[data-disabled],
+.mc-form-section:disabled .mc-toggle {
   opacity: 0.45;
 }
 
@@ -263,8 +285,16 @@
 }
 
 .mc-segmented-option[data-disabled],
-.mc-segmented-control[data-disabled] {
+.mc-segmented-control[data-disabled],
+.mc-form-section:disabled .mc-segmented-control {
   opacity: 0.48;
+}
+
+.mc-form-section:disabled .mc-button,
+.mc-form-section:disabled .mc-toggle,
+.mc-form-section:disabled .mc-segmented-option,
+.mc-form-section:disabled .mc-field-input {
+  cursor: default;
 }
 
 .mc-segmented-icon {

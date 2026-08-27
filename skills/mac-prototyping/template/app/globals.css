@@ -87,3 +87,18 @@ img {
   display: inline-block;
   vertical-align: -2px;
 }
+
+.example-command-feedback {
+  position: absolute;
+  z-index: 80;
+  right: 18px;
+  bottom: 92px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(28, 31, 36, 0.78);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  color: white;
+  font-size: 12px;
+  backdrop-filter: blur(18px) saturate(145%);
+}

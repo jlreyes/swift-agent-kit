@@ -5,6 +5,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Mac Prototype",
   description: "A mac-style product prototype.",
+  icons: {
+    icon: "/mac-chrome-showcase.svg",
+  },
 };
 
 export default function RootLayout({

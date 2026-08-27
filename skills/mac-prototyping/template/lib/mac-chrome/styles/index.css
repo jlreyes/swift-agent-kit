@@ -1,24 +1,32 @@
 /* Minimal mac-chrome styles for the placeholder stub. Replaced together with
    the components when the real packages/mac-chrome is vendored in. */
 
-.showcase-viewport {
-  width: 100vw;
-  height: 100dvh;
-  min-width: 1200px;
-  min-height: 750px;
-  overflow: auto;
+:root {
+  /* Semantic chrome tokens used by the public stub. Keep these names aligned
+     with the real package so exact vendoring changes implementation, not the
+     Dock's material contract. */
+  --capsule-border: rgba(0, 0, 0, 0.11);
+  --dock-glass: #e1e5ea;
 }
 
-/* Default wallpaper: the committable original abstract SVG beside this sheet
-   (mirrors the real package). The DesktopShell `wallpaper` prop overrides it
-   via --mc-wallpaper. */
+.showcase-viewport {
+  width: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 750px;
+  overflow: hidden;
+}
+
+/* The private Tahoe still is hydrated from the host during creation; the
+   committable original SVG remains the offline fallback. */
 .desktop-canvas {
   position: relative;
-  width: 1200px;
+  width: min(1200px, 100%);
+  min-width: 0;
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  --mc-wallpaper-default: url("./wallpaper.svg");
+  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
   background: var(--mc-wallpaper, var(--mc-wallpaper-default));
   background-position: center;
   background-size: cover;
@@ -46,7 +54,71 @@
 .mac-menu-bar .menu-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+}
+
+.mac-menu-bar .menu-left {
+  gap: 0;
+}
+
+.mac-menu-bar .menu-right {
+  gap: 11px;
+}
+
+.mc-menu-trigger.mc-menubar-menu-title {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.mc-menu-popover.mc-menubar-menu-popover {
+  min-width: min(224px, calc(100vw - 16px));
+  max-width: min(340px, calc(100vw - 16px));
+}
+
+/* React Aria publishes the vertical room around the trigger. Keep the outer
+   material clipped to its rounded surface and let the dialog own scrolling so
+   tall arbitrary content never disappears below the viewport. */
+.mc-popover-surface {
+  box-sizing: border-box;
+  max-height: min(var(--available-height, calc(100vh - 16px)), calc(100vh - 16px));
+  overflow: hidden;
+}
+
+.mc-popover-dialog {
+  box-sizing: border-box;
+  min-height: 0;
+  max-height: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.apple-mark {
+  width: 13px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+}
+
+.apple-mark .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-status-symbol {
+  min-width: 14px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.mc-status-symbol[data-status-icon="battery"] {
+  min-width: 24px;
 }
 
 .mac-menu-bar .menu-mark {
@@ -58,6 +130,9 @@
    geometry per surface, centered), mirroring the real package. */
 .mac-window {
   position: absolute;
+  box-sizing: border-box;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 88px);
   overflow: hidden;
   border: 0.5px solid rgba(255, 255, 255, 0.5);
   border-radius: 12px;
@@ -65,6 +140,17 @@
   box-shadow:
     0 34px 80px rgba(10, 15, 24, 0.28),
     0 4px 18px rgba(10, 15, 24, 0.17);
+}
+
+/* WindowChrome's stub writes the authored size into its default centering
+   expression. When max-width caps an oversized window, center from the
+   resulting border box so the stale inline width cannot pull it offscreen.
+   Explicit frame.left placements remain untouched. */
+.mac-window[style*="left:calc(50%"],
+.mac-window[style*="left: calc(50%"] {
+  right: 12px;
+  left: 12px !important;
+  margin-inline: auto;
 }
 
 .traffic-lights {
@@ -115,21 +201,84 @@
   margin-left: auto;
 }
 
+/* The source list is the sidebar's scroll owner. Keeping the outer navigation
+   column clipped preserves the split-view geometry while long trees remain
+   reachable inside their assigned panel. */
+.mc-navigation-column {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-navigation-sidebar {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-sidebar-tree {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .p0-mac-dock {
   position: absolute;
   z-index: 60;
-  bottom: 8px;
+  box-sizing: border-box;
+  bottom: 7px;
   left: 50%;
+  width: max-content;
+  max-width: calc(100% - 14px);
+  height: 67px;
+  display: block;
+  padding: 7px 9px;
+  border: 0.5px solid rgba(255, 255, 255, 0.66);
+  border-radius: 18px;
+  background: var(--dock-glass);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 0.5px var(--capsule-border),
+    inset 0 0.5px rgba(255, 255, 255, 0.86);
+  overflow: visible;
+  transform: translateX(-50%);
+}
+
+.p0-dock-scroll {
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 100%;
+  height: calc(100% + 38px);
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 7px 10px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  border-radius: 18px;
-  background: rgba(224, 229, 238, 0.6);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  transform: translateX(-50%);
-  backdrop-filter: blur(24px) saturate(160%);
+  gap: 4px;
+  margin-top: -32px;
+  padding: 32px 0 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.p0-dock-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.p0-dock-item-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p0-dock-divider {
+  width: 1px;
+  height: 44px;
+  display: block;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .p0-dock-item {
@@ -143,15 +292,74 @@
   transition: transform 120ms ease;
 }
 
-.p0-dock-item:hover {
-  transform: translateY(-7px) scale(1.1);
+.p0-dock-item:hover,
+.p0-dock-item:focus-visible {
+  transform: translateY(-7px);
 }
 
-.p0-dock-item img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
+.p0-dock-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 2px;
+}
+
+.p0-app-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  flex: 0 0 50px;
+  place-items: center;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.24));
+  pointer-events: none;
+  user-select: none;
+}
+
+.p0-app-icon-artwork {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.p0-app-icon--asset .p0-app-icon-artwork,
+.p0-app-icon-image {
+  width: 50px;
+  height: 50px;
+}
+
+.p0-app-icon-image {
+  display: block;
+  object-fit: contain;
+}
+
+.p0-app-icon--tile .p0-app-icon-artwork {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  color: white;
+  background: #087cff;
+}
+
+.p0-app-icon-glyph {
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.p0-app-icon-glyph > * {
+  max-width: 34px;
+  max-height: 30px;
+}
+
+.p0-app-icon-glyph > svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.p0-app-icon-glyph > .mc-system-symbol {
+  font-size: 26px;
 }
 
 .p0-dock-running-dot {
@@ -170,7 +378,460 @@
   transform: translateX(-50%);
 }
 
-.sf-symbol {
-  font-family: var(--font-mac, system-ui);
+.p0-window-thumbnail-slot {
+  width: 48px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.p0-window-thumbnail {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 0.5px solid rgba(20, 24, 28, 0.42);
+  border-radius: 4px;
+  background: #f4f5f7;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.26), 0 8px 14px rgba(0, 0, 0, 0.12);
+}
+
+.p0-window-thumbnail > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.p0-window-thumbnail-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(#f8f9fa 0 22%, #e8ebef 22% 100%);
+}
+
+.p0-window-thumbnail-fallback .p0-app-icon {
+  transform: scale(0.52);
+}
+
+.p0-dock-item.is-window-thumbnail .p0-dock-running-dot {
+  display: none;
+}
+
+.p0-dock-tooltip {
+  position: absolute;
+  z-index: 1;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  padding: 4px 7px;
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  color: white;
+  background: rgba(45, 46, 49, 0.92);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.p0-dock-tooltip[data-visible="true"] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.mc-system-symbol {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-family: var(--font-sf-symbols, "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif);
+  font-size: var(--mc-system-symbol-size, 1em);
+  font-style: normal;
+  font-weight: 400;
   line-height: 1;
+  text-align: center;
+  text-rendering: optimizeLegibility;
+  vertical-align: -0.125em;
+  white-space: nowrap;
+}
+
+.mc-toolbar-button > .mc-system-symbol {
+  font-size: 14px;
+}
+
+.mc-search-bubble > button > .mc-system-symbol {
+  font-size: 14px;
+}
+
+.mc-content-unavailable-icon .mc-system-symbol {
+  font-size: 42px;
+}
+
+.mc-alert-icon .mc-system-symbol {
+  font-size: 42px;
+}
+
+.mc-chooser-choice > .mc-system-symbol {
+  font-size: 27px;
+}
+
+.mc-chat-send .mc-system-symbol {
+  font-size: 13px;
+}
+
+.mc-quicklook-panel > header button .mc-system-symbol {
+  font-size: 10px;
+}
+
+.mc-menu-popover .mc-menu-icon > .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-menubar-trigger .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-setup-progress .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-segmented-icon .mc-system-symbol {
+  font-size: 15px;
+}
+
+.mc-menu-popover .mc-menu-trailing > .mc-system-symbol {
+  font-size: 13px;
+}
+
+.mc-details-menu-trigger > .mc-system-symbol {
+  font-size: 16px;
+}
+
+.mc-sidebar-item-icon .mc-system-symbol {
+  font-size: 16px;
+}
+
+.mc-menubar-popover header .mc-system-symbol {
+  font-size: 26px;
+}
+
+.mc-sidebar-disclosure .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-disclosure-trigger .mc-disclosure-indicator .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol {
+  font-size: 19px;
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol:last-child {
+  font-size: 11px;
+}
+
+.mc-list-row-icon .mc-system-symbol {
+  font-size: 18px;
+}
+
+.mc-window-resize-handle {
+  position: absolute;
+  z-index: 19;
+  display: block;
+}
+
+.mc-window-resize-n,
+.mc-window-resize-s {
+  right: 10px;
+  left: 10px;
+  height: 6px;
+}
+
+.mc-window-resize-n { top: 0; }
+.mc-window-resize-s { bottom: 0; }
+
+.mc-window-resize-e,
+.mc-window-resize-w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+}
+
+.mc-window-resize-e { right: 0; }
+.mc-window-resize-w { left: 0; }
+
+.mc-window-resize-ne,
+.mc-window-resize-se,
+.mc-window-resize-sw,
+.mc-window-resize-nw {
+  width: 12px;
+  height: 12px;
+}
+
+.mc-window-resize-ne { top: 0; right: 0; }
+.mc-window-resize-se { right: 0; bottom: 0; }
+.mc-window-resize-sw { bottom: 0; left: 0; }
+.mc-window-resize-nw { top: 0; left: 0; }
+
+.mc-window-status-bar {
+  min-width: 0;
+  min-height: 23px;
+  padding: 3px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.12);
+  color: #6b7078;
+  background: #f6f6f7;
+  font-size: 11px;
+}
+
+.mc-window-status-primary,
+.mc-window-status-trailing {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-window-status-primary {
+  flex: 1 1 auto;
+}
+
+.mc-window-status-trailing {
+  max-width: 50%;
+  flex: 0 1 auto;
+}
+
+.mc-list-row:not([data-disabled]):not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.mc-list-row[aria-selected="true"] {
+  color: #202124;
+  background: rgba(0, 122, 255, 0.14);
+}
+
+.mc-list-row:disabled {
+  opacity: 0.42;
+}
+
+.mc-list-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(10, 122, 255, 0.55);
+}
+
+.mc-disclosure-trigger .mc-disclosure-chevron {
+  width: 12px;
+  height: 18px;
+  flex: 0 0 12px;
+  display: grid;
+  place-items: center;
+  color: #6b7078;
+}
+
+.mc-disclosure-chevron::before {
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.mc-disclosure[data-expanded] .mc-disclosure-chevron::before {
+  transform: rotate(45deg);
+}
+
+.mc-disclosure-trigger:disabled {
+  opacity: 0.45;
+}
+
+.mc-window-modal-anchor {
+  display: none;
+}
+
+/* Presentation geometry owns its box model even when consumers extract these
+   rules without the template's global base styles. */
+.mc-window-modal-layer,
+.mc-window-modal-scrim,
+.mc-sheet,
+.mc-alert,
+.mc-window-status-bar {
+  box-sizing: border-box;
+}
+
+.mc-window-modal-layer {
+  position: absolute;
+  z-index: 45;
+  inset: 0;
+  isolation: isolate;
+  display: flex;
+  pointer-events: none;
+}
+
+.mc-window-modal-layer-desktop {
+  z-index: 100;
+}
+
+.mc-window-modal-scrim {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: auto;
+  background: rgba(32, 37, 43, 0.16);
+}
+
+.mc-window-modal-layer-sheet {
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.mc-window-modal-layer-alert {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 22px 22px;
+}
+
+.mc-window-modal-layer-alert.mc-window-modal-layer-desktop {
+  align-items: center;
+  padding: 22px;
+}
+
+.mc-sheet,
+.mc-alert {
+  position: relative;
+  pointer-events: auto;
+  border: 0.5px solid rgba(0, 0, 0, 0.17);
+  background: #f7f7f8;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+  font-size: 13px;
+}
+
+.mc-sheet {
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 20px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.mc-sheet-header {
+  flex: 0 0 auto;
+  padding: 18px 22px 7px;
+}
+
+.mc-sheet-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.mc-sheet-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 22px 18px;
+}
+
+.mc-sheet-footer {
+  flex: 0 0 auto;
+  padding: 11px 22px 18px;
+}
+
+.mc-sheet-legacy {
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 18px 22px;
+}
+
+.mc-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mc-alert {
+  box-sizing: border-box;
+  width: min(390px, calc(100% - 24px));
+  max-height: calc(100% - 22px);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 13px 16px;
+  padding: 20px 22px 18px;
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+}
+
+.mc-window-modal-layer-desktop .mc-alert {
+  border-top: 0.5px solid rgba(0, 0, 0, 0.17);
+  border-radius: 12px;
+}
+
+.mc-alert-no-icon {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mc-alert-icon {
+  grid-row: 1 / span 2;
+}
+
+.mc-alert-application {
+  color: #6b7078;
+  font-size: 11px;
+}
+
+.mc-alert-copy {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mc-alert-copy h2 {
+  margin: 2px 0 5px;
+  font-size: 13.5px;
+}
+
+.mc-alert-message {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  line-height: 1.36;
+}
+
+.mc-alert-footer {
+  min-width: 0;
+  grid-column: 2;
+}
+
+.mc-alert-no-icon .mc-alert-footer {
+  grid-column: 1;
+}
+
+@media (max-height: 749px) {
+  .showcase-viewport {
+    min-height: 0;
+  }
+
+  .desktop-canvas {
+    height: 100dvh;
+  }
 }

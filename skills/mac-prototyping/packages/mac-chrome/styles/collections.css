@@ -1,0 +1,194 @@
+/* Selectable content lists and compact disclosure groups. */
+
+.mc-list {
+  min-width: 0;
+  overflow: auto;
+  outline: none;
+  color: var(--text);
+  background: var(--content-surface);
+}
+
+.mc-list[data-focus-visible] {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.mc-list-section:not(:first-child) {
+  margin-top: 12px;
+}
+
+.mc-list-section-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 12px 4px;
+  color: var(--text-soft);
+  background: var(--content-surface);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mc-list-row {
+  min-width: 0;
+  min-height: 38px;
+  margin: 0 6px;
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 13px;
+  cursor: default;
+}
+
+.mc-list-row[data-hovered],
+.mc-list-row:not([data-disabled]):not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.mc-list-row[data-selected],
+.mc-list-row[aria-selected="true"] {
+  color: var(--text-strong);
+  background: var(--selection-tint);
+}
+
+.mc-list-row[data-focus-visible],
+.mc-list-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--focus-ring);
+}
+
+.mc-list-row[data-disabled],
+.mc-list-row:disabled {
+  opacity: 0.42;
+}
+
+.mc-list-row-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.mc-list-row-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mc-list-row-icon .mc-system-symbol {
+  font-size: 18px;
+}
+
+.mc-list-row-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mc-list-row-label,
+.mc-list-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-list-row-copy small {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.mc-list-row-secondary {
+  min-width: 0;
+  max-width: 50%;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-list-row-accessory {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+}
+
+.mc-list-empty {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.mc-disclosure-heading {
+  margin: 0;
+  font: inherit;
+}
+
+.mc-disclosure-trigger {
+  width: 100%;
+  min-height: 28px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-strong);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: default;
+}
+
+.mc-disclosure-trigger[data-focus-visible] {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--focus-ring);
+}
+
+.mc-disclosure-trigger .mc-disclosure-indicator,
+.mc-disclosure-trigger .mc-disclosure-chevron {
+  width: 12px;
+  height: 18px;
+  flex: 0 0 12px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+}
+
+.mc-disclosure-chevron::before {
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.mc-disclosure[data-expanded] .mc-disclosure-chevron::before {
+  transform: rotate(45deg);
+}
+
+.mc-disclosure-trigger .mc-disclosure-indicator .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-disclosure-panel {
+  padding: 2px 8px 8px 21px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.mc-disclosure[data-disabled] {
+  opacity: 0.45;
+}

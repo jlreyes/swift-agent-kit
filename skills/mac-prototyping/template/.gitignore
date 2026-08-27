@@ -36,8 +36,12 @@ yarn-error.log*
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
 /.wrangler/
 /outputs/
 /work/
 /qa/
+
+# Apple-owned wallpaper and app icons hydrated from the local macOS install.
+/public/mac-assets/

@@ -2,7 +2,6 @@
    welcome/chooser shell; keep it if editing. */
 
 .mc-chooser-window {
-  position: relative;
   display: grid;
   grid-template-rows: 48px 92px minmax(0, 1fr) 58px;
   overflow: hidden;
@@ -133,6 +132,11 @@
   color: var(--text-soft);
 }
 
+.mc-chooser-choice > .mc-system-symbol {
+  color: var(--text-soft);
+  font-size: 27px;
+}
+
 .mc-chooser-choice-copy {
   display: grid;
   align-self: stretch;
@@ -184,7 +188,7 @@
   background: rgba(255, 255, 255, 0.62);
 }
 
-.mc-chooser-secondary-trigger[data-selected="true"] {
+.mc-chooser-secondary.is-selected .mc-chooser-secondary-trigger {
   background: rgba(255, 255, 255, 0.78);
 }
 
@@ -194,10 +198,20 @@
   color: var(--text-soft);
 }
 
+.mc-chooser-secondary-trigger > .mc-system-symbol {
+  color: var(--text-soft);
+  font-size: 19px;
+}
+
 .mc-chooser-secondary-trigger > svg:last-child {
   width: 11px;
   height: 11px;
   color: var(--text-faint);
+}
+
+.mc-chooser-secondary-trigger > .mc-system-symbol:last-child {
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .mc-chooser-secondary-trigger > span {
@@ -221,91 +235,7 @@
 }
 
 .mc-chooser-secondary-menu {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 7px);
-  right: 0;
-  display: grid;
-  width: 350px;
-  max-height: 392px;
-  overflow: auto;
-  padding: 5px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
-  border-radius: 11px;
-  background: rgba(250, 250, 251, 0.98);
-  box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(var(--blur-glass));
-}
-
-.mc-chooser-menu-section {
-  display: grid;
-}
-
-.mc-chooser-menu-section + .mc-chooser-menu-section {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
-}
-
-.mc-chooser-menu-label {
-  padding: 9px 10px 3px;
-  color: var(--text-faint);
-  font-size: 9px;
-  font-weight: 660;
-  letter-spacing: 0.055em;
-}
-
-.mc-chooser-secondary-menu button {
-  display: grid;
-  grid-template-columns: 25px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  min-height: 48px;
-  padding: 6px 9px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-}
-
-.mc-chooser-secondary-menu button > span {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.mc-chooser-secondary-menu button > svg {
-  width: 19px;
-  height: 19px;
-}
-
-.mc-chooser-menu-symbol-spacer {
-  width: 19px;
-  height: 19px;
-}
-
-.mc-chooser-secondary-menu button:hover,
-.mc-chooser-secondary-menu button:focus-visible {
-  outline: none;
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.mc-chooser-secondary-menu strong {
-  font-size: 12px;
-  font-weight: 620;
-}
-
-.mc-chooser-secondary-menu small {
-  color: var(--text-faint);
-  font-size: 10px;
-  line-height: 1.25;
-}
-
-.mc-chooser-secondary-menu button:hover small,
-.mc-chooser-secondary-menu button:focus-visible small {
-  color: rgba(255, 255, 255, 0.82);
+  min-width: min(300px, calc(100vw - 16px));
 }
 
 /* Detail pane */

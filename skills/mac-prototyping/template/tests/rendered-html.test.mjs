@@ -18,7 +18,8 @@ async function render(pathname, headers = {}) {
 
 const routes = [
   ["/", "Mac Prototype", "Mac prototype surfaces"],
-  ["/example", "Example · Mac Prototype", "Example Window"],
+  ["/example", "Example · Mac Prototype", "Documents"],
+  ["/showcase", "Showcase · Mac Prototype", "Library"],
 ];
 
 for (const [pathname, title, content] of routes) {
@@ -37,7 +38,31 @@ test("the example surface renders the mac shell", async () => {
 
   assert.match(html, /aria-label="Mac Dock"/);
   assert.match(html, /class="mac-menu-bar"/);
-  assert.match(html, /\/dock\/files\.svg/);
-  assert.match(html, /class="sf-symbol"/);
-  assert.match(html, /class="brand-icon"/);
+  assert.match(html, /aria-label="Finder"/);
+  assert.match(html, /class="p0-app-icon p0-app-icon--(?:asset|tile)"/);
+  assert.match(html, /data-system-symbol="face\.smiling"/);
+  assert.doesNotMatch(html, /\/mac-assets\/dock\/finder\.png/);
+  const usesBundledDefaultSymbols = /data-system-symbol="app\.gift\.fill"/.test(html);
+  const usesScaffoldAssetFallbacks = /\/mac-assets\/dock\/app-store\.png/.test(html);
+  assert.equal(usesBundledDefaultSymbols || usesScaffoldAssetFallbacks, true);
+  if (usesBundledDefaultSymbols) {
+    assert.doesNotMatch(html, /\/mac-assets\/dock\/(?:app-store|chrome|downloads|trash)\.png/);
+  }
+  assert.match(html, /aria-label="Apple"/);
+  assert.match(html, /class="mc-system-symbol" data-system-symbol="doc\.text"/);
+  assert.match(html, /data-system-symbol="apple\.logo"/);
+  assert.match(html, /data-status-icon="battery" aria-label="Battery" role="img"/);
+});
+
+test("the showcase server-renders its catalog shell", async () => {
+  const html = await render("/showcase").then((response) => response.text());
+
+  assert.match(html, /data-showcase-story="anatomy"/);
+  assert.match(html, /Mac Chrome component showcase/);
+  assert.match(html, /aria-label="Showcase Dock"/);
+  assert.match(html, /aria-label="Showcase activity"/);
+  assert.match(html, /data-window-resizable="true"/);
+  assert.match(html, /data-window-resize-handle="se"/);
+  assert.match(html, /href="\/mac-chrome-showcase\.svg"/);
+  assert.match(html, /Window &amp; Toolbar/);
 });

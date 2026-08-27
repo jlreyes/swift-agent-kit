@@ -13,15 +13,14 @@ All commands verified on macOS with pnpm 10+.
 
 ## New prototype
 
-Copy the template, name it, install. Done when `pnpm test` is green.
+Copy the template, name it, vendor mac-chrome, hydrate private macOS assets,
+then install. Done when `pnpm test` is green.
 
 ```sh
 name=myproto
 cp -R "$SKILL_DIR"/template ~/Prototypes/$name   # or: rsync -a "$SKILL_DIR"/template/ ~/Prototypes/$name/
 cd ~/Prototypes/$name
 node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('package.json'));p.name=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')" $name
-pnpm install
-pnpm test                                          # typecheck + build + rendered-html + jsdom tests
 ```
 
 (`pnpm install` prints "Ignored build scripts: esbuild, sharp, …" — that is
@@ -41,12 +40,81 @@ rsync -a --delete --delete-excluded --exclude node_modules --exclude test \
   "$SKILL_DIR"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
 ```
 
-Optional: hydrate private assets (wallpaper, icons — never committed to a
-public repo) into `public/`:
+Hydrate local private assets before running the prototype. This copies and
+converts local system app, folder, and Trash icons and extracts the actual
+macOS Tahoe Day wallpaper into `public/mac-assets/`. The output is ignored by
+the template and must never be committed. The script prefers `ffmpeg` for the
+Tahoe extraction and uses `qlmanage` as its fallback:
 
 ```sh
-cp -R ~/my-private-assets/. ~/Prototypes/$name/public/
+"$SKILL_DIR"/scripts/hydrate-macos-assets.sh ~/Prototypes/$name
 ```
+
+```sh
+pnpm install
+pnpm test                                          # typecheck + build + rendered-html + jsdom tests
+```
+
+After vendoring, smoke-check `http://localhost:<port>/showcase` once the
+prototype is served. It is the template's interactive mac-chrome coverage
+surface and canonical component catalog: it must dogfood the public
+navigation, collections, controls, menu/popover, managed app/window, and Dock
+primitives rather than a second private set. `/example` remains the focused
+starter window.
+
+When adding a product surface, compose from the vendored primitives before
+writing an ad-hoc equivalent. In particular, use `MacNavigationSplitView` for
+two-column sidebar/detail or three-column sidebar/content/detail navigation,
+then add `MacInspector` as a separate supplementary pane when appropriate.
+Use `MacSourceList`, `MacList`, `MacDisclosureGroup`, the `Mac*` controls and
+forms, and `MacContentUnavailable` for their matching patterns. A product
+surface owns its data and product composition; mac-chrome owns repeatable
+native anatomy, focus/keyboard behavior, and optical geometry.
+
+Wrap every multi-app desktop in `MacWindowManager`. Put each persistent app
+surface under a stable `MacApp`, let its `WindowChrome` instances register
+there, and render one `MacAppDock`. Multiple windows in the same app need
+explicit stable `windowId` values. The provider owns key-window focus,
+z-order, running state, traffic-light actions, Window-menu targeting, and
+Dock launch/restore; do not duplicate those with route-local active-window
+state or z-index counters. `WindowChrome` owns contained drag/resize geometry
+and recontains itself when its desktop canvas changes; use its `minSize` and
+`resizable` props, and never override `.mac-window` positioning from a recipe.
+Managed minimize belongs to this registry too: it captures the actual window,
+uses a shared View Transition, and places a restorable preview in the Dock's
+separate `windows` group while the app tile stays running. Do not create a
+product-local minimized state or thumbnail. Standalone unmanaged windows keep
+their local hide fallback.
+
+When smoke-checking a served desktop, minimize both from traffic lights and
+the Window menu, verify the same preview appears in the separate Dock section,
+then restore it and verify removal. Resize a split-view window and shrink then
+reset the viewport; the shared adapter must prevent ResizeObserver overlays
+and console errors without suppressing unrelated errors.
+
+Choose `MacApp presentation="windowed"` for an ordinary Dock app, or
+`presentation="menuBar"` with `MenuBarExtra` for a status-item app. Use
+`MacAlert presentationScope="desktop"` for a menu-bar app's system decision;
+`MacSheet` and ordinary alerts attach to the owning window. Keep Dock activity
+out of `MacWindowStatusBar`, which is window-local feedback only.
+
+Dock entries must use `DockIcon`/`MacDockAppIcon`'s shared normalizer. Supply
+an `asset` for hydrated app artwork or a `symbol` for generated app artwork;
+do not nest a custom full-size icon tile or write per-app scale overrides.
+
+Use `SystemSymbol` for SF-style glyphs. It maps typed `symbolist` codepoints
+through the macOS system SF font; it deliberately ships neither font files nor
+hand-drawn SF-symbol SVGs, and therefore needs a Mac client for exact glyph
+rendering. The template's `SFSymbol` remains only as a deprecated compatibility
+alias; new chrome code imports `SystemSymbol`.
+
+Use `MacMenu` for command rows and `MacPopover` for arbitrary anchored content
+(`layout` and `contentInset` make that choice explicit). Use
+`MacDisclosureGroup` for collapsed detail and `MacSourceList` for sidebar
+navigation. Source-list headers are structural and disclosure-only by default.
+A titled section may explicitly become a controlled navigation target with
+`selectable: true` and `selectedSectionId` / `onSectionSelectionChange`; its
+disclosure remains a separate action.
 
 ## Fork an existing prototype
 
@@ -103,6 +171,12 @@ sed -e "s|PNPM_DIR|$(dirname "$pnpm_bin")|g" -e "s|PNPM|$pnpm_bin|g" \
 plutil -lint "$plist"
 launchctl bootstrap gui/$(id -u) "$plist"
 ```
+
+Start or restart this Vite LaunchAgent before enabling or re-enabling
+Tailscale Serve on the same port. Leaving the proxy listener active while
+Vite restarts can make Vite fall forward to the next port. The template keeps
+Vite's rebinding guard and allows only `.ts.net` remote hostnames through
+`server.allowedHosts`, which is sufficient for Tailscale Serve.
 
 Done when this returns 200 — typically 5–20s (first boot optimizes
 dependencies); logs at `/tmp/com.macproto.<name>.{out,err}.log` if it never

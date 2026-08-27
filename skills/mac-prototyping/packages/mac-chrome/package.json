@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "peerDependencies": {
-    "react": "^19"
+    "react": "^19",
+    "react-dom": "^19"
   },
   "dependencies": {
+    "html-to-image": "1.11.13",
     "react-aria-components": "1.20.0",
-    "react-resizable-panels": "4.12.2"
+    "react-resizable-panels": "4.12.2",
+    "symbolist": "5.1.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",

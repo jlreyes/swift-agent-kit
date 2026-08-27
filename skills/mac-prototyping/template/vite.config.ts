@@ -44,9 +44,15 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // Tailscale Serve terminates HTTPS and forwards the tailnet hostname in
+      // Host. Limit remote prototype access to Tailscale's owned DNS suffix;
+      // `allowedHosts: true` would unnecessarily disable Vite's rebinding guard.
+      allowedHosts: [".ts.net"],
+      ...(isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : {}),
+    },
     plugins: [
       vinext(),
       sites(),

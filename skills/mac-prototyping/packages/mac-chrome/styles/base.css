@@ -24,6 +24,28 @@ body {
   margin: 0;
 }
 
+/* Only explicitly named windows and minimized Dock thumbnails participate in
+   minimize/restore transitions; the desktop itself must not cross-fade. */
+html {
+  view-transition-name: none;
+}
+
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.78, 0.2, 1);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation-duration: 0.01ms;
+  }
+}
+
 body {
   overflow: auto;
   color: var(--ink);
@@ -63,25 +85,28 @@ img {
   display: block;
 }
 
-/* The fixed 1200px prototype desktop; scrolls when the real viewport is smaller. */
+/* The desktop keeps the reference 1200px composition at large sizes, but it
+   contracts with the actual browser pane. A prototype must never require a
+   horizontal page scroll just to reach its initial window chrome. */
 .showcase-viewport {
-  width: 100vw;
+  width: 100%;
   height: 100dvh;
-  min-width: 1200px;
+  min-width: 0;
   min-height: 750px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .desktop-canvas {
   position: relative;
-  width: 1200px;
+  width: min(1200px, 100%);
+  min-width: 0;
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  /* Default wallpaper: the original abstract SVG shipped beside this sheet.
-     Consumers override per-shell via the DesktopShell `wallpaper` prop
-     (sets --mc-wallpaper). */
-  --mc-wallpaper-default: url("./wallpaper.svg");
+  /* New-prototype hydration supplies the host's real Tahoe still. The
+     original abstract sheet remains a no-network fallback when that private
+     local asset has not been generated yet. */
+  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
   background:
     linear-gradient(180deg, rgba(7, 14, 24, 0.04), rgba(7, 14, 24, 0.12)),
     var(--mc-wallpaper, var(--mc-wallpaper-default));
@@ -102,30 +127,36 @@ img {
   justify-content: space-between;
   padding: 0 14px;
   color: rgba(255, 255, 255, 0.95);
-  background: var(--menu-bar-glass);
-  box-shadow: inset 0 -0.5px rgba(255, 255, 255, 0.16);
-  font-size: 11.5px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(var(--blur-chrome)) saturate(145%);
+  /* A stable, restrained surface reads closer to a menu bar than simulated
+     Liquid Glass, and preserves legibility across arbitrary wallpapers. */
+  background: #263745;
+  box-shadow: inset 0 -0.5px rgba(255, 255, 255, 0.1);
+  font-family: var(--font-mac);
+  font-size: var(--font-size-menu);
+  line-height: var(--line-height-menu);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
 }
 
 .menu-left,
 .menu-right {
   display: flex;
   align-items: center;
-  gap: 17px;
   white-space: nowrap;
 }
 
-.menu-left strong {
-  font-weight: 650;
+.menu-left {
+  gap: 0;
 }
 
 .apple-mark {
-  width: 13px;
-  color: white;
-  font-size: 14px;
-  text-align: center;
+  width: 14px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+}
+
+.apple-mark .mc-system-symbol {
+  font-size: 15px;
 }
 
 .menu-right {
@@ -145,9 +176,9 @@ img {
 }
 
 .mc-menu-trigger.mc-menubar-menu-title {
-  margin: -3px -9px;
-  padding: 3px 9px;
-  border-radius: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 4px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -155,12 +186,22 @@ img {
   white-space: nowrap;
 }
 
+.mc-apple-menu .mc-menubar-menu-title {
+  width: 28px;
+  padding: 0;
+}
+
+.mc-app-menu .mc-menubar-menu-title {
+  padding-right: 9px;
+  font-weight: var(--font-weight-semibold);
+}
+
 .mc-menu-trigger.mc-menubar-menu-title:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .mc-menu-trigger.mc-menubar-menu-title[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.17);
 }
 
 /* The popover is portalled by react-aria (placement/offset set where
@@ -168,85 +209,145 @@ img {
    rather than the wrapper. */
 .mc-menu-popover.mc-menubar-menu-popover {
   width: max-content;
-  min-width: 196px;
-  max-width: 300px;
-  padding: 4px;
+  min-width: min(224px, calc(100vw - 16px));
+  max-width: min(340px, calc(100vw - 16px));
+  border-radius: var(--radius-menu-popover);
   text-shadow: none;
 }
 
 .mc-menu-popover.mc-menubar-menu-popover .mc-menu-item {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
-  gap: 6px;
-  min-height: 25px;
-  padding: 3px 9px 3px 6px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
 }
 
-.mc-menu-popover.mc-menubar-menu-popover strong {
-  font-size: 12px;
-  font-weight: 470;
-  white-space: nowrap;
+.mc-menu-popover.mc-menubar-menu-popover small {
+  display: none;
 }
 
-.status-glyph {
+.mc-menu-popover.mc-menubar-menu-popover .menu-separator {
+  margin: 4px 7px;
+}
+
+.mc-status-symbol {
+  min-width: 14px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
   font-size: 13px;
+  line-height: 1;
 }
 
-.status-battery {
-  position: relative;
-  width: 18px;
-  height: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  border-radius: 2px;
+.mc-status-symbol[data-status-icon="battery"] {
+  min-width: 24px;
 }
 
-.status-battery::after {
-  position: absolute;
-  top: 2px;
-  right: -3px;
-  width: 2px;
-  height: 4px;
-  border-radius: 0 1px 1px 0;
-  background: rgba(255, 255, 255, 0.9);
-  content: "";
-}
+@media (max-width: 600px) {
+  .mac-menu-bar {
+    gap: 6px;
+  }
 
-.status-battery i {
-  position: absolute;
-  inset: 1px;
-  width: 70%;
-  border-radius: 1px;
-  background: white;
-}
+  .menu-left,
+  .menu-right {
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
 
-.status-wifi {
-  position: relative;
-  width: 15px;
-  height: 11px;
-}
+  .menu-left {
+    flex: 1 1 58%;
+  }
 
-.status-wifi i {
-  position: absolute;
-  left: 50%;
-  border: 1.3px solid white;
-  border-top-color: transparent;
-  border-right-color: transparent;
-  border-radius: 50%;
-  transform: translateX(-50%) rotate(-45deg);
-}
+  .menu-right {
+    max-width: 42%;
+    flex: 0 1 42%;
+  }
 
-.status-wifi i:nth-child(1) { top: -3px; width: 14px; height: 14px; }
-.status-wifi i:nth-child(2) { top: 1px; width: 9px; height: 9px; }
-.status-wifi i:nth-child(3) { top: 5px; width: 4px; height: 4px; background: white; }
+  .menu-left .mc-menubar-menu,
+  .menu-right > * {
+    flex: 0 0 auto;
+  }
+
+  .menu-left::-webkit-scrollbar,
+  .menu-right::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 .mac-window {
   position: absolute;
+  /* Keep the first CSS-only frame aligned with WindowChrome's 24px safe
+     insets. The 50% floor is the tiny-canvas form of proportional inset
+     contraction, so a window always retains positive reachable width. */
+  max-width: max(50%, calc(100% - 48px));
+  max-height: calc(100% - 88px);
   overflow: hidden;
   border: 0.5px solid var(--window-edge);
   border-radius: var(--radius-window);
   background: var(--glass-strong);
   box-shadow: var(--shadow-window), inset 0 0.5px rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(var(--blur-window)) saturate(140%);
 }
+
+.mac-window[data-key-window="false"] {
+  box-shadow: var(--shadow-window-inactive), inset 0 0.5px var(--window-edge);
+}
+
+.mac-window[data-key-window="false"] .traffic-lights :is(button, span) {
+  color: transparent;
+  border-color: var(--line-soft);
+  background: var(--traffic-disabled);
+}
+
+.mac-window[data-key-window="false"] .traffic-lights svg {
+  opacity: 0;
+}
+
+/* WindowChrome owns one continuous resize hit region around the frame. The
+   handles remain visually transparent; the edge/corner cursors are the native
+   affordance, and the sheet/alert layers stay above their z-index. */
+.mc-window-resize-handle {
+  position: absolute;
+  z-index: 19;
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.mc-window-resize-n,
+.mc-window-resize-s {
+  right: 10px;
+  left: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.mc-window-resize-n { top: 0; }
+.mc-window-resize-s { bottom: 0; }
+
+.mc-window-resize-e,
+.mc-window-resize-w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.mc-window-resize-e { right: 0; }
+.mc-window-resize-w { left: 0; }
+
+.mc-window-resize-ne,
+.mc-window-resize-se,
+.mc-window-resize-sw,
+.mc-window-resize-nw {
+  width: 12px;
+  height: 12px;
+}
+
+.mc-window-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+.mc-window-resize-se { right: 0; bottom: 0; cursor: nwse-resize; }
+.mc-window-resize-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.mc-window-resize-nw { top: 0; left: 0; cursor: nwse-resize; }
 
 /* Minimize: quick scale/opacity out (transform + opacity set inline by
    WindowChrome so it composes with the drag translate). */
@@ -322,27 +423,20 @@ img {
   }
 }
 
-/* System symbols: stroke style inherits from context; --system-symbol-knockout
-   lets a colored surface punch through fills with its own color. */
-svg[data-system-symbol] {
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-svg[data-system-symbol] :is(path, rect, circle) {
-  fill: none;
-  stroke: currentColor;
-}
-
-svg[data-system-symbol] .symbol-fill {
-  fill: currentColor;
-  stroke: none;
-}
-
-svg[data-system-symbol] .symbol-knockout {
-  fill: none;
-  stroke: var(--system-symbol-knockout, white);
+/* `symbolist` supplies SF Symbols private-use codepoints; the host's native
+   macOS font stack renders them without shipping Apple font or image assets. */
+.mc-system-symbol {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-family: var(--font-sf-symbols);
+  font-size: var(--mc-system-symbol-size, 1em);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  text-rendering: optimizeLegibility;
+  vertical-align: -0.125em;
+  white-space: nowrap;
 }
 
 @media (max-height: 749px) {
@@ -351,6 +445,6 @@ svg[data-system-symbol] .symbol-knockout {
   }
 
   .desktop-canvas {
-    height: 100vh;
+    height: 100dvh;
   }
 }

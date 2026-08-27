@@ -28,6 +28,96 @@ in-memory `localStorage` helper is included there for stateful surfaces).
 `tests/setup.ts` shims ResizeObserver and CSS.escape, which jsdom lacks and
 the vendored mac-chrome's libraries require.
 
+## Starter surfaces
+
+The launcher at `/` links both starter routes:
+
+- `/showcase` is the interactive catalog and coverage surface for every
+  mac-chrome runtime export. Use it to discover components and smoke-check a
+  freshly vendored toolkit. It is also a running Dock app, so its desktop
+  identity is visible while exercising the shell. Full compositions launch
+  as simultaneous managed apps: click an exposed background window to bring
+  it forward, drag its toolbar, use its traffic lights or Window-menu
+  commands, minimize it into the Dock's separate window-thumbnail group, then
+  restore that same thumbnail. Its persistent catalog layout dogfoods the
+  public source list and navigation split view; it is not a one-off demo
+  layout.
+- `/example` is the deliberately small, coherent product-window starter.
+  Build the product's first surface from it rather than treating the catalog
+  as application UI.
+
+New prototypes inherit both routes. Keep the launcher links when adding
+product surfaces.
+
+The catalog exercises real shared chrome. Use `MacMenu` for command menus and
+`MacDetailsMenu` for anchored disclosures; do not add raw `<details>` or a
+bespoke popup to a toolbar. The toolkit defaults to restrained opaque or
+near-opaque materials, compact command menus, and readable status popovers —
+not a web approximation of Liquid Glass.
+
+## Compose with mac-chrome
+
+Build a product surface from public primitives before adding local components:
+
+- Wrap the desktop in `MacWindowManager`, place each simulated application in
+  a stable `MacApp`, let `WindowChrome` register the app's windows, and use
+  `MacAppDock` for launch, activation, running state, and restore. Give every
+  additional window in one app an explicit stable `windowId`; do not maintain
+  local z-index or “active window” mount state. `WindowChrome` owns
+  click-to-front, contained drag, ResizeObserver recontainment, and default
+  eight-edge resizing; set its `minSize`/`resizable` props rather than
+  reimplementing geometry or overriding `.mac-window` positioning.
+  Managed minimize is part of this same lifecycle: it captures the actual
+  window, transitions it into the Dock's separate thumbnail group, leaves the
+  app tile running, and restores through that thumbnail. Do not make a local
+  minimized-window UI. Standalone unmanaged `WindowChrome` uses its local hide
+  fallback instead.
+  Define each managed app's immutable `MacAppDefinition` once, pass the full
+  manifest to `MacWindowManager` as `initialApps`, and spread the same
+  definitions into `MacApp`; this puts the final app identities and Dock tiles
+  in SSR rather than adding or shifting them after registration effects.
+- Use `MacApp presentation="windowed"` for ordinary Dock apps and
+  `presentation="menuBar"` with `MenuBarExtra` for status-item-only apps.
+- Use `MacAlert presentationScope="desktop"` for a menu-bar app's system
+  alert. Windowed alerts and `MacSheet` attach to their owning window. When a
+  status-item popover launches that alert, control `MenuBarExtra` with
+  `isOpen`/`onOpenChange` and a stable `triggerRef`, close it, then open the
+  alert so the shared modal host can clean up background isolation and restore
+  focus to the status trigger.
+- Use `MacNavigationSplitView` for sidebar/detail (two columns) or
+  sidebar/content/detail (three navigation columns). Use `MacInspector` as a
+  separate supplementary pane, not as the third navigation column.
+- Use `MacSourceList` for source-list sidebars, `MacList` for selectable
+  rows, and `MacDisclosureGroup` for controlled collapsed detail. Source-list
+  section headers are structural by default. A titled section may opt into a
+  controlled navigation destination with `selectable: true` and
+  `selectedSectionId` / `onSectionSelectionChange`; both disclosure surfaces
+  use the shared SF Symbol indicator.
+- Use `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`,
+  `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, and
+  `MacContentUnavailable` instead of restyling raw controls and empty states.
+- Use `MacWindowStatusBar` for window-owned status, `MacAlert` for short
+  decisions, and `MacSheet` for a scoped modal workflow. `MacSheet` owns its
+  title, body insets, and action row; pass `MacDialogAction` data instead of
+  composing a heading or button row in the caller. `Sheet` is compatibility
+  only.
+- Use `MacMenu` for 13px/24px command rows and `MacPopover` for arbitrary
+  anchored content (`layout` and `contentInset` are explicit). Do not style
+  arbitrary content as a command menu or build raw overlay/details widgets.
+  Both `MacPopover` and `MenuBarExtra` expose controlled
+  `isOpen`/`onOpenChange` state and `triggerRef` for a popover-to-desktop-alert
+  handoff with stable focus restoration.
+- Use typed `DockIcon` data with `MacDock` for app tiles; `MacDockAppIcon` is
+  the shared runtime renderer. Asset icons preserve their own safe area;
+  generated symbol icons use the shared tile and glyph boxes. Do not create a
+  local full-size Dock icon tile or per-app scaling.
+
+`FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
+complete recipes layered above the primitives. Use them when their flow fits;
+otherwise compose the primitives for the product's own structure. Tables,
+outline views, grid collections, full SwiftUI parity, and Liquid Glass
+are intentionally not starter-library promises.
+
 ## Add a surface
 
 1. A surface is two files. `app/<name>/page.tsx` is a small server file —
@@ -45,28 +135,39 @@ the vendored mac-chrome's libraries require.
    ```
 
    The sibling component (`files-surface.tsx` here) starts with
-   `"use client"`, owns the state, and composes `DesktopShell` +
-   `WindowChrome` + `MacToolbar` + `MacDock` from `lib/mac-chrome` — follow
-   `app/example/`.
+   `"use client"`, owns the state, and composes `MacWindowManager` +
+   `DesktopShell` + `MacApp` + `WindowChrome` + `MacToolbar` + `MacAppDock`
+   and the relevant shared layout, collection, and control primitives from `lib/mac-chrome` — follow
+   `app/example/`. Its `example-desktop.tsx` supplies `DesktopShell` a
+   client-side `onMenuAction` target and shows temporary visible feedback for
+   each command; replace that feedback with the product behavior.
 2. List it in `app/page.tsx` (the launcher).
 3. Add the route to `tests/rendered-html.test.mjs` (title + content marker).
 
-**Time-dependent chrome props** (menu-bar clock, "today" dates): the server
-render and the first client render must match, so seed a fixed value for the
-initial render and go live inside `useEffect`. Calling `new Date()` during
-render is a hydration mismatch.
+When `DesktopShell` date and clock props are omitted, it renders a live
+host-local macOS-style date and clock and handles their hydration internally.
+For product-owned time-dependent UI (such as "today" dates), keep the server
+and first client render aligned, then go live inside `useEffect`; calling
+`new Date()` during that product render is a hydration mismatch.
 
 ## Icons — three tiers
 
-1. **SF-style glyphs** — `components/SFSymbol.tsx` (`symbolist`): name →
-   codepoint, rendered by the system font on Macs; no Apple assets ship.
+1. **SF-style glyphs** — `SystemSymbol` (`symbolist`): typed name → private-use
+   codepoint, rendered by the installed system SF font on Macs; no Apple
+   assets ship. `components/SFSymbol.tsx` is a deprecated compatibility alias;
+   new code imports `SystemSymbol`. Do not draw or ship bespoke SVG
+   approximations. Exact glyph rendering therefore depends on a Mac client.
 2. **Third-party service marks** — `components/BrandIcon.tsx`
    (`simple-icons`): inline SVG paths in the brand color (e.g.
    `<BrandIcon slug="notion" />`). Committable.
-3. **Apple-system lookalikes, real wallpaper/app icons** — private local
-   assets: copy your asset dir into `public/` after scaffolding and point
-   dock items / the `.desktop-canvas` background at them. Never committed;
-   the shipped gradient wallpaper and `public/dock/` SVGs are the stand-ins.
+3. **Apple-system lookalikes, real wallpaper/app icons** — after setting
+   `SKILL_DIR` as in the toolkit workflow, hydrate them with
+   `"$SKILL_DIR"/scripts/hydrate-macos-assets.sh <prototype-root>`. It
+   populates ignored `public/mac-assets/` with local system app/folder/Trash
+   icons and the macOS Tahoe Day wallpaper; `ffmpeg` is preferred for the
+   wallpaper extraction and `qlmanage` is the fallback. Never commit those
+   Apple-owned files. `DesktopShell` defaults to the hydrated Tahoe wallpaper
+   and falls back to the shipped abstract SVG when it is unavailable.
 
 ## Where mac-chrome comes from
 

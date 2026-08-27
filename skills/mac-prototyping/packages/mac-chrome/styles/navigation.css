@@ -1,0 +1,232 @@
+/* Composition primitives for macOS navigation and supplementary panes. */
+
+.mc-navigation-split-view {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--text);
+  background: var(--content-surface);
+}
+
+.mc-navigation-column {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-navigation-sidebar {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--sidebar-glass);
+}
+
+.mc-navigation-content,
+.mc-navigation-detail {
+  background: var(--content-surface);
+}
+
+.mc-navigation-separator {
+  position: relative;
+  z-index: 2;
+  width: 1px;
+  flex: 0 0 1px;
+  background: var(--line);
+  cursor: col-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Preserve the native hairline while leaving a practical pointer target. */
+.mc-navigation-separator::after {
+  position: absolute;
+  inset: 0 -4px;
+  content: "";
+}
+
+.mc-navigation-separator[data-separator="focus"],
+.mc-navigation-separator:focus-visible,
+.mc-inspector-separator:focus-visible {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+.mc-inspector {
+  min-width: 220px;
+  max-width: 360px;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: auto;
+  color: var(--text);
+  background: var(--toolbar-surface);
+}
+
+/* Source list (SwiftUI List(.sidebar)), rendered by a React Aria Tree. */
+.mc-sidebar-tree {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.mc-sidebar-section:not(:first-child) {
+  margin-top: 14px;
+}
+
+.mc-sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-control);
+}
+
+.mc-sidebar-section-header[data-focus-visible],
+.mc-sidebar-item[data-focus-visible] {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--focus-ring);
+}
+
+.mc-sidebar-section-header.mc-selected {
+  color: var(--text-strong);
+  background: var(--accent-tint);
+}
+
+.mc-sidebar-section-header.mc-selected .mc-sidebar-section-label {
+  color: var(--text-strong);
+}
+
+.mc-sidebar-section-label {
+  min-width: 0;
+  height: 20px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.mc-sidebar-section-label > small {
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 550;
+}
+
+.mc-sidebar-disclosure-button {
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.mc-sidebar-section-header:hover .mc-sidebar-disclosure-button,
+.mc-sidebar-section-header[data-focus-visible] .mc-sidebar-disclosure-button,
+.mc-sidebar-disclosure-button:focus-visible {
+  opacity: 1;
+}
+
+.mc-sidebar-disclosure-button:hover {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.mc-sidebar-disclosure {
+  width: 12px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+}
+
+.mc-sidebar-disclosure .mc-system-symbol {
+  font-size: 8.5px;
+}
+
+.mc-sidebar-item {
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+}
+
+.mc-sidebar-item:hover {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.mc-sidebar-item.mc-selected {
+  color: var(--text-strong);
+  background: var(--accent-tint);
+}
+
+.mc-sidebar-item.mc-indent {
+  padding-left: 28px;
+}
+
+.mc-sidebar-item-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.mc-sidebar-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mc-sidebar-item-icon .mc-system-symbol {
+  font-size: 16px;
+}
+
+.mc-sidebar-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-sidebar-item-badge {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-sidebar-disclosure-button {
+    transition: none;
+  }
+}

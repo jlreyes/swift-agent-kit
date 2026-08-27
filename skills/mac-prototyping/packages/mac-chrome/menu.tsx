@@ -1,8 +1,20 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from "react-aria-components";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref } from "react";
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  Header,
+  Menu,
+  MenuItem,
+  MenuSection,
+  MenuTrigger,
+  Popover,
+  Separator,
+} from "react-aria-components";
 
+import { SystemSymbol } from "./system-symbol.tsx";
 import "./styles/tokens.css";
 import "./styles/popover.css";
 
@@ -11,6 +23,8 @@ export interface MenuAction {
   readonly id: string;
   readonly label: string;
   readonly detail?: string;
+  /** Right-aligned macOS shortcut notation, for example `⇧⌘N`. */
+  readonly shortcut?: string;
   readonly icon?: ReactNode;
   readonly trailingIcon?: ReactNode;
   /** Renders as a link instead of a button. */
@@ -18,6 +32,7 @@ export interface MenuAction {
   readonly target?: string;
   /** When set, renders role=menuitemradio with aria-checked. */
   readonly checked?: boolean;
+  readonly disabled?: boolean;
   readonly onSelect?: () => void;
 }
 
@@ -28,6 +43,15 @@ export type MenuEntry =
 
 export type MenuSpec = readonly MenuEntry[];
 
+/** Named content layouts keep arbitrary popovers separate from command menus. */
+export type MacPopoverLayout = "content" | "status";
+
+/**
+ * Content inset applied by MacPopover. `regular` is the native default;
+ * specialized compositions must opt into a denser or edge-to-edge surface.
+ */
+export type MacPopoverContentInset = "regular" | "compact" | "flush";
+
 /** Overlay knobs for MacMenu's popover (react-aria positions and portals it). */
 export type MenuPopoverConfig = {
   /** Extra class on the menu surface (alongside `mc-menu-popover`). */
@@ -36,6 +60,8 @@ export type MenuPopoverConfig = {
   readonly placement?: "bottom start" | "bottom end";
   /** Gap between trigger and menu, px. @default 7 */
   readonly offset?: number;
+  /** Keep surrounding menu-bar titles interactive while this menu is open. */
+  readonly nonModal?: boolean;
 };
 
 function MenuActionItem({ entry }: { readonly entry: MenuAction }) {
@@ -47,14 +73,21 @@ function MenuActionItem({ entry }: { readonly entry: MenuAction }) {
       href={entry.href}
       target={entry.target}
       rel={entry.target === "_blank" ? "noreferrer" : undefined}
+      isDisabled={entry.disabled}
       onAction={() => entry.onSelect?.()}
     >
-      {entry.icon}
-      <span>
-        <strong>{entry.label}</strong>
+      <span className="mc-menu-icon" aria-hidden="true">
+        {entry.icon ?? (entry.checked === true ? (
+          <SystemSymbol name="checkmark" />
+        ) : null)}
+      </span>
+      <span className="mc-menu-copy">
+        <span className="mc-menu-label">{entry.label}</span>
         {entry.detail !== undefined ? <small>{entry.detail}</small> : null}
       </span>
-      {entry.trailingIcon}
+      <span className="mc-menu-trailing" aria-hidden="true">
+        {entry.shortcut !== undefined ? <kbd className="mc-menu-shortcut">{entry.shortcut}</kbd> : entry.trailingIcon}
+      </span>
     </MenuItem>
   );
 }
@@ -110,41 +143,132 @@ function renderBlock(block: MenuBlock): readonly ReactNode[] {
 /* ARIA menu-button on react-aria MenuTrigger/Menu/MenuItem: open/close, Esc and
    outside-press dismissal, focus restore, arrow/Home/End navigation, and
    typeahead are library semantics; the popover.css look stays ours. */
-export function MacMenu({ className = "", items, label, popover, trigger, triggerClassName = "" }: {
+export function MacMenu({
+  className = "",
+  isOpen,
+  items,
+  label,
+  onMenuKeyDown,
+  onOpenChange,
+  onTriggerPointerEnter,
+  popover,
+  trigger,
+  triggerClassName = "",
+  triggerLabel,
+}: {
   readonly className?: string;
+  readonly isOpen?: boolean;
   readonly items: MenuSpec;
   readonly label: string;
+  readonly onMenuKeyDown?: (event: ReactKeyboardEvent) => void;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly onTriggerPointerEnter?: () => void;
   readonly popover?: MenuPopoverConfig;
   readonly trigger: ReactNode;
+  readonly triggerLabel?: string;
   readonly triggerClassName?: string;
 }) {
+  const controlledState = isOpen === undefined ? {} : { isOpen };
   return (
-    <div className={`mc-menu ${className}`.trim()}>
-      <MenuTrigger>
-        <Button className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
-        <Popover placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+    <div className={`mc-menu ${className}`.trim()} onPointerEnter={onTriggerPointerEnter}>
+      <MenuTrigger {...controlledState} onOpenChange={onOpenChange}>
+        <Button aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+        <Popover isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
           {/* MenuTrigger injects aria-labelledby (the trigger), which would
               outrank the label prop; blank it so `label` names the menu. */}
-          <Menu aria-label={label} aria-labelledby="" className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}>
-            {menuBlocks(items).flatMap(renderBlock)}
-          </Menu>
+          <div className="mc-menu-key-scope" onKeyDown={onMenuKeyDown}>
+            <Menu
+              aria-label={label}
+              aria-labelledby=""
+              className={`mc-menu-popover ${popover?.className ?? ""}`.trim()}
+            >
+              {menuBlocks(items).flatMap(renderBlock)}
+            </Menu>
+          </div>
         </Popover>
       </MenuTrigger>
     </div>
   );
 }
 
-/* Details-based popover: no JS, browser handles open/close; ideal for
-   account-style menus whose content is arbitrary. */
-export function MacDetailsMenu({ children, className = "", summary }: {
+/**
+ * Shared arbitrary-content popover machinery. DialogTrigger supplies the
+ * same dismissal and focus-return contract as MacMenu without pretending
+ * non-menu content is an ARIA menu.
+ */
+export function MacPopover({
+  children,
+  className = "",
+  contentInset = "regular",
+  isOpen,
+  label,
+  layout = "content",
+  offset = 6,
+  onOpenChange,
+  placement = "bottom end",
+  trigger,
+  triggerClassName = "",
+  triggerRef,
+}: {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly contentInset?: MacPopoverContentInset;
+  readonly isOpen?: boolean;
+  readonly label: string;
+  readonly layout?: MacPopoverLayout;
+  readonly offset?: number;
+  readonly onOpenChange?: (open: boolean) => void;
+  readonly placement?: "bottom start" | "bottom end";
+  readonly trigger: ReactNode;
+  readonly triggerClassName?: string;
+  readonly triggerRef?: Ref<HTMLButtonElement>;
+}) {
+  const controlledState = isOpen === undefined ? {} : { isOpen };
+  return (
+    <DialogTrigger {...controlledState} onOpenChange={onOpenChange}>
+      <Button
+        ref={triggerRef}
+        aria-label={label}
+        className={`mc-popover-trigger ${triggerClassName}`.trim()}
+      >
+        {trigger}
+      </Button>
+      <Popover
+        className={`mc-popover-surface ${className}`.trim()}
+        data-popover-layout={layout}
+        placement={placement}
+        offset={offset}
+      >
+        <Dialog
+          aria-label={label}
+          className="mc-popover-dialog"
+          data-content-inset={contentInset}
+        >
+          {children}
+        </Dialog>
+      </Popover>
+    </DialogTrigger>
+  );
+}
+
+/* Account-style arbitrary content anchored to a toolbar control. */
+export function MacDetailsMenu({ children, className = "", label, summary }: {
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly label: string;
   readonly summary: ReactNode;
 }) {
   return (
-    <details className={`mc-details-menu ${className}`.trim()}>
-      <summary>{summary}</summary>
-      <div>{children}</div>
-    </details>
+    <div className={`mc-details-menu ${className}`.trim()}>
+      <MacPopover
+        className="mc-details-menu-popover"
+        contentInset="compact"
+        label={label}
+        trigger={summary}
+        triggerClassName="mc-details-menu-trigger"
+      >
+        {children}
+      </MacPopover>
+    </div>
   );
 }

@@ -9,7 +9,10 @@ import { SystemSymbol } from "../system-symbol";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const fileMenu: MenuBarMenu = {
   title: "File",
@@ -25,7 +28,7 @@ function renderShell(onPick?: () => void) {
     ? { ...fileMenu, items: [{ kind: "action", id: "new", label: "New Window", onSelect: onPick }] }
     : fileMenu;
   return render(
-    <DesktopShell appName="Test" menuItems={[items, "Edit", "View"]}>
+    <DesktopShell appName="Test" menuItems={[items, "Edit", "View", "Window"]} onMenuAction={vi.fn()}>
       <p>Desktop</p>
     </DesktopShell>,
   );
@@ -38,11 +41,42 @@ async function flushFocus() {
 }
 
 describe("DesktopShell menu bar menus", () => {
-  it("renders string entries inert and menu entries as real triggers", () => {
-    const { container, getByRole, queryByRole } = renderShell();
+  it("renders the Apple, application, and every standard menu as real triggers", () => {
+    const { container, getByRole } = renderShell();
+    expect(getByRole("button", { name: "Apple" })).toBeTruthy();
+    expect(getByRole("button", { name: "Test" })).toBeTruthy();
     expect(getByRole("button", { name: "File" })).toBeTruthy();
-    expect(queryByRole("button", { name: "Edit" })).toBeNull();
-    expect(container.querySelector(".menu-left")?.textContent).toContain("Edit");
+    expect(getByRole("button", { name: "Edit" })).toBeTruthy();
+    expect(getByRole("button", { name: "View" })).toBeTruthy();
+    expect(container.querySelector(".apple-mark [data-system-symbol='apple.logo']")).toBeTruthy();
+  });
+
+  it("uses recognizable shared symbols for the native Apple menu commands", async () => {
+    const { container, getByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "Apple" }));
+    await flushFocus();
+
+    const appleMenu = getByRole("menu", { name: "Apple menu" });
+    expect(appleMenu.querySelector("[data-system-symbol='laptopcomputer']")).toBeTruthy();
+    expect(appleMenu.querySelector("[data-system-symbol='gear']")).toBeTruthy();
+    expect(appleMenu.querySelector("[data-system-symbol='app']")).toBeTruthy();
+  });
+
+  it("routes Apple menu commands through the same explicit command target", async () => {
+    const onMenuAction = vi.fn();
+    const { getByRole } = render(
+      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(getByRole("button", { name: "Apple" }));
+    await flushFocus();
+    fireEvent.click(getByRole("menuitem", { name: "System Settings…" }));
+    expect(onMenuAction).toHaveBeenCalledWith({
+      menu: "Apple",
+      id: "system-settings",
+      label: "System Settings…",
+    });
   });
 
   it("clicking a title opens its dropdown and highlights the title", async () => {
@@ -94,10 +128,207 @@ describe("DesktopShell menu bar menus", () => {
     // react-aria's outside dismissal completes on the press *release*
     // (pointerdown arms it, click/mouseup outside dismisses).
     fireEvent.pointerDown(document.body);
+    fireEvent.pointerUp(document.body);
     fireEvent.mouseDown(document.body);
     fireEvent.mouseUp(document.body);
     fireEvent.click(document.body);
     expect(queryByRole("menu")).toBeNull();
+  });
+
+  it("switches directly to an adjacent menu while the menu bar is active", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    expect(getByRole("menu", { name: "File menu" })).toBeTruthy();
+
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    expect(queryByRole("menu", { name: "File menu" })).toBeNull();
+    expect(getByRole("menu", { name: "Edit menu" })).toBeTruthy();
+  });
+
+  it("moves between menu-bar menus with horizontal arrows", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "File menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    expect(queryByRole("menu", { name: "File menu" })).toBeNull();
+    expect(getByRole("menu", { name: "Edit menu" })).toBeTruthy();
+  });
+
+  it("Tab dismisses the menu and advances to the next menu-bar title", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "File menu" }), { key: "Tab" });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Edit" }));
+  });
+
+  it("restores Tab and Shift-Tab focus relative to a menu switched while open", async () => {
+    const { getByRole, queryByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "Edit menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "View menu" }), { key: "Tab" });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Window" }));
+
+    fireEvent.click(getByRole("button", { name: "File" }));
+    await flushFocus();
+    fireEvent.pointerEnter(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "Edit menu" }), { key: "ArrowRight" });
+    await flushFocus();
+    fireEvent.keyDown(getByRole("menu", { name: "View menu" }), { key: "Tab", shiftKey: true });
+    await flushFocus();
+    expect(queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(getByRole("button", { name: "Edit" }));
+  });
+
+  it("routes built-in actions to an explicit target and disables them without one", async () => {
+    const onMenuAction = vi.fn();
+    const targeted = render(
+      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(targeted.getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    fireEvent.click(targeted.getByRole("menuitem", { name: /Undo/ }));
+    expect(onMenuAction).toHaveBeenCalledWith({ menu: "Edit", id: "undo", label: "Undo" });
+    targeted.unmount();
+
+    const untargeted = render(
+      <DesktopShell appName="Test">
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+    fireEvent.click(untargeted.getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    expect(untargeted.getByRole("menuitem", { name: /Undo/ }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("shows native-style shortcut columns in the standard menus", async () => {
+    const { getByRole } = renderShell();
+    fireEvent.click(getByRole("button", { name: "Edit" }));
+    await flushFocus();
+    const undo = getByRole("menuitem", { name: /Undo/ });
+    expect(undo.querySelector(".mc-menu-shortcut")?.textContent).toBe("⌘Z");
+  });
+});
+
+describe("DesktopShell status items", () => {
+  it("uses native symbolist glyphs inside accessible status wrappers", () => {
+    const { container } = renderShell();
+    expect(container.querySelector("[data-status-icon='battery'][aria-label='Battery'] [data-system-symbol='battery.100percent']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='wifi'][aria-label='Wi-Fi'] [data-system-symbol='wifi']")).toBeTruthy();
+    expect(container.querySelector("[data-status-icon='control-center'][aria-label='Control Center'] [data-system-symbol='switch.2']")).toBeTruthy();
+  });
+
+  it("updates at the next wall-clock minute boundary and stays minute-aligned", () => {
+    vi.useFakeTimers();
+    const mountedAt = new Date("2026-08-26T16:34:45.250Z");
+    vi.setSystemTime(mountedAt);
+    const { container } = renderShell();
+    const clockText = () => container.querySelector(".menu-right > span:last-child")?.textContent;
+    const formatClock = (value: Date) => new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(value);
+
+    expect(clockText()).toBe(formatClock(mountedAt));
+    act(() => vi.advanceTimersByTime(14_749));
+    expect(clockText()).toBe(formatClock(mountedAt));
+
+    const firstBoundary = new Date(mountedAt.getTime() + 14_750);
+    act(() => vi.advanceTimersByTime(1));
+    expect(clockText()).toBe(formatClock(firstBoundary));
+
+    act(() => vi.advanceTimersByTime(59_999));
+    expect(clockText()).toBe(formatClock(firstBoundary));
+    act(() => vi.advanceTimersByTime(1));
+    expect(clockText()).toBe(formatClock(new Date(firstBoundary.getTime() + 60_000)));
+  });
+
+  it("keeps caller-supplied date and clock values without scheduling refreshes", () => {
+    vi.useFakeTimers();
+    const { getByText } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock">
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(120_000));
+    expect(getByText("Pinned date")).toBeTruthy();
+    expect(getByText("Pinned clock")).toBeTruthy();
+  });
+});
+
+describe("DesktopShell wallpaper sources", () => {
+  it.each([
+    "url('/wallpaper.jpg')",
+    "var(--wallpaper)",
+    "image-set(url('/wallpaper.png') 1x, url('/wallpaper@2x.png') 2x)",
+    "cross-fade(url('/day.jpg'), url('/night.jpg'), 40%)",
+    "image(url('/wallpaper.avif'), #345)",
+    "element(#wallpaper-source)",
+    "paint(wallpaper)",
+    "linear-gradient(#123, #456)",
+    "radial-gradient(circle, #123, #456)",
+    "conic-gradient(from 90deg, #123, #456)",
+    "repeating-linear-gradient(45deg, #123 0 8px, #456 8px 16px)",
+    "repeating-radial-gradient(circle, #123 0 8px, #456 8px 16px)",
+    "  RePeAtInG-CoNiC-GrAdIeNt(#123 0 20deg, #456 20deg 40deg)",
+    "  linear-gradient(var(--start, rgb(1 2 3)), image-set(url('day(1).png') 1x, url('day(2).png') 2x))  ",
+    "url('wallpaper).png')",
+  ])("passes through the CSS image value %s", (wallpaper) => {
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      // CSSStyleDeclaration normalizes insignificant outer whitespace.
+      .toBe(wallpaper.trim());
+  });
+
+  it.each([
+    ["image(foo).png", 'url("image(foo).png")'],
+    ["paint(foo).jpg", 'url("paint(foo).jpg")'],
+    ["linear-gradient(#123, #456", 'url("linear-gradient(#123, #456")'],
+    ["linear-gradient(#123, #456) center", 'url("linear-gradient(#123, #456) center")'],
+    ["linear-gradient(#123, #456))", 'url("linear-gradient(#123, #456))")'],
+    ["url('unterminated.png)", 'url("url(\'unterminated.png)")'],
+  ])("wraps the incomplete or trailing-token source %s", (wallpaper, expected) => {
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      .toBe(expected);
+  });
+
+  it("quotes and escapes a bare wallpaper path as a CSS URL", () => {
+    const wallpaper = 'C:\\Wallpapers\\Tahoe "Day".jpg';
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      .toBe('url("C:\\\\Wallpapers\\\\Tahoe \\"Day\\".jpg")');
   });
 });
 

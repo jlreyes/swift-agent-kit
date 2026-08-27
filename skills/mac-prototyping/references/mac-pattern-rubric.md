@@ -13,7 +13,8 @@ about any surface is "which native component is this, and does its anatomy
 match?"
 
 Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
-[Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
+[Menu bar](#menu-bar) ·
+[Composition](#composition--split-view-semantics) · [Controls](#control-roles--emphasis) · [Sidebar](#sidebar--source-list) ·
 [Preview/inspector](#preview--inspector) · [Grid & empty states](#grid--empty-states) ·
 [Creation windows](#creation-window-precedents) · [Keyboard & a11y](#keyboard--accessibility) ·
 [Animation](#animation--transition-discipline) · [Content semantics](#content-semantics)
@@ -27,9 +28,33 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   right-side bubble that expands on focus.
 - No subtitle or item count under the title; a centered title — one line or
   two — reads as web, not Mac. The title is always leading-aligned.
-- Toolbar glyphs are SVG/system symbols, never Unicode approximations.
-- Glass (blur + translucency) lives in the toolbar capsules and chrome, not
-  in content areas.
+- Toolbar glyphs use `SystemSymbol`/the system SF font, never Unicode
+  approximations or hand-drawn SF lookalike SVGs. Brand/product artwork and
+  traffic-light marks are separate icon tiers.
+- Every visible non-title item is traffic-light chrome, navigation/search, an
+  actionable command or menu, an exclusive-selection control, or genuine
+  status. Decorative glyphs, bare prose, and implementation labels such as
+  “Toolbar” or “Controls” have no `NSToolbarItem` counterpart and are P1.
+- Inventory each toolbar descendant during review: accessible name, role,
+  action, state, and the matching menu command when the item represents a
+  reusable command rather than transient input or status. An enabled item
+  must activate observable behavior; omit unconfigured actions instead of
+  shipping inert chrome. “Window contents need not function” never exempts
+  window chrome.
+- Use one explicit 14–16px optical box for toolbar glyphs inside 28–30px
+  controls. Browser-dependent SVG sizing or mixed icon weight is a defect.
+- Finder-style persistent view modes follow Finder’s `NSSegmentedControl`
+  pattern: clearly divided segments with exactly one visible selection, or a
+  single View menu. An ambiguous undivided icon capsule is P1.
+- Fidelity beats simulated material effects. Use restrained opaque or
+  near-opaque toolbar and capsule surfaces with hairlines and subtle shadows;
+  never add custom blur, saturation, or Liquid Glass recipes unless the owner
+  explicitly asks for that experiment. The effect must not compete with the
+  iconography or reduce contrast.
+- A command dropdown or anchored toolbar disclosure is `NSMenu`/`NSPopover`:
+  use the shared menu/popover primitive, its focus and dismissal behavior, and
+  compact native geometry. A local `<details>` widget or bespoke overlay is a
+  P1 even if its contents happen to look correct.
 
 ## Window roles & chrome
 
@@ -38,6 +63,34 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   (movable-by-background remains Apple guidance).
 - One shared desktop/window shell per app — a flow (onboarding, chooser)
   enters the same environment, never a second simulated desktop.
+- A desktop that shows more than one simulated app uses the shared managed
+  app/window lifecycle. Each app has stable identity and a normalized Dock
+  icon; each window has stable identity, open/minimized/closed state, a
+  bounded stack position, and exactly one key-window result across the
+  desktop. Product-local z-index counters or conditionally mounting one
+  “active recipe” at a time are P1.
+- Pointer-down on any exposed part of a background window brings it to front;
+  keyboard navigation into a background window can make it key. Incidental
+  programmatic focus restoration must not reorder the desktop. Inactive
+  traffic lights are visually quiet; the key window has active chrome.
+- Close, minimize, zoom, File › Close Window, the Window menu, and the Dock
+  all operate on the same registered window state. Minimize keeps the app's
+  running indicator, moves the actual window preview into a separate Dock
+  window section, and selecting that thumbnail restores/removes it; close does
+  not destroy product state; clicking a running app's Dock tile activates its
+  frontmost restorable window. Traffic-light and Window-menu minimization have
+  identical results.
+- Every full-window recipe carries `WindowChrome` and functional traffic
+  lights, even inside a catalog. A composition preview without draggable
+  window chrome is not an app window.
+- `WindowChrome` owns the geometry contract: click-to-front/key state,
+  contained titlebar dragging, ResizeObserver recontainment, and all four
+  edges plus four corners by default. Verify resizing and a smaller canvas;
+  recipes may set `minSize` or `resizable={false}`, but must not replace
+  `.mac-window` positioning or invent their own drag/resize layer.
+- A split-view resize must not surface a ResizeObserver overlay or console
+  error. The shared compatibility adapter defers/coalesces only panel-group
+  observations; do not intercept browser error events in product code.
 - Window size signals role: creation/utility windows sit near 820×520; a
   1100×570 window with a centered 760px column and hero art reads as a
   marketing page, not a Mac window.
@@ -46,12 +99,105 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 - Default placement: horizontally centered, biased slightly above vertical
   center, title bar below the menu bar and clear of the Dock; a window
   flush to a canvas edge, under chrome, or off-center at rest is a
-  placement defect — verify with live geometry, never from the code.
+  placement defect — verify with live geometry at normal and small viewports,
+  never from the code. The initial frame must fit the actual desktop canvas
+  without horizontal page scrolling; custom frame formulas use canvas-relative
+  `%`, not `vw`/`vh`.
+
+## Composition & split-view semantics
+
+(Precedent: SwiftUI `NavigationSplitView`, `List`, `DisclosureGroup`, `Form`,
+and `.inspector`.)
+
+- Start with the matching shared mac-chrome primitive. A local source-list,
+  selectable list, disclosure, standard control, form row, empty state, menu,
+  or Dock tile is a P1 when the library already owns that native pattern.
+  Product composition may arrange primitives and supply content; it must not
+  duplicate their focus, keyboard, selection, dismissal, or optical-size
+  contracts.
+- A navigation split has two columns (sidebar + detail) or three navigation
+  columns (sidebar + content + detail). The middle column earns itself by
+  representing a real selection hierarchy; it is not a convenient place for
+  metadata or settings.
+- An inspector is a separate supplementary trailing pane. Do not call a
+  sidebar + detail + inspector layout a three-column navigation split, and do
+  not make an inspector stand in for the content column.
+- Inspect a responsive split live: columns respect reasonable min/max widths,
+  dividers are visibly resizable and keyboard-operable, and small viewports
+  retain an intelligible hierarchy rather than compressing all columns into
+  unreadable strips.
+- Product UI must not silently import a showcase-local component or duplicate
+  showcase styling. `/showcase` is evidence that public primitives compose;
+  it is not a private component source.
+- A disclosure uses `MacDisclosureGroup` or the controlled section affordance
+  in `MacSourceList`. Its indicator is the shared `SystemSymbol`, not a CSS
+  border chevron; its panel opens without a reveal-scale effect. A source-list
+  section header is structural by default and collapsible only when it has
+  items. A titled section becomes a controlled selection destination only
+  with `selectable: true` and `selectedSectionId` /
+  `onSectionSelectionChange`; its disclosure remains separate.
+
+## Menu bar
+
+- By default, `DesktopShell` supplies Apple and app menus plus functional
+  File/Edit/View/Window/Help menus. A caller that deliberately supplies
+  `menuItems` owns that post-app-menu list; standard titles retain their
+  built-in menus and `MenuBarMenu` objects customize or replace them.
+- While a menu is open, pointer-hover switches menus; Left/Right moves between
+  menu titles; Tab/Shift-Tab dismisses and advances focus; Escape and an
+  outside press dismiss.
+- Menu rows show native shortcut and disabled anatomy where those fields
+  apply. Every enabled action has `onSelect`, `href`, or the shell's
+  `onMenuAction` command target. The Apple mark and Battery, Wi-Fi, and
+  Control Center status glyphs are self-contained SVGs; do not recreate Wi-Fi
+  with CSS arcs.
+- `NSMenu` command menus are compact: compact row height, padding, type scale,
+  icon box, separators, and a modest content-width popover — never an
+  oversized card. They use an opaque or near-opaque material, not a glassy
+  page overlay. Where the current macOS Apple menu presents a row icon, retain
+  that row icon in the prototype; the Apple-menu active state is a compact
+  menu-title selection, not a large decorative tile.
+- Command menus use the shared `MacMenu` command-row grid (13px type and
+  24px rows). Arbitrary content uses `MacPopover` with an explicit `layout`
+  and `contentInset`; never style arbitrary content as a command menu or put
+  commands in a generic content card. Use system font aliases only—do not
+  bundle SF Pro or add browser font-smoothing workarounds.
+- `NSStatusItem`/`MenuBarExtra` popovers reset foreground color and
+  `text-shadow` inside their surface so menu-bar white text cannot inherit
+  into a light popup. Audit an open status popover, not only its trigger.
+- Omitted date and clock props show a live host-local macOS-style date and
+  clock. Omitted Dock items show Finder, App Store, Google Chrome, Downloads,
+  and Trash, using ignored private hydrated assets when available.
+- A showcase is an app in this desktop: give it a distinct, running Dock item
+  in addition to the default system set.
+- Audit Dock icons as one optical system, not just equal CSS dimensions. Each
+  item enters through `MacDockAppIcon`: hydrated asset art retains its safe
+  area, while generated art uses a 50px canvas and 42px tile. Generated
+  `SystemSymbol`s use size 20 in a centered 34×30px glyph frame; SVG artwork
+  has its own selector and stays at most 26×26px. `SystemSymbol` renders its
+  intrinsic variable-width glyph directly. Its parent owns a fixed, stable
+  slot and centers it with Grid or Flex; optical font size is chosen by
+  component role, never symbol name. A nested custom 50px tile, per-icon
+  transform or offset, post-render symbol measurement, `ResizeObserver`, or
+  icon-specific translate/scale correction is P1. Audit every visible
+  `SystemSymbol` immediately after render, after it settles, and across
+  repeated reloads: geometry must not change. Include wide glyphs such as
+  `laptopcomputer` and `person.2.fill`. `overflow: hidden` may be a safety
+  boundary, never the means of sizing or containment; first-render HTML/CSS
+  must already contain the final geometry.
+- Managed app identity and Dock entries must also be final on SSR. Define each
+  immutable `MacAppDefinition` once, pass the manifest as `initialApps` to
+  `MacWindowManager`, and spread the same definitions into `MacApp`. An app
+  tile that appears or shifts only after registration effects is P1.
 
 ## Control roles & emphasis
 
 - Exactly one emphasized (default) button per surface — the primary action;
   Back/secondary actions are regular weight. (HIG button roles.)
+- Standard buttons, fields, toggles, segmented choices, control groups, form
+  rows, and unavailable-content states use their shared primitives. Styling a
+  raw browser input until it looks close is insufficient when it drops the
+  shared accessible name, disabled, validation, focus, or keyboard contract.
 - Choices that are not navigation are not tabs: auth methods, options, and
   modes present as one preferred path plus subordinate alternates, never as
   `aria-pressed` tab rows.
@@ -76,6 +222,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   selection state.
 - Prefer a flat list with per-item badges over introduced grouping levels.
 - Clicking an item navigates; disclosure is the secondary affordance.
+- A reusable sidebar is `MacSourceList`, not a hand-built column of buttons.
+  Audit arrow navigation, typeahead, selection, and controlled collapsible
+  sections in addition to its source-list anatomy.
 
 ## Preview / inspector
 
@@ -92,6 +241,10 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   with a columns override as a follow-up — so don't flag that unreachable half
   as a prototype defect.)
 - Disclosure chevrons appear only where a real expand/collapse exists.
+- `MacInspector` is supplementary content owned by the enclosing surface.
+  Its visibility, width, toolbar/View-menu command, and persistence policy
+  must agree where the product exposes them; the primitive does not invent
+  those policies automatically.
 
 ## Grid & empty states
 
@@ -99,6 +252,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   size, dashed boundary, drag-active highlight, understated copy. An action
   tile must never be visually louder than real content.
 - Drop targets are generously sized (~150px+, not a thin strip).
+- A simple unavailable-content state uses `MacContentUnavailable`; do not
+  create a competing oversized landing-page hero inside a list/detail pane.
 
 ## Creation-window precedents
 
@@ -119,15 +274,24 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
 ## Keyboard & accessibility
 
 - Menus: one roving focus target; open-menu descendants leave the Tab
-  sequence; Esc/Tab/arrows/Home/End all handled.
+  sequence; Esc/Tab/arrows/Home/End all handled; Left/Right moves among
+  menu-bar titles and Tab/Shift-Tab dismisses before focus advances.
 - Grids: ArrowUp/Down move by the active column count; boundary clamping
   stays in-column; no modulo wrap into adjacent columns.
 - Dialogs/sheets contain focus (it never escapes to BODY); Cancel unwinds
   exactly one layer; focus restores to the invoking control on close.
+- Use `MacSheet` for a window-attached task and `MacAlert` for a short
+  decision. Both own visible title, body, actions, and insets; actions are
+  `MacDialogAction` data, with semantic `cancel`/`destructive` role separated
+  from the one `isDefault` action. A menu-bar app's alert explicitly uses the
+  desktop scope. Do not put a caller-authored button row or a `SetupHeading`
+  inside `MacSheet`; `Sheet` is compatibility-only.
 - `tabIndex` is never coupled to selection state — a hidden or secondary
   selection must not make controls keyboard-unreachable.
 - Verify at small viewports and with Reduce Motion; activation under
-  Reduce Motion still restores focus and announces.
+  Reduce Motion still restores focus and announces. Minimize may skip its
+  flight animation under Reduce Motion, but it still creates/restores the
+  separate Dock thumbnail.
 
 ## Animation & transition discipline
 
@@ -135,6 +299,9 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   never unmount-here/mount-there (reads as a page reload), never several
   simultaneous competing animations.
 - No artificial pre-commit delays; drops and clicks commit immediately.
+- Managed window minimize/restore is one View Transition between the
+  `WindowChrome` and its Dock thumbnail. Preserve one stable transition name
+  for that pair; do not animate a product-local duplicate.
 - Never animate layout-forcing properties (heights) per-frame across a
   grid; measure destination geometry after layout settles; one short
   (~160ms) transform owns the moving element.

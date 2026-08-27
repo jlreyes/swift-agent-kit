@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -9,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { MacMenu, type MenuEntry, type MenuSpec } from "./menu";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
@@ -16,6 +16,7 @@ import "./styles/chooser.css";
 
 /* Default geometry (welcome/chooser rubric: ~820x520, centered). */
 const chooserDefaultSize = { width: 820, height: 520 } as const;
+const chooserMinSize = { width: 600, height: 420 } as const;
 
 export type ChooserChoice = {
   readonly id: string;
@@ -104,7 +105,7 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   }
 
   function handleStorage(event: StorageEvent) {
-    if (event.key === key) notify();
+    if (event.key === key || event.key === null) notify();
   }
 
   function subscribe(subscriber: () => void) {
@@ -140,111 +141,80 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   };
 }
 
+function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
+  const items: MenuEntry[] = [];
+  let renderedSectionCount = 0;
+  for (const [sectionIndex, section] of group.sections.entries()) {
+    if (section.commands.length === 0) continue;
+    if (renderedSectionCount > 0) {
+      items.push({ kind: "separator", id: chooserMenuEntryId("section-separator", sectionIndex) });
+    }
+    renderedSectionCount += 1;
+    if (section.label !== undefined) {
+      items.push({ kind: "section", id: chooserMenuEntryId("section", sectionIndex, section.id), label: section.label });
+    }
+    let previousIsRadio: boolean | undefined;
+    for (const [commandIndex, command] of section.commands.entries()) {
+      const isRadio = command.checked !== undefined;
+      // MacMenu intentionally gives every entry in a checked group radio
+      // semantics. Split mixed command/radio runs so an ordinary command never
+      // inherits menuitemradio merely because a sibling has `checked` state.
+      if (commandIndex > 0 && isRadio !== previousIsRadio) {
+        items.push({
+          kind: "separator",
+          id: chooserMenuEntryId("semantic-boundary", sectionIndex, commandIndex),
+        });
+      }
+      items.push({
+        kind: "action",
+        id: chooserMenuEntryId("command", sectionIndex, section.id, commandIndex, command.id),
+        label: command.title,
+        detail: command.caption,
+        checked: command.checked,
+        icon: command.checked === true || command.symbol === undefined ? undefined : <SystemSymbol name={command.symbol} />,
+        onSelect: command.onSelect,
+      });
+      previousIsRadio = isRadio;
+    }
+  }
+  return items;
+}
+
+function chooserMenuIdPart(value: string | number): string {
+  const source = String(value);
+  let encoded = "";
+  for (let index = 0; index < source.length; index += 1) {
+    encoded += source.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return encoded;
+}
+
+function chooserMenuEntryId(kind: string, ...identity: readonly (string | number)[]): string {
+  return ["chooser", chooserMenuIdPart(kind), ...identity.map(chooserMenuIdPart)].join("-");
+}
+
 function SecondaryGroupMenu({ group }: { readonly group: ChooserSecondaryGroup }) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const hasActiveCommand = group.sections.some((section) => section.commands.some((command) => command.checked === true));
 
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')?.focus({ preventScroll: true });
-    });
-    function closeFromOutside(event: PointerEvent) {
-      if (event.target instanceof Node && !wrapperRef.current?.contains(event.target)) setOpen(false);
-    }
-    function handleMenuKey(event: KeyboardEvent) {
-      const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') ?? []);
-      const activeElement = document.activeElement;
-      const index = activeElement instanceof HTMLElement ? items.indexOf(activeElement) : -1;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus({ preventScroll: true });
-      } else if (event.key === "Tab") {
-        event.preventDefault();
-        setOpen(false);
-        const nextTarget = event.shiftKey
-          ? triggerRef.current
-          : wrapperRef.current?.closest(".mc-chooser-window")?.querySelector<HTMLElement>(".mc-window-footer button, .mc-window-footer a") ??
-            triggerRef.current;
-        requestAnimationFrame(() => nextTarget?.focus({ preventScroll: true }));
-      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        const next = index < 0 ? 0 : (index + direction + items.length) % items.length;
-        items[next]?.focus({ preventScroll: true });
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        items[event.key === "Home" ? 0 : items.length - 1]?.focus({ preventScroll: true });
-      }
-    }
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", handleMenuKey);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", handleMenuKey);
-    };
-  }, [open]);
-
-  function choose(command: ChooserCommand) {
-    command.onSelect();
-    setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
-  }
-
   return (
-    <div ref={wrapperRef} className="mc-chooser-secondary">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="mc-chooser-secondary-trigger"
-        data-selected={hasActiveCommand}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <SystemSymbol name="square.grid.2x2" />
-        <span>
-          <strong>{group.label}</strong>
-          {hasActiveCommand && group.activeCaption !== undefined ? <small>{group.activeCaption}</small> : group.caption !== undefined ? <small>{group.caption}</small> : null}
-        </span>
-        <SystemSymbol name="chevron.down" />
-      </button>
-      {open ? (
-        <div ref={menuRef} className="mc-chooser-secondary-menu" role="menu" aria-label={group.label}>
-          {group.sections.map((section) => (
-            <div key={section.id} role="none" className="mc-chooser-menu-section">
-              {section.label !== undefined ? <div className="mc-chooser-menu-label">{section.label}</div> : null}
-              {section.commands.map((command) => (
-                <button
-                  type="button"
-                  key={command.id}
-                  role={command.checked === undefined ? "menuitem" : "menuitemradio"}
-                  aria-checked={command.checked === undefined ? undefined : command.checked}
-                  tabIndex={-1}
-                  onClick={() => choose(command)}
-                >
-                  {command.checked === true ? (
-                    <SystemSymbol name="checkmark" />
-                  ) : command.symbol !== undefined ? (
-                    <SystemSymbol name={command.symbol} />
-                  ) : (
-                    <span className="mc-chooser-menu-symbol-spacer" />
-                  )}
-                  <span>
-                    <strong>{command.title}</strong>
-                    {command.caption !== undefined ? <small>{command.caption}</small> : null}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <MacMenu
+      className={`mc-chooser-secondary${hasActiveCommand ? " is-selected" : ""}`}
+      items={secondaryMenuItems(group)}
+      label={group.label}
+      popover={{ className: "mc-chooser-secondary-menu", placement: "bottom end" }}
+      trigger={
+        <>
+          <SystemSymbol name="square.grid.2x2" />
+          <span>
+            <strong>{group.label}</strong>
+            {hasActiveCommand && group.activeCaption !== undefined ? <small>{group.activeCaption}</small> : group.caption !== undefined ? <small>{group.caption}</small> : null}
+          </span>
+          <SystemSymbol name="chevron.down" />
+        </>
+      }
+      triggerClassName="mc-chooser-secondary-trigger"
+      triggerLabel={group.label}
+    />
   );
 }
 
@@ -331,6 +301,7 @@ export function ChooserWindow({
       label={label ?? title}
       frame={frame}
       defaultSize={chooserDefaultSize}
+      minSize={chooserMinSize}
       onClose={onClose}
       onMinimize={onMinimize}
       onZoom={onZoom}

@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { act, useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FinderWindow, finderKeyTarget, type FinderEntry, type FinderViewMode } from "../finder";
+import { MacWindowModalHost } from "../window-modal-host.tsx";
 
 afterEach(cleanup);
 
@@ -49,6 +50,26 @@ function Harness({
       preview={withPreview ? (entry) => <span>{entry?.name ?? "No selection"}</span> : undefined}
       iconColumns={iconColumns}
     />
+  );
+}
+
+function QuickLookWithUnrelatedModalHarness() {
+  return (
+    <>
+      <Harness />
+      <section className="mac-window" aria-label="Unrelated window">
+        <MacWindowModalHost
+          ariaLabel="Unrelated dialog"
+          className="unrelated-dialog"
+          kind="sheet"
+          onCancel={() => {}}
+          open
+          role="dialog"
+        >
+          <button type="button">Unrelated modal action</button>
+        </MacWindowModalHost>
+      </section>
+    </>
   );
 }
 
@@ -580,6 +601,23 @@ describe("QuickLook focus management", () => {
     fireEvent.keyDown(close, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(dialog.isConnected).toBe(false);
+    await flushAnimationFrame();
+    expect(document.activeElement).toBe(option);
+  });
+
+  it("returns focus to its Finder owner instead of an unrelated window modal", async () => {
+    render(<QuickLookWithUnrelatedModalHarness />);
+    const option = screen.getAllByRole("option")[0];
+    expect(option).toBeDefined();
+    if (!option) return;
+    act(() => option.focus());
+    fireEvent.keyDown(option, { key: " " });
+    const quickLook = screen.getByRole("dialog", { name: "Quick Look Report 1" });
+    await flushAnimationFrame();
+
+    fireEvent.keyDown(within(quickLook).getByRole("button", { name: "Close Quick Look" }), { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Quick Look Report 1" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Unrelated dialog" })).toBeTruthy();
     await flushAnimationFrame();
     expect(document.activeElement).toBe(option);
   });

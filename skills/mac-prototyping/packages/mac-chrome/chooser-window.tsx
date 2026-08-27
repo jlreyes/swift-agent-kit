@@ -143,10 +143,15 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
 
 function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
   const items: MenuEntry[] = [];
+  let renderedSectionCount = 0;
   for (const [sectionIndex, section] of group.sections.entries()) {
-    if (sectionIndex > 0) items.push({ kind: "separator", id: `chooser:${section.id}:separator` });
+    if (section.commands.length === 0) continue;
+    if (renderedSectionCount > 0) {
+      items.push({ kind: "separator", id: chooserMenuEntryId("section-separator", sectionIndex) });
+    }
+    renderedSectionCount += 1;
     if (section.label !== undefined) {
-      items.push({ kind: "section", id: `chooser:${section.id}`, label: section.label });
+      items.push({ kind: "section", id: chooserMenuEntryId("section", sectionIndex, section.id), label: section.label });
     }
     let previousIsRadio: boolean | undefined;
     for (const [commandIndex, command] of section.commands.entries()) {
@@ -155,11 +160,14 @@ function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
       // semantics. Split mixed command/radio runs so an ordinary command never
       // inherits menuitemradio merely because a sibling has `checked` state.
       if (commandIndex > 0 && isRadio !== previousIsRadio) {
-        items.push({ kind: "separator", id: `chooser:${section.id}:semantic-boundary:${command.id}` });
+        items.push({
+          kind: "separator",
+          id: chooserMenuEntryId("semantic-boundary", sectionIndex, commandIndex),
+        });
       }
       items.push({
         kind: "action",
-        id: `chooser:${section.id}:${command.id}`,
+        id: chooserMenuEntryId("command", sectionIndex, section.id, commandIndex, command.id),
         label: command.title,
         detail: command.caption,
         checked: command.checked,
@@ -170,6 +178,19 @@ function secondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
     }
   }
   return items;
+}
+
+function chooserMenuIdPart(value: string | number): string {
+  const source = String(value);
+  let encoded = "";
+  for (let index = 0; index < source.length; index += 1) {
+    encoded += source.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return encoded;
+}
+
+function chooserMenuEntryId(kind: string, ...identity: readonly (string | number)[]): string {
+  return ["chooser", chooserMenuIdPart(kind), ...identity.map(chooserMenuIdPart)].join("-");
 }
 
 function SecondaryGroupMenu({ group }: { readonly group: ChooserSecondaryGroup }) {

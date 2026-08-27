@@ -47,7 +47,7 @@ it("scrolls narrow Docks without clipping vertical item affordances", () => {
   expect(scroller).toMatch(/overflow-x:\s*auto/);
   expect(scroller).toMatch(/overflow-y:\s*hidden/);
   expect(scroller).toMatch(/margin-top:\s*-32px/);
-  expect(scroller).toMatch(/padding:\s*32px 0 6px/);
+  expect(scroller).toMatch(/padding:\s*32px 24px 6px/);
 });
 
 it("lets long list secondary values shrink and truncate inside their row", () => {

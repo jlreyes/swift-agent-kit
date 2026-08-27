@@ -3,20 +3,24 @@
 import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, useRef } from "react";
 
 const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+const modalOwnerSelector = ".mac-window, .desktop-canvas";
 
-function activeModalDialogs(ownerElement?: HTMLElement) {
-  const candidates = ownerElement === undefined
-    ? [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
-    : [...ownerElement.children]
-        .filter((child): child is HTMLElement => (
-          child instanceof HTMLElement && child.classList.contains("mc-window-modal-layer")
-        ))
-        .flatMap((layer) => [...layer.querySelectorAll<HTMLElement>('[aria-modal="true"]')]);
-  return candidates
-    .filter((dialog) => dialog.closest('[inert], [aria-hidden="true"]') === null);
+function containingModalOwner(dialog: HTMLElement): HTMLElement | null {
+  return dialog.closest<HTMLElement>(modalOwnerSelector)
+    ?? dialog.closest<HTMLElement>(".mc-window-modal-layer")?.parentElement
+    ?? dialog.parentElement;
 }
 
-function focusTargetOrActiveModal(target: HTMLElement | null, ownerElement?: HTMLElement) {
+function activeModalDialogs(ownerElement: HTMLElement | null) {
+  if (ownerElement === null) return [];
+  return [...ownerElement.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+    .filter((dialog) => (
+      containingModalOwner(dialog) === ownerElement
+      && dialog.closest('[inert], [aria-hidden="true"]') === null
+    ));
+}
+
+function focusTargetOrActiveModal(target: HTMLElement | null, ownerElement: HTMLElement | null) {
   const activeDialogs = activeModalDialogs(ownerElement);
   if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
     target.focus();
@@ -49,6 +53,7 @@ export function useModalFocusTrap({
   const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const resolvedOwner = ownerElement ?? (dialogRef.current === null ? null : containingModalOwner(dialogRef.current));
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return () => {
       // An explicit fallback is the caller's stable return target (for
@@ -59,7 +64,7 @@ export function useModalFocusTrap({
       const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
       // Closing a lower layer must not return focus into its underlay while a
       // newer modal remains active. In that case the active modal owns focus.
-      window.requestAnimationFrame(() => focusTargetOrActiveModal(target, ownerElement));
+      window.requestAnimationFrame(() => focusTargetOrActiveModal(target, resolvedOwner));
     };
   }, [fallbackFocusRef, ownerElement]);
 

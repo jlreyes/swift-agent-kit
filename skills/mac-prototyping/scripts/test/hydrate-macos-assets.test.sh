@@ -182,4 +182,28 @@ assert_contains "$failure_root/stderr" "qlmanage failed to extract the Tahoe wal
 assert_contains "$failure_root/stderr" "unable to extract the Tahoe Day wallpaper with ffmpeg or qlmanage"
 assert_no_extraction_temporary_directories
 
+missing_root="$test_root/missing-source"
+missing_prototype="$missing_root/prototype"
+missing_movie="$missing_root/Absent Tahoe Day.mov"
+missing_wallpaper="$missing_prototype/public/mac-assets/wallpapers/tahoe.jpg"
+mkdir -p "${missing_wallpaper:h}"
+print -r -- "stale wallpaper" >"$missing_wallpaper"
+expected_missing_wallpaper=${missing_wallpaper:A}
+
+env \
+  TMPDIR="$runtime_root" \
+  MAC_PROTOTYPING_PLATFORM=Darwin \
+  MAC_PROTOTYPING_TAHOE_MOVIE="$missing_movie" \
+  MAC_PROTOTYPING_FFMPEG_COMMAND="$tools_root/ffmpeg" \
+  MAC_PROTOTYPING_QLMANAGE_COMMAND="$tools_root/qlmanage" \
+  MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+  FAKE_SIPS_RESULT=success \
+  "$hydrator" "$missing_prototype" >"$missing_root/stdout" 2>"$missing_root/stderr"
+
+[[ ! -e "$missing_wallpaper" ]] || fail "missing source retained a stale Tahoe wallpaper"
+assert_contains "$missing_root/stderr" "Tahoe Day wallpaper is unavailable on this macOS install ($missing_movie)"
+assert_contains "$missing_root/stderr" "removed stale hydrated Tahoe wallpaper at $expected_missing_wallpaper"
+assert_contains "$missing_root/stdout" "local asset hydration finished with"
+assert_no_extraction_temporary_directories
+
 print "hydrate-macos-assets.test: passed"

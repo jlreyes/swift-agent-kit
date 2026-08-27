@@ -9,6 +9,11 @@ function StoredIdsProbe({ store }: { readonly store: ReturnType<typeof createSto
   return <span data-testid="stored-ids">{store.useStoredIds().join(",")}</span>;
 }
 
+function menuItemByText(menu: HTMLElement | null, text: string): HTMLElement | undefined {
+  return Array.from(menu?.querySelectorAll<HTMLElement>("[role='menuitem'], [role='menuitemradio']") ?? [])
+    .find((item) => item.textContent?.includes(text));
+}
+
 it("routes secondary chooser commands through the shared Mac menu system", async () => {
   const container = document.createElement("div");
   document.body.append(container);
@@ -91,12 +96,12 @@ it("routes secondary chooser commands through the shared Mac menu system", async
   ]);
   expect(menu?.querySelectorAll(".menu-separator")).toHaveLength(1);
   expect(menu?.textContent).toContain("Start with helpful prompts.");
-  expect(menu?.querySelector("[data-key='chooser:templates:guided'] [data-system-symbol='sparkles']")).toBeTruthy();
-  expect(menu?.querySelector("[data-key='chooser:templates:blank']")?.getAttribute("role")).toBe("menuitemradio");
-  expect(menu?.querySelector("[data-key='chooser:templates:blank']")?.getAttribute("aria-checked")).toBe("true");
+  expect(menuItemByText(menu, "Guided Project")?.querySelector("[data-system-symbol='sparkles']")).toBeTruthy();
+  expect(menuItemByText(menu, "Blank Project")?.getAttribute("role")).toBe("menuitemradio");
+  expect(menuItemByText(menu, "Blank Project")?.getAttribute("aria-checked")).toBe("true");
 
   await act(async () => {
-    menu?.querySelector<HTMLElement>("[data-key='chooser:import:file']")?.click();
+    menuItemByText(menu, "Import File…")?.click();
   });
   expect(picked).toBe("file");
   expect(document.querySelector("[role='menu'][aria-label='More Options']")).toBeNull();
@@ -152,13 +157,114 @@ it("keeps ordinary commands out of a sibling radio group", async () => {
   });
 
   const menu = document.querySelector<HTMLElement>("[role='menu'][aria-label='More Options']");
-  const radio = menu?.querySelector<HTMLElement>("[data-key='chooser:mixed:recommended']");
-  const command = menu?.querySelector<HTMLElement>("[data-key='chooser:mixed:import']");
+  const radio = menuItemByText(menu, "Recommended template");
+  const command = menuItemByText(menu, "Import File…");
   expect(radio?.getAttribute("role")).toBe("menuitemradio");
   expect(radio?.getAttribute("aria-checked")).toBe("true");
   expect(command?.getAttribute("role")).toBe("menuitem");
   expect(command?.hasAttribute("aria-checked")).toBe(false);
   expect(menu?.querySelectorAll(".menu-separator")).toHaveLength(1);
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("names every chooser menu entry uniquely for adversarial caller ids", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  let picked = "";
+
+  await act(async () => {
+    root.render(
+      <ChooserWindow
+        title="Create a project"
+        subtitle="Choose a starting point"
+        choices={[{ id: "starter", symbol: "doc.text.fill", title: "Starter", caption: "Standard" }]}
+        selected="starter"
+        onSelect={() => undefined}
+        secondaryGroup={{
+          label: "Adversarial Options",
+          sections: [
+            {
+              id: "s",
+              label: "FIRST",
+              commands: [
+                { id: "separator", title: "Separator command", onSelect: () => { picked = "separator"; } },
+                { id: "separator:separator", title: "Double separator command", onSelect: () => undefined },
+                { id: "semantic-boundary:choice", title: "Boundary-named command", onSelect: () => undefined },
+                { id: "choice", title: "Radio choice", checked: true, onSelect: () => undefined },
+              ],
+            },
+            {
+              id: "s:separator",
+              label: "SECOND",
+              commands: [{ id: "final", title: "Final command", onSelect: () => undefined }],
+            },
+          ],
+        }}
+        footer={<button type="button">Continue</button>}
+      />,
+    );
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>("button[aria-label='Adversarial Options']")?.click();
+  });
+
+  const menu = document.querySelector<HTMLElement>("[role='menu'][aria-label='Adversarial Options']");
+  const keys = Array.from(menu?.querySelectorAll<HTMLElement>("[data-key]") ?? [], (entry) => entry.dataset["key"]);
+  expect(keys.length).toBeGreaterThan(0);
+  expect(new Set(keys).size).toBe(keys.length);
+  await act(async () => menuItemByText(menu, "Separator command")?.click());
+  expect(picked).toBe("separator");
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("places separators only between non-empty chooser sections", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+
+  await act(async () => {
+    root.render(
+      <ChooserWindow
+        title="Create a project"
+        subtitle="Choose a starting point"
+        choices={[{ id: "starter", symbol: "doc.text.fill", title: "Starter", caption: "Standard" }]}
+        selected="starter"
+        onSelect={() => undefined}
+        secondaryGroup={{
+          label: "Sparse Options",
+          sections: [
+            { id: "empty-leading", label: "EMPTY LEADING", commands: [] },
+            { id: "one", label: "ONE", commands: [{ id: "one", title: "First command", onSelect: () => undefined }] },
+            { id: "empty-middle-a", label: "EMPTY A", commands: [] },
+            { id: "empty-middle-b", commands: [] },
+            { id: "two", label: "TWO", commands: [{ id: "two", title: "Second command", onSelect: () => undefined }] },
+            { id: "empty-trailing", label: "EMPTY TRAILING", commands: [] },
+          ],
+        }}
+        footer={<button type="button">Continue</button>}
+      />,
+    );
+  });
+  await act(async () => {
+    container.querySelector<HTMLButtonElement>("button[aria-label='Sparse Options']")?.click();
+  });
+
+  const menu = document.querySelector<HTMLElement>("[role='menu'][aria-label='Sparse Options']");
+  expect(Array.from(menu?.querySelectorAll(".menu-section-label") ?? [], (label) => label.textContent)).toEqual([
+    "ONE",
+    "TWO",
+  ]);
+  const separators = menu?.querySelectorAll<HTMLElement>(".menu-separator") ?? [];
+  expect(separators).toHaveLength(1);
+  expect(separators[0]?.previousElementSibling).toBeTruthy();
+  expect(separators[0]?.nextElementSibling).toBeTruthy();
+  expect(separators[0]?.previousElementSibling?.classList.contains("menu-separator")).toBe(false);
+  expect(separators[0]?.nextElementSibling?.classList.contains("menu-separator")).toBe(false);
 
   await act(async () => root.unmount());
   container.remove();

@@ -401,6 +401,100 @@ function stubNativeClock(now: Date) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(now);
 }
 
+function stubWithManagedWindowCommands(
+  menu: MenuBarMenu,
+  manager: MacWindowManagerValue,
+  onMenuAction: DesktopShellProps["onMenuAction"],
+  isApplicationMenu: boolean,
+): MenuBarMenu {
+  const keyWindow = manager.windows.find((window) => window.id === manager.keyWindowId);
+  const keyApp = manager.apps.find((app) => app.id === manager.keyAppId);
+  const keyAppWindows = manager.windows.filter((window) => window.appId === manager.keyAppId && window.state !== "closed");
+  function command(id: string, label: string, action: () => void) {
+    return () => {
+      action();
+      onMenuAction?.({ menu: menu.title, id, label });
+    };
+  }
+  function managedCommand(entry: MenuAction, disabled: boolean, action: () => void): MenuAction {
+    if (entry.onSelect !== undefined || entry.href !== undefined || entry.disabled !== undefined) return entry;
+    return { ...entry, disabled, onSelect: disabled ? undefined : command(entry.id, entry.label, action) };
+  }
+
+  if (menu.title === "File") {
+    return {
+      ...menu,
+      items: menu.items.map((entry) => entry.kind === "action" && entry.id === "close-window"
+        ? managedCommand(entry, keyWindow === undefined, () => { if (keyWindow !== undefined) manager.closeWindow(keyWindow.id); })
+        : entry),
+    };
+  }
+  if (isApplicationMenu && keyApp !== undefined) {
+    return {
+      ...menu,
+      items: menu.items.map((entry) => {
+        if (entry.kind !== "action") return entry;
+        if (entry.id === "hide-app") {
+          return managedCommand(entry, false, () => {
+            for (const window of keyAppWindows) manager.minimizeWindow(window.id);
+          });
+        }
+        if (entry.id === "hide-others") {
+          return managedCommand(entry, false, () => {
+            for (const window of manager.windows) {
+              if (window.appId !== keyApp.id && window.state === "open") manager.minimizeWindow(window.id);
+            }
+          });
+        }
+        if (entry.id === "quit-app") return managedCommand(entry, false, () => manager.quitApp(keyApp.id));
+        return entry;
+      }),
+    };
+  }
+  if (menu.title !== "Window") return menu;
+
+  const managedItems = menu.items.map((entry) => {
+    if (entry.kind !== "action") return entry;
+    if (entry.id === "minimize") {
+      return managedCommand(entry, keyWindow === undefined, () => { if (keyWindow !== undefined) manager.minimizeWindow(keyWindow.id); });
+    }
+    if (entry.id === "zoom") {
+      return managedCommand(entry, keyWindow === undefined, () => { if (keyWindow !== undefined) manager.toggleZoom(keyWindow.id); });
+    }
+    if (entry.id === "bring-all-to-front") {
+      return managedCommand(entry, manager.keyAppId === null, () => manager.bringAllToFront(manager.keyAppId ?? undefined));
+    }
+    return entry;
+  });
+  const consumerIds = new Set(managedItems.map((entry) => entry.id));
+  const managedWindows = keyAppWindows.filter((window) => !consumerIds.has(`window-${window.id}`));
+  return {
+    ...menu,
+    items: [
+      ...managedItems,
+      ...(managedItems.length === 0 || managedWindows.length === 0 ? [] : [{ kind: "separator" as const, id: "managed-window-list-separator" }]),
+      ...managedWindows.map((window) => ({
+        kind: "action" as const,
+        id: `window-${window.id}`,
+        label: window.label,
+        checked: window.isKeyWindow,
+        onSelect: command(`window-${window.id}`, window.label, () => manager.restoreWindow(window.id)),
+      })),
+    ],
+  };
+}
+
+function stubWithCommandTarget(menu: MenuBarMenu, onMenuAction: DesktopShellProps["onMenuAction"]): MenuBarMenu {
+  return {
+    ...menu,
+    items: menu.items.map((entry) => {
+      if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) return entry;
+      if (onMenuAction === undefined) return { ...entry, disabled: true };
+      return { ...entry, onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }) };
+    }),
+  };
+}
+
 export function DesktopShell({
   appName,
   menuItems = ["File", "Edit", "View", "Window", "Help"],
@@ -413,6 +507,7 @@ export function DesktopShell({
   wallpaper,
   children,
 }: DesktopShellProps) {
+  const windowManager = useContext(StubManagerContext);
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => new Date());
@@ -434,14 +529,9 @@ export function DesktopShell({
     ...menuItems.map((item): MenuBarMenu => typeof item === "string"
       ? { title: item, items: stubStandardMenus[item] ?? [{ kind: "action", id: "unavailable", label: "No Commands Available", disabled: true }] }
       : item),
-  ].map((menu) => ({
-    ...menu,
-    items: menu.items.map((entry) => {
-      if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) return entry;
-      if (onMenuAction === undefined) return { ...entry, disabled: true };
-      return { ...entry, onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }) };
-    }),
-  }));
+  ]
+    .map((menu, index) => windowManager === null ? menu : stubWithManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
+    .map((menu) => stubWithCommandTarget(menu, onMenuAction));
   const canvasStyle = wallpaper
     ? ({ "--mc-wallpaper": wallpaper.startsWith("url(") ? wallpaper : `url("${wallpaper}")` } as CSSProperties)
     : undefined;
@@ -2026,6 +2116,58 @@ export type ChooserSecondaryGroup = {
   readonly sections: readonly ChooserCommandSection[];
 };
 
+function stubChooserSecondaryMenuItems(group: ChooserSecondaryGroup): MenuSpec {
+  const items: MenuEntry[] = [];
+  for (const [sectionIndex, section] of group.sections.entries()) {
+    if (sectionIndex > 0) items.push({ kind: "separator", id: `chooser:${section.id}:separator` });
+    if (section.label !== undefined) items.push({ kind: "section", id: `chooser:${section.id}`, label: section.label });
+    let previousIsRadio: boolean | undefined;
+    for (const [commandIndex, command] of section.commands.entries()) {
+      const isRadio = command.checked !== undefined;
+      if (commandIndex > 0 && isRadio !== previousIsRadio) {
+        items.push({ kind: "separator", id: `chooser:${section.id}:semantic-boundary:${command.id}` });
+      }
+      items.push({
+        kind: "action",
+        id: `chooser:${section.id}:${command.id}`,
+        label: command.title,
+        detail: command.caption,
+        checked: command.checked,
+        icon: command.checked === true || command.symbol === undefined ? undefined : <SystemSymbol name={command.symbol} />,
+        onSelect: command.onSelect,
+      });
+      previousIsRadio = isRadio;
+    }
+  }
+  return items;
+}
+
+function StubChooserSecondaryMenu({ group }: { readonly group: ChooserSecondaryGroup }) {
+  const hasActiveCommand = group.sections.some((section) => section.commands.some((command) => command.checked === true));
+  return (
+    <MacMenu
+      className={`mc-chooser-secondary${hasActiveCommand ? " is-selected" : ""}`}
+      items={stubChooserSecondaryMenuItems(group)}
+      label={group.label}
+      popover={{ className: "mc-chooser-secondary-menu", placement: "bottom end" }}
+      trigger={(
+        <>
+          <SystemSymbol name="square.grid.2x2" />
+          <span>
+            <strong>{group.label}</strong>
+            {hasActiveCommand && group.activeCaption !== undefined
+              ? <small>{group.activeCaption}</small>
+              : group.caption !== undefined ? <small>{group.caption}</small> : null}
+          </span>
+          <SystemSymbol name="chevron.down" />
+        </>
+      )}
+      triggerClassName="mc-chooser-secondary-trigger"
+      triggerLabel={group.label}
+    />
+  );
+}
+
 export type StoredIdList = {
   readonly key: string;
   readonly useStoredIds: () => readonly string[];
@@ -2101,25 +2243,69 @@ export function ChooserWindow({ title, subtitle, finePrint, windowTitle, toolbar
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 }) {
-  const active = choices.find((choice) => choice.id === selected);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(selected ?? choices[0]?.id ?? null);
+  const active = choices.find((choice) => choice.id === selected) ?? null;
+  const resolvedFocusId = choices.some((choice) => choice.id === focusedId) ? focusedId : choices[0]?.id ?? null;
+  function focusChoice(id: string) {
+    window.requestAnimationFrame(() => {
+      const list = listRef.current;
+      if (list === null) return;
+      for (const card of list.querySelectorAll<HTMLElement>("[data-mc-choice-id]")) {
+        if (card.dataset["mcChoiceId"] === id) {
+          card.focus({ preventScroll: true });
+          return;
+        }
+      }
+    });
+  }
+  function handleChoiceKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, id: string) {
+    const index = choices.findIndex((choice) => choice.id === id);
+    if (index < 0) return;
+    let nextIndex = index;
+    if (event.key === "ArrowRight") nextIndex = Math.min(choices.length - 1, index + 1);
+    else if (event.key === "ArrowLeft") nextIndex = Math.max(0, index - 1);
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = choices.length - 1;
+    else if (event.key === "Enter") {
+      event.preventDefault();
+      onActivate?.(id);
+      return;
+    } else return;
+    event.preventDefault();
+    const next = choices[nextIndex];
+    if (next === undefined) return;
+    onSelect(next.id);
+    setFocusedId(next.id);
+    focusChoice(next.id);
+  }
   return (
     <WindowChrome className="mc-chooser-window" label={label ?? title} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
-      <header className="mc-chooser-toolbar"><TrafficLights /><strong>{windowTitle}</strong>{toolbarExtras}</header>
+      <header className="mc-chooser-toolbar" data-window-drag-handle=""><TrafficLights /><strong>{windowTitle ?? ""}</strong><div className="mc-chooser-toolbar-actions">{toolbarExtras}</div></header>
       <header className="mc-chooser-heading"><h1>{title}</h1><p>{subtitle}</p>{finePrint !== undefined ? <small>{finePrint}</small> : null}</header>
       <div className="mc-chooser-body">
-        <div className="mc-chooser-filmstrip" role="listbox" aria-label={title}>
-          {choices.map((choice) => (
-            <button type="button" role="option" aria-selected={choice.id === selected} key={choice.id} onClick={() => onSelect(choice.id)} onDoubleClick={() => onActivate?.(choice.id)}>
-              <SystemSymbol name={choice.symbol} /><strong>{choice.title}</strong><small>{choice.caption}</small>
-            </button>
-          ))}
+        <div className={`mc-chooser-catalog${secondaryGroup !== undefined ? " mc-has-secondary" : ""}`}>
+          <div ref={listRef} className="mc-chooser-filmstrip" role="listbox" aria-label={title}>
+            {choices.map((choice) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={choice.id === selected}
+                tabIndex={choice.id === resolvedFocusId ? 0 : -1}
+                data-mc-choice-id={choice.id}
+                className="mc-chooser-choice"
+                key={choice.id}
+                onClick={() => { onSelect(choice.id); setFocusedId(choice.id); }}
+                onDoubleClick={() => onActivate?.(choice.id)}
+                onKeyDown={(event) => handleChoiceKeyDown(event, choice.id)}
+              >
+                <SystemSymbol name={choice.symbol} /><span className="mc-chooser-choice-copy"><strong>{choice.title}</strong><small>{choice.caption}</small></span>
+              </button>
+            ))}
+          </div>
+          {secondaryGroup !== undefined ? <StubChooserSecondaryMenu group={secondaryGroup} /> : null}
         </div>
-        {secondaryGroup !== undefined ? (
-          <MacDetailsMenu label={secondaryGroup.label} summary={secondaryGroup.label}>
-            {secondaryGroup.sections.flatMap((section) => section.commands).map((command) => <button type="button" key={command.id} onClick={command.onSelect}>{command.title}</button>)}
-          </MacDetailsMenu>
-        ) : null}
-        <section className="mc-chooser-detail">{active?.preview}</section>
+        <section className="mc-chooser-detail" aria-live="polite">{active?.preview}</section>
       </div>
       <footer className="mc-window-footer">{footer}</footer>
     </WindowChrome>

@@ -15,6 +15,7 @@ sips_command=${MAC_PROTOTYPING_SIPS_COMMAND:-/usr/bin/sips}
 qlmanage_command=${MAC_PROTOTYPING_QLMANAGE_COMMAND:-/usr/bin/qlmanage}
 ffmpeg_command=${MAC_PROTOTYPING_FFMPEG_COMMAND:-ffmpeg}
 temporary_root=""
+hydrated_asset_count=0
 
 cleanup_temporary_root() {
   local cleanup_path=${temporary_root:-}
@@ -76,6 +77,7 @@ convert_icon() {
   fi
 
   "$sips_command" -s format png -z 256 256 "$source" --out "$destination" >/dev/null
+  (( hydrated_asset_count += 1 ))
 }
 
 convert_icon \
@@ -184,8 +186,18 @@ if [[ -f "$tahoe_movie" ]]; then
     print -u2 "mac-prototyping: unable to extract the Tahoe Day wallpaper with ffmpeg or qlmanage"
     exit 74
   fi
+
+  (( hydrated_asset_count += 1 ))
 else
-  print -u2 "mac-prototyping: Tahoe Day wallpaper is unavailable on this macOS install"
+  print -u2 "mac-prototyping: Tahoe Day wallpaper is unavailable on this macOS install ($tahoe_movie)"
+  if [[ -e "$tahoe_still" || -L "$tahoe_still" ]]; then
+    if /bin/rm -f -- "$tahoe_still"; then
+      print -u2 "mac-prototyping: removed stale hydrated Tahoe wallpaper at $tahoe_still"
+    else
+      print -u2 "mac-prototyping: could not remove stale Tahoe wallpaper at $tahoe_still"
+      exit 74
+    fi
+  fi
 fi
 
-print "mac-prototyping: hydrated private local assets in $asset_root"
+print "mac-prototyping: local asset hydration finished with $hydrated_asset_count asset(s) written to $asset_root"

@@ -1,6 +1,14 @@
 /* Minimal mac-chrome styles for the placeholder stub. Replaced together with
    the components when the real packages/mac-chrome is vendored in. */
 
+:root {
+  /* Semantic chrome tokens used by the public stub. Keep these names aligned
+     with the real package so exact vendoring changes implementation, not the
+     Dock's material contract. */
+  --capsule-border: rgba(0, 0, 0, 0.11);
+  --dock-glass: #e1e5ea;
+}
+
 .showcase-viewport {
   width: 100%;
   height: 100dvh;

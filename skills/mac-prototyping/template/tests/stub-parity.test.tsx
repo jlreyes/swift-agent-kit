@@ -120,6 +120,97 @@ describe("template stub public behavior", () => {
     expect(onMenuAction).toHaveBeenLastCalledWith({ menu: "Help", id: "search-help", label: "Search" });
   });
 
+  test("DesktopShell routes File and Window commands through MacWindowManager without an action callback", async () => {
+    const app = { id: "managed-menus", name: "Prototype", icon: <span>Icon</span> } as const;
+    function ManagedMenuProbe() {
+      const manager = useMacWindowManager();
+      const windows = manager.windows.map((window) => `${window.id}:${window.state}:${window.zoomed ? "zoomed" : "normal"}`).join(",");
+      return <output data-testid="managed-menu-state">{`${manager.keyWindowId ?? "none"}|${windows}`}</output>;
+    }
+    const user = userEvent.setup();
+    render(
+      <MacWindowManager initialApps={[app]}>
+        <MacApp {...app}>
+          <DesktopShell appName="Prototype">
+            <WindowChrome label="First Window" windowId="first">First</WindowChrome>
+            <WindowChrome label="Second Window" windowId="second">Second</WindowChrome>
+            <ManagedMenuProbe />
+          </DesktopShell>
+        </MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByTestId("managed-menu-state").textContent).toBe("second|first:open:normal,second:open:normal"));
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    let menu = await screen.findByRole("menu", { name: "Window menu" });
+    expect(within(menu).getByRole("menuitemradio", { name: "Second Window" }).getAttribute("aria-checked")).toBe("true");
+    await user.click(within(menu).getByRole("menuitem", { name: "Zoom" }));
+    expect(screen.getByTestId("managed-menu-state").textContent).toBe("second|first:open:normal,second:open:zoomed");
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    menu = await screen.findByRole("menu", { name: "Window menu" });
+    await user.click(within(menu).getByRole("menuitem", { name: "Bring All to Front" }));
+    expect(screen.getByTestId("managed-menu-state").textContent?.startsWith("second|")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    menu = await screen.findByRole("menu", { name: "Window menu" });
+    await user.click(within(menu).getByRole("menuitemradio", { name: "First Window" }));
+    expect(screen.getByTestId("managed-menu-state").textContent?.startsWith("first|")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "File" }));
+    await user.click(within(await screen.findByRole("menu", { name: "File menu" })).getByRole("menuitem", { name: /Close Window/ }));
+    expect(screen.getByTestId("managed-menu-state").textContent).toBe("second|first:closed:normal,second:open:zoomed");
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Window menu" })).getByRole("menuitem", { name: /Minimize/ }));
+    expect(screen.getByTestId("managed-menu-state").textContent).toBe("none|first:closed:normal,second:minimized:zoomed");
+  });
+
+  test("DesktopShell application commands hide, hide others, and quit the key app", async () => {
+    const other = { id: "other-app", name: "Other", icon: <span>Other icon</span> } as const;
+    const active = { id: "active-app", name: "Prototype", icon: <span>Active icon</span> } as const;
+    function ApplicationMenuProbe() {
+      const manager = useMacWindowManager();
+      const apps = manager.apps.map((app) => `${app.id}:${app.running ? "running" : "quit"}`).join(",");
+      const windows = manager.windows.map((window) => `${window.id}:${window.state}`).join(",");
+      return (
+        <>
+          <button type="button" onClick={() => manager.activateApp(active.id)}>Reactivate Prototype</button>
+          <output data-testid="application-menu-state">{`${manager.keyWindowId ?? "none"}|${apps}|${windows}`}</output>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <MacWindowManager initialApps={[other, active]}>
+        <MacApp {...other}><WindowChrome label="Other Window" windowId="other">Other</WindowChrome></MacApp>
+        <MacApp {...active}>
+          <DesktopShell appName="Prototype">
+            <WindowChrome label="Prototype Window" windowId="active">Active</WindowChrome>
+            <ApplicationMenuProbe />
+          </DesktopShell>
+        </MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByTestId("application-menu-state").textContent?.startsWith("active|")).toBe(true));
+
+    await user.click(screen.getByRole("button", { name: "Prototype" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Prototype menu" })).getByRole("menuitem", { name: /Hide Others/ }));
+    expect(screen.getByTestId("application-menu-state").textContent).toContain("other:minimized,active:open");
+
+    await user.click(screen.getByRole("button", { name: "Prototype" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Prototype menu" })).getByRole("menuitem", { name: /Hide Prototype/ }));
+    expect(screen.getByTestId("application-menu-state").textContent?.startsWith("none|")).toBe(true);
+    expect(screen.getByTestId("application-menu-state").textContent).toContain("other:minimized,active:minimized");
+
+    await user.click(screen.getByRole("button", { name: "Reactivate Prototype" }));
+    expect(screen.getByTestId("application-menu-state").textContent?.startsWith("active|")).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Prototype" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Prototype menu" })).getByRole("menuitem", { name: /Quit Prototype/ }));
+    expect(screen.getByTestId("application-menu-state").textContent).toContain("active-app:quit");
+    expect(screen.getByTestId("application-menu-state").textContent).toContain("active:closed");
+  });
+
   test("MacMenu honors link, detail, checked state, and popover class contracts", async () => {
     const user = userEvent.setup();
     render(
@@ -433,7 +524,12 @@ describe("template stub public behavior", () => {
   test("WindowChrome resize handles enforce minimum size and desktop canvas bounds", async () => {
     render(
       <div className="desktop-canvas">
-        <WindowChrome label="Resizable" frame={{ left: 100, top: 100, width: 500, height: 400 }} minSize={{ width: 300, height: 200 }}>
+        <WindowChrome
+          label="Resizable"
+          frame={{ left: 100, top: 100, width: 500, height: 400 }}
+          minSize={{ width: 300, height: 200 }}
+          style={{ border: 0, boxSizing: "border-box", padding: 0 }}
+        >
           Content
         </WindowChrome>
       </div>,
@@ -536,6 +632,80 @@ describe("template stub public behavior", () => {
     const delta = screen.getByRole("option", { name: "Delta" });
     await waitFor(() => expect(document.activeElement).toBe(delta));
     expect(delta.getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("Chooser uses roving focus, horizontal navigation, and Enter activation", async () => {
+    const choices = [
+      { id: "one", symbol: "doc" as const, title: "One", caption: "First choice" },
+      { id: "two", symbol: "folder" as const, title: "Two", caption: "Second choice" },
+      { id: "three", symbol: "star" as const, title: "Three", caption: "Third choice" },
+    ];
+    const onActivate = vi.fn();
+    function ChooserKeyboardHarness() {
+      const [selected, setSelected] = useState<string | null>("one");
+      return <ChooserWindow title="Choose" subtitle="Pick one" choices={choices} selected={selected} onSelect={setSelected} onActivate={onActivate} footer={null} />;
+    }
+    const user = userEvent.setup();
+    render(<ChooserKeyboardHarness />);
+    const options = screen.getAllByRole("option");
+    expect(options.filter((option) => option.tabIndex === 0)).toHaveLength(1);
+    const one = screen.getByRole("option", { name: /One/ });
+    one.focus();
+    await user.keyboard("{ArrowRight}");
+    const two = screen.getByRole("option", { name: /Two/ });
+    await waitFor(() => expect(document.activeElement).toBe(two));
+    expect(two.getAttribute("aria-selected")).toBe("true");
+    await user.keyboard("{End}");
+    const three = screen.getByRole("option", { name: /Three/ });
+    await waitFor(() => expect(document.activeElement).toBe(three));
+    expect(three.getAttribute("aria-selected")).toBe("true");
+    await user.keyboard("{Home}");
+    await waitFor(() => expect(document.activeElement).toBe(one));
+    expect(one.getAttribute("aria-selected")).toBe("true");
+    await user.keyboard("{Enter}");
+    expect(onActivate).toHaveBeenCalledWith("one");
+  });
+
+  test("Chooser secondary groups preserve captions, sections, symbols, and radio state through MacMenu", async () => {
+    const onBlank = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChooserWindow
+        title="Choose"
+        subtitle="Pick one"
+        choices={[]}
+        selected={null}
+        onSelect={() => {}}
+        secondaryGroup={{
+          label: "More Templates",
+          caption: "Browse more",
+          activeCaption: "Dark selected",
+          sections: [
+            { id: "sources", label: "Sources", commands: [{ id: "blank", symbol: "doc", title: "Blank", caption: "Start fresh", onSelect: onBlank }] },
+            { id: "themes", label: "Themes", commands: [
+              { id: "light", title: "Light", caption: "Bright canvas", checked: false, onSelect: () => {} },
+              { id: "dark", title: "Dark", caption: "Dim canvas", checked: true, onSelect: () => {} },
+            ] },
+          ],
+        }}
+        footer={null}
+      />,
+    );
+    expect(screen.getByText("Dark selected")).toBeDefined();
+    expect(screen.queryByText("Browse more")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "More Templates" }));
+    const menu = await screen.findByRole("menu", { name: "More Templates" });
+    expect(within(menu).getByText("Sources")).toBeDefined();
+    expect(within(menu).getByText("Themes")).toBeDefined();
+    const blank = within(menu).getByRole("menuitem", { name: /Blank/ });
+    expect(blank.querySelector('[data-system-symbol="doc"]')).not.toBeNull();
+    expect(within(blank).getByText("Start fresh")).toBeDefined();
+    expect(within(menu).getByRole("menuitemradio", { name: /Light/ }).getAttribute("aria-checked")).toBe("false");
+    expect(within(menu).getByRole("menuitemradio", { name: /Dark/ }).getAttribute("aria-checked")).toBe("true");
+    expect(within(menu).getByText("Bright canvas")).toBeDefined();
+    expect(within(menu).getByText("Dim canvas")).toBeDefined();
+    await user.click(blank);
+    expect(onBlank).toHaveBeenCalledOnce();
   });
 
   test("window recipes forward all lifecycle callbacks", async () => {

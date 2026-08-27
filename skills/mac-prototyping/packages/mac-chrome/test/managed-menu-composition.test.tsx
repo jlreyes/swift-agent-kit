@@ -17,10 +17,12 @@ const app = {
 };
 
 function ManagedMenuHarness({
+  appName = "Managed",
   appMenuItems,
   menuItems,
   onMenuAction,
 }: {
+  readonly appName?: string;
   readonly appMenuItems?: MenuBarMenu["items"];
   readonly menuItems: readonly MenuBarMenu[];
   readonly onMenuAction?: (command: { readonly menu: string; readonly id: string; readonly label: string }) => void;
@@ -28,7 +30,7 @@ function ManagedMenuHarness({
   return (
     <MacWindowManager initialApps={[app]}>
       <DesktopShell
-        appName="Managed"
+        appName={appName}
         appMenuItems={appMenuItems}
         menuItems={menuItems}
         onMenuAction={onMenuAction}
@@ -46,7 +48,38 @@ async function openMenu(name: string) {
   await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
+async function openMenuButton(button: HTMLElement) {
+  fireEvent.click(button);
+  await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
 describe("managed menu command composition", () => {
+  it("distinguishes an app named File from the actual File menu", async () => {
+    render(
+      <ManagedMenuHarness
+        appName="File"
+        menuItems={[{
+          title: "File",
+          items: [{ kind: "action", id: "close-window", label: "Close Window" }],
+        }]}
+      />,
+    );
+    await waitFor(() => expect(document.querySelector("[data-window-id='managed:main']")).toBeTruthy());
+
+    const [applicationMenu, fileMenu] = screen.getAllByRole("button", { name: "File" });
+    expect(applicationMenu).toBeTruthy();
+    expect(fileMenu).toBeTruthy();
+    await openMenuButton(applicationMenu as HTMLElement);
+    expect(screen.getByRole("menuitem", { name: "Hide File" }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Hide Others" }).getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Quit File" }).getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Hide Others" }));
+
+    await openMenuButton(fileMenu as HTMLElement);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close Window" }));
+    await waitFor(() => expect(document.querySelector("[data-window-id='managed:main']")).toBeNull());
+  });
+
   it("preserves a consumer File handler instead of replacing it with close-window behavior", async () => {
     const onSelect = vi.fn();
     render(

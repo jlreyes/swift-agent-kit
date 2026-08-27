@@ -618,16 +618,20 @@ export function useManagedWindowRegistration({ defaultOpen, label, windowId }: {
 }) {
   const manager = useOptionalMacWindowManager();
   const app = useOptionalMacApp();
+  const appId = app?.id;
   const resolvedWindowId = manager !== null && app !== null ? windowId ?? `${app.id}:main` : null;
   const registerWindow = manager?.registerWindow;
   const unregisterWindow = manager?.unregisterWindow;
   const updateWindowLabel = manager?.updateWindowLabel;
+  const initialRegistration = useRef({ defaultOpen, label });
 
   useEffect(() => {
-    if (registerWindow === undefined || unregisterWindow === undefined || app === null || resolvedWindowId === null) return;
-    registerWindow({ id: resolvedWindowId, appId: app.id, label, defaultOpen });
+    if (registerWindow === undefined || unregisterWindow === undefined || appId === undefined || resolvedWindowId === null) return;
+    // Dynamic labels flow through updateWindowLabel. Defaults belong only to
+    // the initial registration and must not reset live window state.
+    registerWindow({ id: resolvedWindowId, appId, ...initialRegistration.current });
     return () => unregisterWindow(resolvedWindowId);
-  }, [app, defaultOpen, registerWindow, resolvedWindowId, unregisterWindow]);
+  }, [appId, registerWindow, resolvedWindowId, unregisterWindow]);
 
   useEffect(() => {
     if (updateWindowLabel === undefined || resolvedWindowId === null) return;

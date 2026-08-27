@@ -290,7 +290,15 @@ type WindowGeometry = {
 
 type WindowGeometryState = {
   readonly inputSignature: string;
+  readonly normalization: WindowGeometryNormalization;
   readonly value: WindowGeometry;
+};
+
+type WindowGeometryNormalization = {
+  readonly heightAdjustment: number;
+  readonly marginLeft: number;
+  readonly marginTop: number;
+  readonly widthAdjustment: number;
 };
 
 type WindowResizeEdge = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
@@ -456,6 +464,56 @@ const windowGeometryStyleProperties = [
   "marginRight",
   "marginBottom",
   "marginLeft",
+  "marginBlock",
+  "marginBlockEnd",
+  "marginBlockStart",
+  "marginInline",
+  "marginInlineEnd",
+  "marginInlineStart",
+  "padding",
+  "paddingTop",
+  "paddingRight",
+  "paddingBottom",
+  "paddingLeft",
+  "paddingBlock",
+  "paddingBlockEnd",
+  "paddingBlockStart",
+  "paddingInline",
+  "paddingInlineEnd",
+  "paddingInlineStart",
+  "border",
+  "borderWidth",
+  "borderStyle",
+  "borderTop",
+  "borderTopWidth",
+  "borderTopStyle",
+  "borderRight",
+  "borderRightWidth",
+  "borderRightStyle",
+  "borderBottom",
+  "borderBottomWidth",
+  "borderBottomStyle",
+  "borderLeft",
+  "borderLeftWidth",
+  "borderLeftStyle",
+  "borderBlock",
+  "borderBlockWidth",
+  "borderBlockStyle",
+  "borderBlockStart",
+  "borderBlockStartWidth",
+  "borderBlockStartStyle",
+  "borderBlockEnd",
+  "borderBlockEndWidth",
+  "borderBlockEndStyle",
+  "borderInline",
+  "borderInlineWidth",
+  "borderInlineStyle",
+  "borderInlineStart",
+  "borderInlineStartWidth",
+  "borderInlineStartStyle",
+  "borderInlineEnd",
+  "borderInlineEndWidth",
+  "borderInlineEndStyle",
   "aspectRatio",
   "boxSizing",
 ] as const satisfies readonly (keyof CSSProperties)[];
@@ -465,6 +523,55 @@ function windowGeometryInputSignature(style: CSSProperties): string {
     const value = style[property];
     return `${property}:${typeof value}:${String(value)}`;
   }).join("|");
+}
+
+const identityGeometryNormalization: WindowGeometryNormalization = {
+  heightAdjustment: 0,
+  marginLeft: 0,
+  marginTop: 0,
+  widthAdjustment: 0,
+};
+
+function computedPixels(value: string): number {
+  if (!value.trim().endsWith("px")) return 0;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function geometryNormalization(element: HTMLElement): WindowGeometryNormalization {
+  const computed = window.getComputedStyle(element);
+  const contentBox = computed.boxSizing === "content-box";
+  return {
+    marginLeft: computedPixels(computed.marginLeft),
+    marginTop: computedPixels(computed.marginTop),
+    widthAdjustment: contentBox
+      ? computedPixels(computed.paddingLeft) + computedPixels(computed.paddingRight) +
+        computedPixels(computed.borderLeftWidth) + computedPixels(computed.borderRightWidth)
+      : 0,
+    heightAdjustment: contentBox
+      ? computedPixels(computed.paddingTop) + computedPixels(computed.paddingBottom) +
+        computedPixels(computed.borderTopWidth) + computedPixels(computed.borderBottomWidth)
+      : 0,
+  };
+}
+
+function normalizationEquals(left: WindowGeometryNormalization, right: WindowGeometryNormalization): boolean {
+  return left.heightAdjustment === right.heightAdjustment &&
+    left.marginLeft === right.marginLeft &&
+    left.marginTop === right.marginTop &&
+    left.widthAdjustment === right.widthAdjustment;
+}
+
+function normalizedGeometryStyle(
+  geometry: WindowGeometry,
+  normalization: WindowGeometryNormalization,
+): CSSProperties {
+  return {
+    left: geometry.left - normalization.marginLeft,
+    top: geometry.top - normalization.marginTop,
+    width: Math.max(0, geometry.width - normalization.widthAdjustment),
+    height: Math.max(0, geometry.height - normalization.heightAdjustment),
+  };
 }
 
 function useWindowGeometry({
@@ -487,6 +594,7 @@ function useWindowGeometry({
   const windowRef = useRef<HTMLElement>(null);
   const [geometryState, setGeometryState] = useState<WindowGeometryState | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
+  const normalizationRef = useRef<WindowGeometryNormalization>(identityGeometryNormalization);
   const inputSignatureRef = useRef(inputSignature);
   const interactionRef = useRef<WindowInteraction | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -496,10 +604,17 @@ function useWindowGeometry({
   function commitGeometry(nextGeometry: WindowGeometry) {
     geometryRef.current = nextGeometry;
     const currentInputSignature = inputSignatureRef.current;
+    const currentNormalization = normalizationRef.current;
     setGeometryState((current) =>
-      current?.inputSignature === currentInputSignature && geometryEquals(current.value, nextGeometry)
+      current?.inputSignature === currentInputSignature &&
+        geometryEquals(current.value, nextGeometry) &&
+        normalizationEquals(current.normalization, currentNormalization)
         ? current
-        : { inputSignature: currentInputSignature, value: nextGeometry });
+        : {
+            inputSignature: currentInputSignature,
+            normalization: currentNormalization,
+            value: nextGeometry,
+          });
   }
 
   function scheduleGeometry(nextGeometry: WindowGeometry) {
@@ -531,6 +646,7 @@ function useWindowGeometry({
        transforms disabled prevents translate/scale from being baked into
        left/top/size and then applied a second time by composedStyle. */
     const rect = untransformedClientRect(element);
+    normalizationRef.current = geometryNormalization(element);
     const captured = {
       left: rect.left - context.originLeft,
       top: rect.top - context.originTop,
@@ -556,6 +672,7 @@ function useWindowGeometry({
     if (inputSignatureRef.current !== inputSignature) {
       inputSignatureRef.current = inputSignature;
       geometryRef.current = null;
+      normalizationRef.current = identityGeometryNormalization;
       interactionRef.current = null;
       pendingGeometryRef.current = null;
       if (animationFrameRef.current !== null) {
@@ -716,11 +833,15 @@ function useWindowGeometry({
   const geometry = geometryState?.inputSignature === inputSignature
     ? geometryState.value
     : null;
+  const geometryStyle = geometryState?.inputSignature === inputSignature
+    ? normalizedGeometryStyle(geometryState.value, geometryState.normalization)
+    : null;
 
   return {
     beginDrag,
     beginResize,
     geometry,
+    geometryStyle,
     onPointerCancel: finishInteraction,
     onPointerMove,
     onPointerUp: finishInteraction,
@@ -841,12 +962,7 @@ export function WindowChrome({
 
   const composedStyle: CSSProperties = {
     ...(zoomed ? { ...zoomedPlacement, ...style } : authoredFrameStyle),
-    ...(zoomed || windowGeometry.geometry === null ? undefined : {
-      left: windowGeometry.geometry.left,
-      top: windowGeometry.geometry.top,
-      width: windowGeometry.geometry.width,
-      height: windowGeometry.geometry.height,
-    }),
+    ...(zoomed || windowGeometry.geometryStyle === null ? undefined : windowGeometry.geometryStyle),
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
     ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };

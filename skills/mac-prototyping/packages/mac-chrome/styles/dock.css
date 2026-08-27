@@ -30,7 +30,7 @@
   align-items: flex-end;
   gap: 4px;
   margin-top: -32px;
-  padding: 32px 0 6px;
+  padding: 32px 24px 6px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;

@@ -129,8 +129,18 @@ test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   expect(dockScroll).toMatch(/max-width:\s*100%/);
   expect(dockScroll).toMatch(/height:\s*calc\(100% \+ 38px\)/);
   expect(dockScroll).toMatch(/margin-top:\s*-32px/);
-  expect(dockScroll).toMatch(/padding:\s*32px 0 6px/);
+  expect(dockScroll).toMatch(/padding:\s*32px (?:0|24px) 6px/);
   expect(dockScroll).toMatch(/overflow-x:\s*auto/);
   expect(dockScroll).toMatch(/overflow-y:\s*hidden/);
   expect(rule(".p0-dock-scroll::-webkit-scrollbar")).toMatch(/display:\s*none/);
+});
+
+test("the Dock material resolves through defined semantic tokens", () => {
+  const rootTokens = rules(":root");
+  const dockShell = rule(".p0-mac-dock");
+
+  expect(rootTokens).toMatch(/--dock-glass:\s*#e1e5ea/);
+  expect(rootTokens).toMatch(/--capsule-border:\s*rgba\(0, 0, 0, 0\.11\)/);
+  expect(dockShell).toMatch(/background:\s*var\(--dock-glass\)/);
+  expect(dockShell).toMatch(/inset 0 0 0 0\.5px var\(--capsule-border\)/);
 });

@@ -102,6 +102,36 @@ function mockAuthoredLayout({ canvasLeft = 40, canvasTop = 20, canvasWidth = 900
   });
 }
 
+function mockBoxModelLayout({ canvasLeft = 40, canvasTop = 20, canvasWidth = 900, canvasHeight = 700 } = {}) {
+  function pixels(value: string): number {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("desktop-canvas")) {
+      return new DOMRect(canvasLeft, canvasTop, canvasWidth, canvasHeight);
+    }
+    if (this.classList.contains("mac-window")) {
+      const computed = window.getComputedStyle(this);
+      const widthAdjustment = computed.boxSizing === "content-box"
+        ? pixels(computed.paddingLeft) + pixels(computed.paddingRight) +
+          pixels(computed.borderLeftWidth) + pixels(computed.borderRightWidth)
+        : 0;
+      const heightAdjustment = computed.boxSizing === "content-box"
+        ? pixels(computed.paddingTop) + pixels(computed.paddingBottom) +
+          pixels(computed.borderTopWidth) + pixels(computed.borderBottomWidth)
+        : 0;
+      return new DOMRect(
+        canvasLeft + pixels(this.style.left) + pixels(computed.marginLeft),
+        canvasTop + pixels(this.style.top) + pixels(computed.marginTop),
+        pixels(this.style.width) + widthAdjustment,
+        pixels(this.style.height) + heightAdjustment,
+      );
+    }
+    return new DOMRect();
+  });
+}
+
 const standardLayout: TestLayout = {
   canvasLeft: 40,
   canvasTop: 20,
@@ -300,6 +330,72 @@ describe("WindowChrome geometry", () => {
     expect(windowElement.style.top).toBe("90px");
     expect(windowElement.style.width).toBe("480px");
     expect(windowElement.style.height).toBe("320px");
+  });
+
+  it.each([
+    { name: "margin shorthand", style: { margin: "12px 0 0 18px" } },
+    { name: "margin-left and margin-top", style: { marginLeft: 24, marginTop: 16 } },
+  ] satisfies readonly { readonly name: string; readonly style: CSSProperties }[])(
+    "keeps authored coordinates stable with $name",
+    async ({ style }) => {
+      mockBoxModelLayout();
+      const { container } = render(
+        <div className="desktop-canvas">
+          <WindowChrome frame={{ left: 100, top: 80, width: 500, height: 360 }} label="Margin window" style={style}>
+            <div data-window-drag-handle="">Title</div>
+          </WindowChrome>
+        </div>,
+      );
+      const windowElement = container.querySelector<HTMLElement>(".mac-window");
+      const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+      expect(windowElement?.style.left).toBe("100px");
+      expect(windowElement?.style.top).toBe("80px");
+      if (windowElement === null || handle === null) return;
+
+      firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+      firePointer(windowElement, "pointermove", { clientX: 230, clientY: 120 });
+      await flushAnimationFrame();
+      expect(windowElement.style.left).toBe("130px");
+      expect(windowElement.style.top).toBe("100px");
+    },
+  );
+
+  it("writes interactive border-box geometry as content-box dimensions", async () => {
+    mockBoxModelLayout();
+    function contentBoxWindow(padding: string, border: string) {
+      return (
+        <div className="desktop-canvas">
+          <WindowChrome
+            frame={{ left: 100, top: 80, width: 500, height: 360 }}
+            label="Content-box window"
+            style={{ border, boxSizing: "content-box", padding }}
+          >
+            <div data-window-drag-handle="">Title</div>
+          </WindowChrome>
+        </div>
+      );
+    }
+    const { container, rerender } = render(contentBoxWindow("10px 20px", "4px solid transparent"));
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    expect(windowElement).toBeTruthy();
+    if (windowElement === null) return;
+
+    expect(windowElement.style.width).toBe("500px");
+    expect(windowElement.style.height).toBe("360px");
+    expect(windowElement.getBoundingClientRect().width).toBe(548);
+    expect(windowElement.getBoundingClientRect().height).toBe(388);
+
+    await resizeFrom(windowElement, "se", 20, 20);
+    expect(windowElement.style.width).toBe("520px");
+    expect(windowElement.style.height).toBe("380px");
+    expect(windowElement.getBoundingClientRect().width).toBe(568);
+    expect(windowElement.getBoundingClientRect().height).toBe(408);
+
+    rerender(contentBoxWindow("20px 30px", "6px solid transparent"));
+    expect(windowElement.style.width).toBe("500px");
+    expect(windowElement.style.height).toBe("360px");
+    expect(windowElement.getBoundingClientRect().width).toBe(572);
+    expect(windowElement.getBoundingClientRect().height).toBe(412);
   });
 
   it("renders all eight edge and corner resize handles by default", () => {

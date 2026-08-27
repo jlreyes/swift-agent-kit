@@ -144,6 +144,48 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
   );
 }
 
+function DynamicWindowMetadataHarness() {
+  const [label, setLabel] = useState("Original window");
+  const [defaultOpen, setDefaultOpen] = useState(true);
+  return (
+    <MacWindowManager>
+      <DynamicWindowMetadataContents
+        defaultOpen={defaultOpen}
+        label={label}
+        onChangeDefaults={() => setDefaultOpen(false)}
+        onRename={() => setLabel("Renamed window")}
+      />
+    </MacWindowManager>
+  );
+}
+
+function DynamicWindowMetadataContents({ defaultOpen, label, onChangeDefaults, onRename }: {
+  readonly defaultOpen: boolean;
+  readonly label: string;
+  readonly onChangeDefaults: () => void;
+  readonly onRename: () => void;
+}) {
+  const manager = useMacWindowManager();
+  const window = manager.windows.find((candidate) => candidate.id === "metadata:main");
+  return (
+    <>
+      <output aria-label="Window metadata">
+        {window === undefined ? "missing" : `${window.label}|${window.state}|${window.zoomed ? "zoomed" : "restored"}`}
+      </output>
+      <button type="button" onClick={() => manager.toggleZoom("metadata:main")}>Zoom metadata</button>
+      <button type="button" onClick={onRename}>Rename metadata</button>
+      <button type="button" onClick={onChangeDefaults}>Change metadata defaults</button>
+      <MacApp
+        id="metadata"
+        name="Metadata"
+        icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+      >
+        <WindowChrome defaultOpen={defaultOpen} label={label} windowId="metadata:main"><span /></WindowChrome>
+      </MacApp>
+    </>
+  );
+}
+
 describe("Mac app and window management", () => {
   it("server-renders the immutable app manifest before registration effects run", () => {
     const html = renderToStaticMarkup(
@@ -179,6 +221,24 @@ describe("Mac app and window management", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide ephemeral" }));
     await waitFor(() => expect(screen.getByLabelText("Registry").textContent).toBe("manifest|manifest:main"));
+  });
+
+  it("updates a managed window label and defaults without resetting live state", async () => {
+    render(<DynamicWindowMetadataHarness />);
+    await waitFor(() => expect(screen.getByLabelText("Window metadata").textContent).toBe(
+      "Original window|open|restored",
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom metadata" }));
+    await waitFor(() => expect(screen.getByLabelText("Window metadata").textContent).toBe(
+      "Original window|open|zoomed",
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Rename metadata" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change metadata defaults" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Window metadata").textContent).toBe(
+      "Renamed window|open|zoomed",
+    ));
   });
 
   it("launches apps from the Dock and makes pointer- or focus-activated windows key", async () => {

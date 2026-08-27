@@ -33,6 +33,24 @@ it("owns border-box geometry when controls.css is imported standalone", () => {
   expect(fixedGeometry).toMatch(/box-sizing:\s*border-box/);
 });
 
+it("owns macOS typography when controls.css is imported standalone", () => {
+  const source = controlsSource();
+  const controlsTypography = rule(source, [
+    ".mc-button",
+    ".mc-text-field",
+    ".mc-field-input",
+    ".mc-toggle",
+    ".mc-segmented-control",
+    ".mc-segmented-option",
+    ".mc-control-group",
+    ".mc-form",
+    ".mc-form-section",
+    ".mc-labeled-content",
+  ].join(",\n"));
+
+  expect(controlsTypography).toMatch(/font-family:\s*var\(--font-mac\)/);
+});
+
 it("visually disables controls inherited through a native fieldset", () => {
   const source = controlsSource();
   const button = rule(source, ".mc-button[data-disabled],\n.mc-button:disabled");

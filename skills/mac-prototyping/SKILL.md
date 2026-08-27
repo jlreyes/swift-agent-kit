@@ -53,8 +53,10 @@ contains the final app identities and Dock entries before registration effects.
 
 Every new prototype includes two starter routes. Open `/showcase` first when
 discovering components or auditing mac-chrome: it is the interactive coverage
-surface for every runtime export. Keep `/example` as the small, coherent
-starter surface for product work. The template launcher links both routes.
+surface for public building blocks and their main compositions. Helpers and
+recipe-specific or legacy APIs are exercised indirectly through those stories
+or through tests. Keep `/example` as the small, coherent starter surface for
+product work. The template launcher links both routes.
 
 ## Compose from the standard library
 

@@ -103,7 +103,9 @@ test("status, native collection states, and disclosure affordances survive eithe
   const focusedRow = rule(".mc-list-row:focus-visible");
   const chevron = rule(".mc-disclosure-chevron::before");
   const expandedChevron = rule(".mc-disclosure[data-expanded] .mc-disclosure-chevron::before");
-  const disabledDisclosure = rule(".mc-disclosure-trigger:disabled");
+  const disabledDisclosure = importedPackageStyles
+    ? rule(".mc-disclosure[data-disabled]")
+    : rule(".mc-disclosure-trigger:disabled");
 
   expect(primaryStatus).toMatch(/flex:\s*1 1 auto/);
   expect(trailingStatus).toMatch(/max-width:\s*50%/);
@@ -123,6 +125,8 @@ test("status, native collection states, and disclosure affordances survive eithe
 test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   const dockShell = rule(".p0-mac-dock");
   const dockScroll = rule(".p0-dock-scroll");
+  const tooltip = rule(".p0-dock-tooltip");
+  const visibleTooltip = rule('.p0-dock-tooltip[data-visible="true"]');
 
   expect(ownsBorderBox(".p0-mac-dock")).toBe(true);
   expect(dockShell).toMatch(/width:\s*max-content/);
@@ -137,6 +141,12 @@ test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   expect(dockScroll).toMatch(/overflow-x:\s*auto/);
   expect(dockScroll).toMatch(/overflow-y:\s*hidden/);
   expect(rule(".p0-dock-scroll::-webkit-scrollbar")).toMatch(/display:\s*none/);
+  expect(tooltip).toMatch(/bottom:\s*calc\(100% \+ 2px\)/);
+  expect(tooltip).toMatch(/max-width:\s*calc\(100vw - 16px\)/);
+  expect(tooltip).toMatch(/visibility:\s*hidden/);
+  expect(tooltip).toMatch(/text-overflow:\s*ellipsis/);
+  expect(visibleTooltip).toMatch(/visibility:\s*visible/);
+  expect(source).not.toMatch(/\.p0-dock-item:hover \.p0-dock-tooltip/);
 });
 
 test("the Dock material resolves through defined semantic tokens", () => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createRef } from "react";
+import { act, createRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
 import { expect, it } from "vitest";
@@ -139,6 +139,57 @@ it("keeps text, toggle, and segmented values controlled", async () => {
   expect(segments[0]?.hasAttribute("data-selected")).toBe(true);
   await act(async () => listSegment?.click());
   expect(segmentValue).toBe("list");
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("treats a segmented control as one roving Tab stop", async () => {
+  function SegmentedHarness() {
+    const [value, setValue] = useState("grid");
+    return (
+      <>
+        <MacSegmentedControl
+          ariaLabel="View"
+          value={value}
+          options={[
+            { id: "grid", label: "Grid" },
+            { id: "list", label: "List", disabled: true },
+            { id: "columns", label: "Columns" },
+          ]}
+          onChange={setValue}
+        />
+        <button type="button" data-following-control="">Following control</button>
+      </>
+    );
+  }
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => root.render(<SegmentedHarness />));
+
+  const segments = container.querySelectorAll<HTMLButtonElement>(".mc-segmented-option");
+  const grid = segments[0] as HTMLButtonElement;
+  const list = segments[1] as HTMLButtonElement;
+  const columns = segments[2] as HTMLButtonElement;
+  const following = container.querySelector<HTMLButtonElement>("[data-following-control]") as HTMLButtonElement;
+  expect(list.disabled).toBe(true);
+  expect([grid.tabIndex, columns.tabIndex]).toEqual([0, -1]);
+  expect(following.tabIndex).toBe(0);
+
+  await act(async () => grid.focus());
+  await act(async () => fireEvent.keyDown(grid, { key: "ArrowRight" }));
+  expect(document.activeElement).toBe(columns);
+  expect(grid.hasAttribute("data-selected")).toBe(true);
+  expect([grid.tabIndex, columns.tabIndex]).toEqual([-1, 0]);
+  expect(following.tabIndex).toBe(0);
+
+  await act(async () => columns.click());
+  expect(columns.hasAttribute("data-selected")).toBe(true);
+  await act(async () => following.focus());
+  expect(document.activeElement).toBe(following);
+  expect([grid.tabIndex, columns.tabIndex]).toEqual([-1, 0]);
 
   await act(async () => root.unmount());
   container.remove();

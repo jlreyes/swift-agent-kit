@@ -17,6 +17,22 @@
   box-sizing: border-box;
 }
 
+/* Native form controls do not reliably inherit the document font. Each
+   public controls surface owns the macOS system stack so this stylesheet
+   remains correct without base.css. */
+.mc-button,
+.mc-text-field,
+.mc-field-input,
+.mc-toggle,
+.mc-segmented-control,
+.mc-segmented-option,
+.mc-control-group,
+.mc-form,
+.mc-form-section,
+.mc-labeled-content {
+  font-family: var(--font-mac);
+}
+
 .mc-button {
   min-width: 68px;
   min-height: 28px;

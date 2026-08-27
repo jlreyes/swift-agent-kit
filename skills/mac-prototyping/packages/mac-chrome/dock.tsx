@@ -1,6 +1,15 @@
 "use client";
 
-import type { CSSProperties, DragEvent as ReactDragEvent, ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type ReactNode,
+} from "react";
 
 import { SystemSymbol } from "./system-symbol.tsx";
 import type { MacWindowThumbnail } from "./window-transition.ts";
@@ -34,6 +43,14 @@ const windowThumbnailGeometry = {
   maxWidth: 48,
   maxHeight: 44,
 } as const;
+
+const dockTooltipViewportInset = 8;
+
+interface DockTooltipPosition {
+  readonly itemId: string;
+  readonly left: number;
+  readonly visible: boolean;
+}
 
 function containedThumbnailSize(thumbnail: MacWindowThumbnail) {
   const sourceWidth = Number.isFinite(thumbnail.width) && thumbnail.width > 0 ? thumbnail.width : 720;
@@ -162,9 +179,88 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   readonly items?: readonly DockItem[];
   readonly label?: string;
 }) {
+  const dockRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const hoveredItemIdRef = useRef<string | null>(null);
+  const focusedItemIdRef = useRef<string | null>(null);
+  const tooltipId = useId();
+  const [activeTooltipItemId, setActiveTooltipItemId] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<DockTooltipPosition | null>(null);
+  const activeTooltipItem = activeTooltipItemId === null
+    ? undefined
+    : items.find((item) => item.id === activeTooltipItemId);
+
+  const positionTooltip = useCallback((itemId: string) => {
+    const dock = dockRef.current;
+    const scrollport = scrollRef.current;
+    const tooltip = tooltipRef.current;
+    const item = itemRefs.current.get(itemId);
+    if (dock === null || scrollport === null || tooltip === null || item === undefined) return;
+
+    const dockRect = dock.getBoundingClientRect();
+    const scrollportRect = scrollport.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const visible = itemRect.right > scrollportRect.left && itemRect.left < scrollportRect.right;
+    const availableWidth = Math.max(0, window.innerWidth - dockTooltipViewportInset * 2);
+    const tooltipWidth = Math.min(tooltipRect.width, availableWidth);
+    const minimumCenter = dockTooltipViewportInset + tooltipWidth / 2;
+    const maximumCenter = window.innerWidth - dockTooltipViewportInset - tooltipWidth / 2;
+    const itemCenter = (itemRect.left + itemRect.right) / 2;
+    const viewportCenter = minimumCenter <= maximumCenter
+      ? Math.min(Math.max(itemCenter, minimumCenter), maximumCenter)
+      : window.innerWidth / 2;
+    const nextPosition = {
+      itemId,
+      left: viewportCenter - dockRect.left,
+      visible,
+    } satisfies DockTooltipPosition;
+
+    setTooltipPosition((current) => (
+      current?.itemId === nextPosition.itemId
+        && current.left === nextPosition.left
+        && current.visible === nextPosition.visible
+        ? current
+        : nextPosition
+    ));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (activeTooltipItemId === null || activeTooltipItem === undefined) return;
+    const scrollport = scrollRef.current;
+    if (scrollport === null) return;
+
+    const reposition = () => positionTooltip(activeTooltipItemId);
+    reposition();
+    scrollport.addEventListener("scroll", reposition, { passive: true });
+    window.addEventListener("resize", reposition);
+    return () => {
+      scrollport.removeEventListener("scroll", reposition);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [activeTooltipItem, activeTooltipItemId, positionTooltip]);
+
+  function activateTooltip(itemId: string) {
+    setActiveTooltipItemId(itemId);
+  }
+
+  function stopHovering(itemId: string) {
+    if (hoveredItemIdRef.current === itemId) hoveredItemIdRef.current = null;
+    setActiveTooltipItemId(focusedItemIdRef.current);
+  }
+
+  function stopFocusing(itemId: string) {
+    if (focusedItemIdRef.current === itemId) focusedItemIdRef.current = null;
+    setActiveTooltipItemId(hoveredItemIdRef.current);
+  }
+
+  const hasPositionedActiveTooltip = tooltipPosition?.itemId === activeTooltipItemId;
+
   return (
-    <nav className="p0-mac-dock" aria-label={label}>
-      <span className="p0-dock-scroll">
+    <nav ref={dockRef} className="p0-mac-dock" aria-label={label}>
+      <span ref={scrollRef} className="p0-dock-scroll">
         {items.map((item, index) => {
           const previousItem = items[index - 1];
           const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
@@ -177,12 +273,27 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
             <span className="p0-dock-item-wrap" key={item.id}>
               {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
               <button
+                ref={(element) => {
+                  if (element === null) itemRefs.current.delete(item.id);
+                  else itemRefs.current.set(item.id, element);
+                }}
                 className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
                 type="button"
                 aria-label={item.label}
+                aria-describedby={activeTooltipItemId === item.id ? tooltipId : undefined}
                 data-hover-effect="lift"
                 draggable={draggable}
                 onClick={item.onActivate}
+                onPointerEnter={() => {
+                  hoveredItemIdRef.current = item.id;
+                  activateTooltip(item.id);
+                }}
+                onPointerLeave={() => stopHovering(item.id)}
+                onFocus={() => {
+                  focusedItemIdRef.current = item.id;
+                  activateTooltip(item.id);
+                }}
+                onBlur={() => stopFocusing(item.id)}
                 onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
                   if (!payload) return;
                   for (const [type, data] of Object.entries(payload)) {
@@ -209,13 +320,24 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                     </span>
                   </span>
                 ) : <MacDockAppIcon icon={item.icon} />}
-                <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
                 <span className="p0-dock-running-dot" aria-hidden="true" />
               </button>
             </span>
           );
         })}
       </span>
+      {activeTooltipItem === undefined ? null : (
+        <span
+          ref={tooltipRef}
+          id={tooltipId}
+          className="p0-dock-tooltip"
+          role="tooltip"
+          data-visible={hasPositionedActiveTooltip && tooltipPosition.visible ? "true" : "false"}
+          style={{ left: hasPositionedActiveTooltip ? tooltipPosition.left : undefined }}
+        >
+          {activeTooltipItem.label}
+        </span>
+      )}
     </nav>
   );
 }

@@ -426,7 +426,7 @@ img {
   display: inline-block;
   flex: 0 0 auto;
   font-family: var(--font-sf-symbols);
-  font-size: 1em;
+  font-size: var(--mc-system-symbol-size, 1em);
   font-style: normal;
   font-weight: 400;
   line-height: 1;

@@ -47,7 +47,21 @@ it("scrolls narrow Docks without clipping vertical item affordances", () => {
   expect(scroller).toMatch(/overflow-x:\s*auto/);
   expect(scroller).toMatch(/overflow-y:\s*hidden/);
   expect(scroller).toMatch(/margin-top:\s*-32px/);
-  expect(scroller).toMatch(/padding:\s*32px 24px 6px/);
+  expect(scroller).toMatch(/padding:\s*32px 0 6px/);
+});
+
+it("renders Dock tooltips in the overflow-visible shell instead of the horizontal scrollport", () => {
+  const dock = styleSource("dock");
+  const tooltip = rule(dock, ".p0-dock-tooltip");
+  const visibleTooltip = rule(dock, '.p0-dock-tooltip[data-visible="true"]');
+
+  expect(tooltip).toMatch(/bottom:\s*calc\(100% \+ 2px\)/);
+  expect(tooltip).toMatch(/box-sizing:\s*border-box/);
+  expect(tooltip).toMatch(/max-width:\s*calc\(100vw - 16px\)/);
+  expect(tooltip).toMatch(/visibility:\s*hidden/);
+  expect(tooltip).toMatch(/text-overflow:\s*ellipsis/);
+  expect(visibleTooltip).toMatch(/visibility:\s*visible/);
+  expect(dock).not.toMatch(/\.p0-dock-item:hover \.p0-dock-tooltip/);
 });
 
 it("lets long list secondary values shrink and truncate inside their row", () => {
@@ -168,7 +182,8 @@ it("supports native-button list and disclosure states used by the public stub", 
   const nativeFocus = rule(collections, ".mc-list-row:focus-visible");
   const chevron = rule(collections, ".mc-disclosure-chevron::before");
   const expandedChevron = rule(collections, ".mc-disclosure[data-expanded] .mc-disclosure-chevron::before");
-  const disabledDisclosure = rule(collections, ".mc-disclosure-trigger:disabled");
+  const disabledDisclosure = rule(collections, ".mc-disclosure[data-disabled]");
+  const disabledDisclosureTrigger = rules(collections, ".mc-disclosure-trigger:disabled");
 
   expect(selected).toMatch(/background:\s*var\(--selection-tint\)/);
   expect(hover).toMatch(/background:\s*rgba\(0, 0, 0, 0\.035\)/);
@@ -179,4 +194,5 @@ it("supports native-button list and disclosure states used by the public stub", 
   expect(chevron).toMatch(/transform:\s*rotate\(-45deg\)/);
   expect(expandedChevron).toMatch(/transform:\s*rotate\(45deg\)/);
   expect(disabledDisclosure).toMatch(/opacity:\s*0\.45/);
+  expect(disabledDisclosureTrigger).not.toMatch(/opacity\s*:/);
 });

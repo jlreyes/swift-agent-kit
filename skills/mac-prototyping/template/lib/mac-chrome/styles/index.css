@@ -272,8 +272,14 @@
   transition: transform 120ms ease;
 }
 
-.p0-dock-item:hover {
+.p0-dock-item:hover,
+.p0-dock-item:focus-visible {
   transform: translateY(-7px);
+}
+
+.p0-dock-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 2px;
 }
 
 .p0-app-icon {
@@ -388,11 +394,40 @@
   display: none;
 }
 
+.p0-dock-tooltip {
+  position: absolute;
+  z-index: 1;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  padding: 4px 7px;
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  color: white;
+  background: rgba(45, 46, 49, 0.92);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  font-size: 9px;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.p0-dock-tooltip[data-visible="true"] {
+  visibility: visible;
+  opacity: 1;
+}
+
 .mc-system-symbol {
   display: inline-block;
   flex: 0 0 auto;
   font-family: var(--font-sf-symbols, "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif);
-  font-size: 1em;
+  font-size: var(--mc-system-symbol-size, 1em);
   font-style: normal;
   font-weight: 400;
   line-height: 1;
@@ -400,6 +435,11 @@
   text-rendering: optimizeLegibility;
   vertical-align: -0.125em;
   white-space: nowrap;
+}
+
+.mc-toolbar-button > .mc-system-symbol,
+.mc-search-bubble > button > .mc-system-symbol {
+  font-size: 14px;
 }
 
 .mc-window-resize-handle {

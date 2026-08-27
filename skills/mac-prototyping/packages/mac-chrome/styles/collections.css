@@ -192,7 +192,3 @@
 .mc-disclosure[data-disabled] {
   opacity: 0.45;
 }
-
-.mc-disclosure-trigger:disabled {
-  opacity: 0.45;
-}

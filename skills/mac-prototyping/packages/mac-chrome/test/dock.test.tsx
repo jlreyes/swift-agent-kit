@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { expect, it } from "vitest";
+import { fireEvent } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 
 import { MacDock, MacDockAppIcon } from "../dock.tsx";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+afterEach(() => vi.restoreAllMocks());
 
 it("normalizes asset and generated app icons onto the same canvas", async () => {
   const container = document.createElement("div");
@@ -89,6 +92,82 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
   expect(iconCanvases[0]?.classList.contains("p0-app-icon--asset")).toBe(true);
   expect(iconCanvases[1]?.classList.contains("p0-app-icon--tile")).toBe(true);
   expect(iconCanvases[2]?.classList.contains("p0-app-icon--tile")).toBe(true);
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("renders long edge tooltips outside the scrollport and clamps them to the viewport", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const firstLabel = "A very long first application label";
+  const lastLabel = "An equally long final application label";
+  let lastItemLeft = 348;
+
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("p0-mac-dock")) {
+      return DOMRect.fromRect({ x: 100, y: 600, width: 300, height: 67 });
+    }
+    if (this.classList.contains("p0-dock-scroll")) {
+      return DOMRect.fromRect({ x: 100, y: 568, width: 300, height: 105 });
+    }
+    if (this.classList.contains("p0-dock-tooltip")) {
+      return DOMRect.fromRect({ x: 0, y: 0, width: 240, height: 22 });
+    }
+    if (this.getAttribute("aria-label") === firstLabel) {
+      return DOMRect.fromRect({ x: 100, y: 608, width: 52, height: 52 });
+    }
+    if (this.getAttribute("aria-label") === lastLabel) {
+      return DOMRect.fromRect({ x: lastItemLeft, y: 608, width: 52, height: 52 });
+    }
+    return DOMRect.fromRect();
+  });
+  vi.spyOn(window, "innerWidth", "get").mockReturnValue(500);
+
+  await act(async () => {
+    root.render(
+      <MacDock
+        items={[
+          { id: "first", label: firstLabel, icon: "/first.png" },
+          { id: "middle", label: "Middle", icon: "/middle.png" },
+          { id: "last", label: lastLabel, icon: "/last.png" },
+        ]}
+      />,
+    );
+  });
+
+  const dock = container.querySelector<HTMLElement>(".p0-mac-dock")!;
+  const scroller = dock.querySelector<HTMLElement>(":scope > .p0-dock-scroll")!;
+  const firstItem = container.querySelector<HTMLButtonElement>(`[aria-label="${firstLabel}"]`)!;
+  const lastItem = container.querySelector<HTMLButtonElement>(`[aria-label="${lastLabel}"]`)!;
+
+  await act(async () => fireEvent.pointerEnter(firstItem));
+  let tooltip = dock.querySelector<HTMLElement>(":scope > .p0-dock-tooltip")!;
+  expect(tooltip.textContent).toBe(firstLabel);
+  expect(scroller.querySelector(".p0-dock-tooltip")).toBeNull();
+  expect(firstItem.getAttribute("aria-describedby")).toBe(tooltip.id);
+  expect(tooltip.dataset.visible).toBe("true");
+  expect(tooltip.style.left).toBe("28px");
+
+  await act(async () => {
+    fireEvent.pointerLeave(firstItem);
+    fireEvent.pointerEnter(lastItem);
+  });
+  tooltip = dock.querySelector<HTMLElement>(":scope > .p0-dock-tooltip")!;
+  expect(tooltip.textContent).toBe(lastLabel);
+  expect(lastItem.getAttribute("aria-describedby")).toBe(tooltip.id);
+  expect(tooltip.dataset.visible).toBe("true");
+  expect(tooltip.style.left).toBe("272px");
+
+  lastItemLeft = 420;
+  await act(async () => fireEvent.scroll(scroller));
+  expect(tooltip.dataset.visible).toBe("false");
+
+  lastItemLeft = 348;
+  await act(async () => fireEvent.scroll(scroller));
+  expect(tooltip.dataset.visible).toBe("true");
+  expect(tooltip.style.left).toBe("272px");
 
   await act(async () => root.unmount());
   container.remove();

@@ -11,12 +11,17 @@ import {
   Dialog,
   DialogTrigger,
   Header,
+  ListBox,
+  ListBoxItem,
+  ListBoxSection,
   Menu,
   MenuItem,
   MenuSection,
   MenuTrigger,
   Popover,
   Separator as AriaSeparator,
+  ToggleButton,
+  ToggleButtonGroup,
   Tree,
   TreeItem,
   TreeItemContent,
@@ -1141,6 +1146,14 @@ export interface DockItem {
   readonly draggablePayload?: Readonly<Record<string, string>>;
 }
 
+interface StubDockTooltipPosition {
+  readonly itemId: string;
+  readonly left: number;
+  readonly visible: boolean;
+}
+
+const stubDockTooltipViewportInset = 8;
+
 export const defaultDockItems: readonly DockItem[] = [
   { id: "finder", label: "Finder", icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" }, running: true, group: "apps" },
   { id: "app-store", label: "App Store", icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" }, group: "apps" },
@@ -1153,9 +1166,81 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   readonly items?: readonly DockItem[];
   readonly label?: string;
 }) {
+  const dockRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const hoveredItemIdRef = useRef<string | null>(null);
+  const focusedItemIdRef = useRef<string | null>(null);
+  const tooltipId = useId();
+  const [activeTooltipItemId, setActiveTooltipItemId] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<StubDockTooltipPosition | null>(null);
+  const activeTooltipItem = activeTooltipItemId === null
+    ? undefined
+    : items.find((item) => item.id === activeTooltipItemId);
+
+  const positionTooltip = useCallback((itemId: string) => {
+    const dock = dockRef.current;
+    const scrollport = scrollRef.current;
+    const tooltip = tooltipRef.current;
+    const item = itemRefs.current.get(itemId);
+    if (dock === null || scrollport === null || tooltip === null || item === undefined) return;
+
+    const dockRect = dock.getBoundingClientRect();
+    const scrollportRect = scrollport.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const visible = itemRect.right > scrollportRect.left && itemRect.left < scrollportRect.right;
+    const availableWidth = Math.max(0, window.innerWidth - stubDockTooltipViewportInset * 2);
+    const tooltipWidth = Math.min(tooltipRect.width, availableWidth);
+    const minimumCenter = stubDockTooltipViewportInset + tooltipWidth / 2;
+    const maximumCenter = window.innerWidth - stubDockTooltipViewportInset - tooltipWidth / 2;
+    const itemCenter = (itemRect.left + itemRect.right) / 2;
+    const viewportCenter = minimumCenter <= maximumCenter
+      ? Math.min(Math.max(itemCenter, minimumCenter), maximumCenter)
+      : window.innerWidth / 2;
+    const nextPosition = {
+      itemId,
+      left: viewportCenter - dockRect.left,
+      visible,
+    } satisfies StubDockTooltipPosition;
+    setTooltipPosition((current) => (
+      current?.itemId === nextPosition.itemId
+        && current.left === nextPosition.left
+        && current.visible === nextPosition.visible
+        ? current
+        : nextPosition
+    ));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (activeTooltipItemId === null || activeTooltipItem === undefined) return;
+    const scrollport = scrollRef.current;
+    if (scrollport === null) return;
+    const reposition = () => positionTooltip(activeTooltipItemId);
+    reposition();
+    scrollport.addEventListener("scroll", reposition, { passive: true });
+    window.addEventListener("resize", reposition);
+    return () => {
+      scrollport.removeEventListener("scroll", reposition);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [activeTooltipItem, activeTooltipItemId, positionTooltip]);
+
+  function stopHovering(itemId: string) {
+    if (hoveredItemIdRef.current === itemId) hoveredItemIdRef.current = null;
+    setActiveTooltipItemId(focusedItemIdRef.current);
+  }
+
+  function stopFocusing(itemId: string) {
+    if (focusedItemIdRef.current === itemId) focusedItemIdRef.current = null;
+    setActiveTooltipItemId(hoveredItemIdRef.current);
+  }
+
+  const hasPositionedActiveTooltip = tooltipPosition?.itemId === activeTooltipItemId;
   return (
-    <nav className="p0-mac-dock" aria-label={label}>
-      <span className="p0-dock-scroll">
+    <nav ref={dockRef} className="p0-mac-dock" aria-label={label}>
+      <span ref={scrollRef} className="p0-dock-scroll">
         {items.map((item, index) => {
           const previousItem = items[index - 1];
           const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
@@ -1165,12 +1250,27 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
             <span className="p0-dock-item-wrap" key={item.id}>
               {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
               <button
+                ref={(element) => {
+                  if (element === null) itemRefs.current.delete(item.id);
+                  else itemRefs.current.set(item.id, element);
+                }}
                 className={`p0-dock-item${item.running ? " is-running" : ""}${item.windowThumbnail ? " is-window-thumbnail" : ""}${draggable ? " can-drag" : ""}`}
                 type="button"
                 aria-label={item.label}
+                aria-describedby={activeTooltipItemId === item.id ? tooltipId : undefined}
                 data-hover-effect="lift"
                 draggable={draggable}
                 onClick={item.onActivate}
+                onPointerEnter={() => {
+                  hoveredItemIdRef.current = item.id;
+                  setActiveTooltipItemId(item.id);
+                }}
+                onPointerLeave={() => stopHovering(item.id)}
+                onFocus={() => {
+                  focusedItemIdRef.current = item.id;
+                  setActiveTooltipItemId(item.id);
+                }}
+                onBlur={() => stopFocusing(item.id)}
                 onDragStart={(event: ReactDragEvent<HTMLButtonElement>) => {
                   if (payload === undefined) return;
                   for (const [type, data] of Object.entries(payload)) event.dataTransfer.setData(type, data);
@@ -1182,13 +1282,24 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                     {item.windowThumbnail.src ? <img src={item.windowThumbnail.src} alt="" draggable={false} /> : <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>}
                   </span>
                 ) : <MacDockAppIcon icon={item.icon} />}
-                <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>
                 <span className="p0-dock-running-dot" aria-hidden="true" />
               </button>
             </span>
           );
         })}
       </span>
+      {activeTooltipItem === undefined ? null : (
+        <span
+          ref={tooltipRef}
+          id={tooltipId}
+          className="p0-dock-tooltip"
+          role="tooltip"
+          data-visible={hasPositionedActiveTooltip && tooltipPosition.visible ? "true" : "false"}
+          style={{ left: hasPositionedActiveTooltip ? tooltipPosition.left : undefined }}
+        >
+          {activeTooltipItem.label}
+        </span>
+      )}
     </nav>
   );
 }
@@ -1670,6 +1781,11 @@ export type MacListSection = {
   readonly items: readonly MacListRow[];
 };
 
+function stubRowTextValue(row: MacListRow): string {
+  if (row.textValue !== undefined) return row.textValue;
+  return typeof row.label === "string" ? row.label : row.id;
+}
+
 export function MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange }: {
   readonly ariaLabel: string;
   readonly className?: string;
@@ -1678,32 +1794,54 @@ export function MacList({ ariaLabel, className = "", emptyState = "No items", se
   readonly sections: readonly MacListSection[];
   readonly onSelectionChange: (id: string | null) => void;
 }) {
-  const rows = sections.flatMap((section) => section.items);
-  if (rows.length === 0) return <div className={`mc-list ${className}`.trim()} aria-label={ariaLabel}><div className="mc-list-empty">{emptyState}</div></div>;
+  function handleSelectionChange(selection: Selection) {
+    if (selection === "all") return;
+    const next = [...selection][0];
+    onSelectionChange(typeof next === "string" ? next : null);
+  }
+
+  function rows(section: MacListSection): readonly ReactNode[] {
+    return section.items.map((row) => (
+      <ListBoxItem
+        key={row.id}
+        id={row.id}
+        textValue={stubRowTextValue(row)}
+        className="mc-list-row"
+        isDisabled={row.disabled}
+        onAction={row.onAction}
+      >
+        {row.icon !== undefined ? <span className="mc-list-row-icon" aria-hidden="true">{row.icon}</span> : null}
+        <span className="mc-list-row-copy">
+          <span className="mc-list-row-label">{row.label}</span>
+          {row.description !== undefined ? <small>{row.description}</small> : null}
+        </span>
+        {row.secondary !== undefined ? <span className="mc-list-row-secondary">{row.secondary}</span> : null}
+        {row.accessory !== undefined ? <span className="mc-list-row-accessory">{row.accessory}</span> : null}
+      </ListBoxItem>
+    ));
+  }
+
   return (
-    <div role="listbox" aria-label={ariaLabel} className={`mc-list ${className}`.trim()}>
-      {sections.map((section) => (
-        <section key={section.id} className="mc-list-section">
-          {section.title !== undefined ? <strong className="mc-list-section-title">{section.title}</strong> : null}
-          {section.items.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              role="option"
-              aria-selected={row.id === selectedId}
-              className="mc-list-row"
-              disabled={row.disabled}
-              onClick={() => { onSelectionChange(row.id); row.onAction?.(); }}
-            >
-              {row.icon !== undefined ? <span className="mc-list-row-icon" aria-hidden="true">{row.icon}</span> : null}
-              <span className="mc-list-row-copy"><span className="mc-list-row-label">{row.label}</span>{row.description !== undefined ? <small>{row.description}</small> : null}</span>
-              {row.secondary !== undefined ? <span className="mc-list-row-secondary">{row.secondary}</span> : null}
-              {row.accessory !== undefined ? <span className="mc-list-row-accessory">{row.accessory}</span> : null}
-            </button>
-          ))}
-        </section>
-      ))}
-    </div>
+    <ListBox
+      aria-label={ariaLabel}
+      className={`mc-list ${className}`.trim()}
+      selectionMode="single"
+      selectionBehavior="replace"
+      selectedKeys={selectedId === null ? new Set<Key>() : new Set<Key>([selectedId])}
+      onSelectionChange={handleSelectionChange}
+      renderEmptyState={() => <div className="mc-list-empty">{emptyState}</div>}
+    >
+      {sections.flatMap((section) => {
+        const sectionRows = rows(section);
+        if (section.title === undefined || section.title === null) return sectionRows;
+        return [
+          <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
+            <Header className="mc-list-section-title">{section.title}</Header>
+            {sectionRows}
+          </ListBoxSection>,
+        ];
+      })}
+    </ListBox>
   );
 }
 
@@ -1789,7 +1927,53 @@ export function MacSegmentedControl({ ariaLabel, className = "", disabled = fals
   readonly value: string;
   readonly onChange: (value: string) => void;
 }) {
-  return <div className={`mc-segmented-control ${className}`.trim()} role="radiogroup" aria-label={ariaLabel}>{options.map((option) => <button key={option.id} type="button" role="radio" aria-checked={value === option.id} className="mc-segmented-option" disabled={disabled || option.disabled} data-selected={value === option.id ? "" : undefined} onClick={() => onChange(option.id)}>{option.icon}<span>{option.label}</span></button>)}</div>;
+  const [focusedOptionId, setFocusedOptionId] = useState<string | null>(null);
+  const enabledFocusedId = options.find(
+    (option) => option.id === focusedOptionId && !(option.disabled ?? false),
+  )?.id;
+  const selectedTabStopId = disabled
+    ? undefined
+    : options.find((option) => option.id === value && !(option.disabled ?? false))?.id
+      ?? options.find((option) => !(option.disabled ?? false))?.id;
+  const tabStopId = disabled ? undefined : enabledFocusedId ?? selectedTabStopId;
+
+  function handleSelectionChange(selection: Selection) {
+    if (selection === "all") return;
+    const next = [...selection][0];
+    if (typeof next === "string" && next !== value) onChange(next);
+  }
+
+  return (
+    <ToggleButtonGroup
+      aria-label={ariaLabel}
+      className={`mc-segmented-control ${className}`.trim()}
+      isDisabled={disabled}
+      selectionMode="single"
+      disallowEmptySelection
+      selectedKeys={new Set<Key>([value])}
+      onSelectionChange={handleSelectionChange}
+    >
+      {options.map((option) => (
+        <ToggleButton
+          key={option.id}
+          id={option.id}
+          className="mc-segmented-option"
+          excludeFromTabOrder={option.id !== tabStopId}
+          isDisabled={option.disabled}
+          onFocus={() => setFocusedOptionId(option.id)}
+          onBlur={(event) => {
+            const nextTarget = event.relatedTarget;
+            if (!(nextTarget instanceof Node) || !event.currentTarget.parentElement?.contains(nextTarget)) {
+              setFocusedOptionId(null);
+            }
+          }}
+        >
+          {option.icon !== undefined ? <span className="mc-segmented-icon" aria-hidden="true">{option.icon}</span> : null}
+          <span>{option.label}</span>
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
+  );
 }
 
 export function MacControlGroup({ ariaLabel, children, className = "" }: { readonly ariaLabel: string; readonly children: ReactNode; readonly className?: string }) {
@@ -2917,7 +3101,10 @@ export function SystemSymbol({ className = "", name, size }: {
   readonly name: SystemSymbolName;
   readonly size?: number;
 }) {
+  const style: (CSSProperties & { readonly "--mc-system-symbol-size"?: string }) | undefined = size === undefined
+    ? undefined
+    : { "--mc-system-symbol-size": `${size}px` };
   return (
-    <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={size === undefined ? undefined : { fontSize: `${size}px` }}>{getSymbol(name) ?? ""}</span>
+    <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={style}>{getSymbol(name) ?? ""}</span>
   );
 }

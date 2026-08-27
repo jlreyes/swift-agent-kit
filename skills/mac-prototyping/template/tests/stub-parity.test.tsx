@@ -18,9 +18,11 @@ import {
   MacAppDock,
   MacDock,
   MacInspector,
+  MacList,
   MacMenu,
   MacNavigationSplitView,
   MacPopover,
+  MacSegmentedControl,
   MacSheet,
   MacSourceList,
   Sheet,
@@ -105,6 +107,96 @@ describe("template stub public behavior", () => {
     const { container } = render(<DesktopShell appName="Prototype" wallpaper={wallpaper}><div /></DesktopShell>);
     const canvas = container.querySelector<HTMLElement>(".desktop-canvas");
     expect(canvas?.style.getPropertyValue("--mc-wallpaper")).toBe(expected);
+  });
+
+  test("MacList exposes one tab stop and supports arrow and text-value navigation", async () => {
+    function ListHarness() {
+      const [selectedId, setSelectedId] = useState<string | null>("alpha");
+      return (
+        <>
+          <button type="button">Before list</button>
+          <MacList
+            ariaLabel="Documents"
+            selectedId={selectedId}
+            onSelectionChange={setSelectedId}
+            sections={[{
+              id: "documents",
+              items: [
+                { id: "alpha", label: "Alpha" },
+                { id: "disabled", label: "Disabled", disabled: true },
+                { id: "bravo", label: <span>Visual second row</span>, textValue: "Bravo" },
+                { id: "charlie", label: "Charlie" },
+              ],
+            }]}
+          />
+          <button type="button">After list</button>
+          <output data-testid="list-selection">{selectedId ?? "none"}</output>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<ListHarness />);
+    const listbox = screen.getByRole("listbox", { name: "Documents" });
+    const options = within(listbox).getAllByRole("option");
+    expect([listbox, ...options].filter((element) => element.tabIndex === 0)).toHaveLength(1);
+
+    screen.getByRole("button", { name: "Before list" }).focus();
+    await user.tab();
+    expect(document.activeElement).toBe(options[0]);
+    await user.keyboard("b");
+    expect(document.activeElement).toBe(options[2]);
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(options[3]);
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toBe(options[2]);
+    await user.keyboard(" ");
+    expect(screen.getByTestId("list-selection").textContent).toBe("bravo");
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "After list" }));
+  });
+
+  test("MacSegmentedControl roves one tab stop and keyboard activation selects", async () => {
+    function SegmentedHarness() {
+      const [value, setValue] = useState("grid");
+      return (
+        <>
+          <button type="button">Before segments</button>
+          <MacSegmentedControl
+            ariaLabel="View style"
+            value={value}
+            onChange={setValue}
+            options={[
+              { id: "grid", label: "Grid" },
+              { id: "list", label: "List", disabled: true },
+              { id: "columns", label: "Columns" },
+            ]}
+          />
+          <button type="button">After segments</button>
+          <output data-testid="segment-selection">{value}</output>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<SegmentedHarness />);
+    const group = screen.getByRole("radiogroup", { name: "View style" });
+    const radios = within(group).getAllByRole("radio");
+
+    screen.getByRole("button", { name: "Before segments" }).focus();
+    await user.tab();
+    expect(document.activeElement).toBe(radios[0]);
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(radios[2]);
+    expect(screen.getByTestId("segment-selection").textContent).toBe("grid");
+    expect(radios[0]?.tabIndex).toBe(-1);
+    expect(radios[2]?.tabIndex).toBe(0);
+    await user.keyboard(" ");
+    expect(screen.getByTestId("segment-selection").textContent).toBe("columns");
+    expect(radios[2]?.getAttribute("aria-checked")).toBe("true");
+    await user.keyboard("{ArrowLeft}");
+    expect(document.activeElement).toBe(radios[0]);
+    await user.keyboard(" ");
+    expect(screen.getByTestId("segment-selection").textContent).toBe("grid");
+    expect([radios[0]?.tabIndex, radios[2]?.tabIndex]).toEqual([0, -1]);
   });
 
   test("DesktopShell standard menus expose the complete built-in command groups", async () => {
@@ -427,6 +519,53 @@ describe("template stub public behavior", () => {
     expect(dock.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(0);
     expect(container.querySelectorAll(".p0-app-icon-glyph .mc-system-symbol")).toHaveLength(defaultDockItems.length);
     expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  test("Dock owns one clamped tooltip outside its scrolling item strip", async () => {
+    const firstLabel = "A very long first application label";
+    const lastLabel = "An equally long final application label";
+    let lastItemLeft = 348;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("p0-mac-dock")) return DOMRect.fromRect({ x: 100, y: 600, width: 300, height: 67 });
+      if (this.classList.contains("p0-dock-scroll")) return DOMRect.fromRect({ x: 100, y: 568, width: 300, height: 105 });
+      if (this.classList.contains("p0-dock-tooltip")) return DOMRect.fromRect({ width: 240, height: 22 });
+      if (this.getAttribute("aria-label") === firstLabel) return DOMRect.fromRect({ x: 100, y: 608, width: 52, height: 52 });
+      if (this.getAttribute("aria-label") === lastLabel) return DOMRect.fromRect({ x: lastItemLeft, y: 608, width: 52, height: 52 });
+      return DOMRect.fromRect();
+    });
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(500);
+    render(
+      <MacDock
+        items={[
+          { id: "first", label: firstLabel, icon: "/first.png" },
+          { id: "last", label: lastLabel, icon: "/last.png" },
+        ]}
+      />,
+    );
+    const dock = screen.getByRole("navigation", { name: "Dock" });
+    const scroller = dock.querySelector<HTMLElement>(":scope > .p0-dock-scroll");
+    const firstItem = screen.getByRole("button", { name: firstLabel });
+    const lastItem = screen.getByRole("button", { name: lastLabel });
+
+    fireEvent.pointerEnter(firstItem);
+    let tooltip = await screen.findByRole("tooltip");
+    expect(dock.querySelectorAll(":scope > .p0-dock-tooltip")).toHaveLength(1);
+    expect(scroller?.querySelector(".p0-dock-tooltip")).toBeNull();
+    expect(firstItem.getAttribute("aria-describedby")).toBe(tooltip.id);
+    expect(tooltip.dataset.visible).toBe("true");
+    expect(tooltip.style.left).toBe("28px");
+
+    fireEvent.pointerLeave(firstItem);
+    fireEvent.pointerEnter(lastItem);
+    tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toBe(lastLabel);
+    expect(lastItem.getAttribute("aria-describedby")).toBe(tooltip.id);
+    expect(tooltip.dataset.visible).toBe("true");
+    expect(tooltip.style.left).toBe("272px");
+
+    lastItemLeft = 420;
+    fireEvent.scroll(scroller as HTMLElement);
+    expect(tooltip.dataset.visible).toBe("false");
   });
 
   test("registration cleanup preserves manifest apps and duplicate managed windows", async () => {

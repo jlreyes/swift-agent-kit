@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEventHandler, ReactNode, Ref } from "react";
+import { useState, type FormEventHandler, type ReactNode, type Ref } from "react";
 import {
   Button,
   Checkbox,
@@ -172,6 +172,20 @@ export function MacSegmentedControl({
   readonly value: string;
   readonly onChange: (value: string) => void;
 }) {
+  // ToggleButtonGroup supplies arrow-key movement and selection, but its
+  // buttons are otherwise all native Tab stops. A segmented single-selection
+  // control is one stop in the document order: the enabled selection owns it,
+  // falling back to the first enabled option when selection is unavailable.
+  const [focusedOptionId, setFocusedOptionId] = useState<string | null>(null);
+  const enabledFocusedId = options.find(
+    (option) => option.id === focusedOptionId && !(option.disabled ?? false),
+  )?.id;
+  const selectedTabStopId = disabled
+    ? undefined
+    : options.find((option) => option.id === value && !(option.disabled ?? false))?.id
+      ?? options.find((option) => !(option.disabled ?? false))?.id;
+  const tabStopId = disabled ? undefined : enabledFocusedId ?? selectedTabStopId;
+
   function handleSelectionChange(selection: Selection) {
     if (selection === "all") return;
     const next = [...selection][0];
@@ -193,7 +207,15 @@ export function MacSegmentedControl({
           key={option.id}
           id={option.id}
           className="mc-segmented-option"
+          excludeFromTabOrder={option.id !== tabStopId}
           isDisabled={option.disabled}
+          onFocus={() => setFocusedOptionId(option.id)}
+          onBlur={(event) => {
+            const nextTarget = event.relatedTarget;
+            if (!(nextTarget instanceof Node) || !event.currentTarget.parentElement?.contains(nextTarget)) {
+              setFocusedOptionId(null);
+            }
+          }}
         >
           {option.icon !== undefined ? <span className="mc-segmented-icon" aria-hidden="true">{option.icon}</span> : null}
           <span>{option.label}</span>

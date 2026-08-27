@@ -6,19 +6,23 @@ import "./styles/base.css";
 
 export type SystemSymbolName = SymbolName;
 
+type SystemSymbolStyle = CSSProperties & {
+  readonly "--mc-system-symbol-size"?: string;
+};
+
 /**
  * Renders an SF Symbols codepoint without distributing Apple font or image
- * assets. The glyph keeps its intrinsic font metrics; its parent component
- * owns the stable slot and optical font size.
+ * assets. `size` is the standalone fallback; role-owned containers such as
+ * toolbar buttons may impose their native optical size through CSS.
  */
 export function SystemSymbol({ className = "", name, size }: {
   readonly className?: string;
   readonly name: SystemSymbolName;
   readonly size?: number;
 }) {
-  const style: CSSProperties | undefined = size === undefined
+  const style: SystemSymbolStyle | undefined = size === undefined
     ? undefined
-    : { fontSize: `${size}px` };
+    : { "--mc-system-symbol-size": `${size}px` };
 
   return (
     <span

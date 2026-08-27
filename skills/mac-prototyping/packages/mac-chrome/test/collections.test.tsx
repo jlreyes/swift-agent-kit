@@ -137,3 +137,25 @@ it("uses controlled disclosure state and an accessible content-unavailable headi
   await act(async () => root.unmount());
   container.remove();
 });
+
+it("owns disabled disclosure state at the group while disabling its trigger", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <MacDisclosureGroup disabled expanded title="Advanced" onExpandedChange={() => undefined}>
+        <p>Advanced content</p>
+      </MacDisclosureGroup>,
+    );
+  });
+
+  const disclosure = container.querySelector<HTMLElement>(".mc-disclosure");
+  const trigger = container.querySelector<HTMLButtonElement>(".mc-disclosure-trigger");
+  expect(disclosure?.hasAttribute("data-disabled")).toBe(true);
+  expect(trigger?.disabled).toBe(true);
+  expect(disclosure?.textContent).toContain("Advanced content");
+
+  await act(async () => root.unmount());
+  container.remove();
+});

@@ -53,8 +53,35 @@ const standardMenus: Readonly<Record<string, MenuSpec>> = {
   ],
 };
 
-/* Accepts a full CSS <image> value or a bare URL for the wallpaper prop. */
-const cssImagePattern = /^(url\(|linear-gradient\(|radial-gradient\(|conic-gradient\(|image-set\(|var\()/;
+/* Accepts a full CSS <image> function or a bare URL for the wallpaper prop. */
+const cssWallpaperImageFunctions = new Set([
+  "-webkit-cross-fade",
+  "-webkit-image-set",
+  "conic-gradient",
+  "cross-fade",
+  "element",
+  "image",
+  "image-set",
+  "linear-gradient",
+  "paint",
+  "radial-gradient",
+  "repeating-conic-gradient",
+  "repeating-linear-gradient",
+  "repeating-radial-gradient",
+  "url",
+  "var",
+]);
+
+function isCssWallpaperImageValue(source: string) {
+  const functionName = /^(-?[a-z][a-z0-9-]*)\(/i.exec(source.trimStart())?.[1];
+  return functionName !== undefined && cssWallpaperImageFunctions.has(functionName.toLowerCase());
+}
+
+function wallpaperImageValue(source: string) {
+  if (isCssWallpaperImageValue(source)) return source;
+  const escapedSource = source.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `url("${escapedSource}")`;
+}
 
 type DesktopCanvasStyle = CSSProperties & { readonly "--mc-wallpaper"?: string };
 
@@ -379,7 +406,7 @@ export function DesktopShell({
     return () => document.removeEventListener("keydown", moveFocusOutOfMenu, true);
   }, []);
   const canvasStyle: DesktopCanvasStyle | undefined = wallpaper
-    ? { "--mc-wallpaper": cssImagePattern.test(wallpaper) ? wallpaper : `url("${wallpaper}")` }
+    ? { "--mc-wallpaper": wallpaperImageValue(wallpaper) }
     : undefined;
   const menus: readonly MenuBarMenu[] = [
     { title: "Apple", items: appleMenuItems ?? defaultAppleMenu() },

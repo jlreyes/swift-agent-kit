@@ -102,7 +102,16 @@ describe("template stub public behavior", () => {
     ["plain URL", "/mac-assets/wallpapers/tahoe.jpg", 'url("/mac-assets/wallpapers/tahoe.jpg")'],
     ["CSS URL", 'url("/wallpapers/custom.jpg")', 'url("/wallpapers/custom.jpg")'],
     ["gradient", "linear-gradient(135deg, #2579b7, #83c3df)", "linear-gradient(135deg, #2579b7, #83c3df)"],
+    ["repeating linear gradient", "repeating-linear-gradient(90deg, #fff 0 10px, #000 10px 20px)", "repeating-linear-gradient(90deg, #fff 0 10px, #000 10px 20px)"],
+    ["repeating radial gradient", "repeating-radial-gradient(circle, #fff 0 10px, #000 10px 20px)", "repeating-radial-gradient(circle, #fff 0 10px, #000 10px 20px)"],
+    ["case-insensitive repeating conic gradient", "  RePeAtInG-CoNiC-GrAdIeNt(#fff 0 10deg, #000 10deg 20deg)", "RePeAtInG-CoNiC-GrAdIeNt(#fff 0 10deg, #000 10deg 20deg)"],
+    ["image function", 'image(url("fallback.jpg"), #3a75b6)', 'image(url("fallback.jpg"), #3a75b6)'],
+    ["image set", 'image-set(url("one.png") 1x, url("two.png") 2x)', 'image-set(url("one.png") 1x, url("two.png") 2x)'],
+    ["cross fade", 'cross-fade(url("one.png"), url("two.png"), 50%)', 'cross-fade(url("one.png"), url("two.png"), 50%)'],
+    ["element image", "element(#prototype-wallpaper)", "element(#prototype-wallpaper)"],
+    ["paint image", "paint(prototype-wallpaper)", "paint(prototype-wallpaper)"],
     ["CSS variable", "var(--prototype-wallpaper)", "var(--prototype-wallpaper)"],
+    ["escaped asset path", 'C:\\Wallpapers\\"Tahoe".jpg', 'url("C:\\\\Wallpapers\\\\\\"Tahoe\\".jpg")'],
   ])("DesktopShell classifies a %s wallpaper source", (_case, wallpaper, expected) => {
     const { container } = render(<DesktopShell appName="Prototype" wallpaper={wallpaper}><div /></DesktopShell>);
     const canvas = container.querySelector<HTMLElement>(".desktop-canvas");
@@ -357,6 +366,49 @@ describe("template stub public behavior", () => {
     expect(within(menu).queryByRole("menuitem", { name: /Hide File/ })).toBeNull();
     await user.click(within(menu).getByRole("menuitem", { name: /Close Window/ }));
     expect(screen.getByTestId("file-menu-collision-state").textContent).toBe("none|closed");
+  });
+
+  test("the active app survives its last key window being minimized or closed", async () => {
+    const app = { id: "persistent", name: "Persistent", icon: <span>Persistent icon</span> } as const;
+    function ActiveAppProbe() {
+      const manager = useMacWindowManager();
+      const managedApp = manager.apps.find((candidate) => candidate.id === app.id);
+      const window = manager.windows.find((candidate) => candidate.id === "persistent-window");
+      return (
+        <output data-testid="persistent-app-state">
+          {`${manager.keyAppId ?? "none"}|${manager.keyWindowId ?? "none"}|${window?.state ?? "missing"}|${managedApp?.running ? "running" : "stopped"}`}
+        </output>
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <MacWindowManager initialApps={[app]}>
+        <MacApp {...app}>
+          <DesktopShell appName="Persistent">
+            <WindowChrome label="Persistent Window" windowId="persistent-window">Window content</WindowChrome>
+            <ActiveAppProbe />
+          </DesktopShell>
+        </MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByTestId("persistent-app-state").textContent).toBe("persistent|persistent-window|open|running"));
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Window menu" })).getByRole("menuitem", { name: "Minimize" }));
+    await waitFor(() => expect(screen.getByTestId("persistent-app-state").textContent).toBe("persistent|none|minimized|running"));
+
+    await user.click(screen.getByRole("button", { name: "Window" }));
+    const windowMenu = await screen.findByRole("menu", { name: "Window menu" });
+    await user.click(within(windowMenu).getByRole("menuitemradio", { name: "Persistent Window" }));
+    await waitFor(() => expect(screen.getByTestId("persistent-app-state").textContent).toBe("persistent|persistent-window|open|running"));
+
+    await user.click(screen.getByRole("button", { name: "File" }));
+    await user.click(within(await screen.findByRole("menu", { name: "File menu" })).getByRole("menuitem", { name: /Close Window/ }));
+    expect(screen.getByTestId("persistent-app-state").textContent).toBe("persistent|none|closed|running");
+
+    await user.click(screen.getByRole("button", { name: "Persistent" }));
+    await user.click(within(await screen.findByRole("menu", { name: "Persistent menu" })).getByRole("menuitem", { name: /Quit Persistent/ }));
+    expect(screen.getByTestId("persistent-app-state").textContent).toBe("none|none|closed|stopped");
   });
 
   test("MacMenu honors link, detail, checked state, and popover class contracts", async () => {
@@ -929,6 +981,30 @@ describe("template stub public behavior", () => {
     }
   });
 
+  test("SetupAssistant derives current and complete progress classes", () => {
+    const steps = [
+      { id: "intro", name: "Introduction" },
+      { id: "account", name: "Account" },
+      { id: "finish", name: "Finish" },
+    ];
+    const props = {
+      steps,
+      furthestIndex: 2,
+      onSelectStep: () => {},
+      onBack: () => {},
+      onContinue: () => {},
+    } as const;
+    const view = render(<SetupAssistant {...props} currentStep="account">Account setup</SetupAssistant>);
+    let stepButtons = within(screen.getByRole("navigation", { name: "Steps" })).getAllByRole("button");
+    expect(stepButtons.map((button) => button.className)).toEqual(["mc-complete", "mc-current", ""]);
+    expect(stepButtons[1]?.getAttribute("aria-current")).toBe("step");
+
+    view.rerender(<SetupAssistant {...props} currentStep="finish">Finished</SetupAssistant>);
+    stepButtons = within(screen.getByRole("navigation", { name: "Steps" })).getAllByRole("button");
+    expect(stepButtons.map((button) => button.className)).toEqual(["mc-complete", "mc-complete", "mc-current"]);
+    expect(stepButtons[2]?.getAttribute("aria-current")).toBe("step");
+  });
+
   test("stored id subscriptions observe cross-tab writes and localStorage.clear", () => {
     const ids = createStoredIdList("installed", (id) => id.startsWith("valid-"));
     function StoredIds() {
@@ -1024,6 +1100,32 @@ describe("template stub public behavior", () => {
     await waitFor(() => expect(owner.querySelectorAll(".mc-window-modal-layer")).toHaveLength(0));
     expect(underlay?.hasAttribute("inert")).toBe(false);
     expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  test("window modals preserve application-owned suppression mutations", async () => {
+    function MutationHarness({ open }: { readonly open: boolean }) {
+      return (
+        <WindowChrome label="Mutation owner">
+          <button type="button">Mutable underlay</button>
+          <MacSheet actions={[]} onClose={() => {}} open={open} title="Mutation sheet">
+            <span>Sheet body</span>
+          </MacSheet>
+        </WindowChrome>
+      );
+    }
+    const view = render(<MutationHarness open />);
+    const underlay = screen.getByText("Mutable underlay").closest("button") as HTMLButtonElement;
+    await screen.findByRole("dialog", { name: "Mutation sheet" });
+    await waitFor(() => expect(underlay.getAttribute("aria-hidden")).toBe("true"));
+
+    // Writing even the same suppression values transfers attribute ownership
+    // back to the application; modal cleanup must not restore stale baselines.
+    underlay.setAttribute("inert", "");
+    underlay.setAttribute("aria-hidden", "true");
+    view.rerender(<MutationHarness open={false} />);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(underlay.getAttribute("inert")).toBe("");
+    expect(underlay.getAttribute("aria-hidden")).toBe("true");
   });
 
   test("legacy Sheet focuses its dialog when it has no focusable controls", async () => {

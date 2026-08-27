@@ -200,10 +200,16 @@ test("frontmost-window focus retargets View without removing background apps", a
   expect(screen.queryByRole("region", { name: "Chat showcase" })).toBeNull();
 
   menu = await openViewMenu(user);
+  expect(within(menu).getByText("Hide Sidebar")).toBeDefined();
+  await user.click(dockButton("Finder"));
+  menu = await openViewMenu(user);
   expect(within(menu).getByText("Icon View")).toBeDefined();
   await user.click(within(finder).getByRole("button", { name: "Close window" }));
   expect(screen.queryByRole("region", { name: "Finder showcase" })).toBeNull();
 
+  menu = await openViewMenu(user);
+  expect(within(menu).getByText("Icon View")).toBeDefined();
+  await user.click(dockButton("Mac Chrome"));
   menu = await openViewMenu(user);
   expect(within(menu).getByText("Hide Inspector")).toBeDefined();
 });

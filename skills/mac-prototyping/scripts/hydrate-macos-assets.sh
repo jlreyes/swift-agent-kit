@@ -25,7 +25,8 @@ cleanup_temporary_root() {
     return 0
   fi
 
-  if [[ "$cleanup_path" == "/" || "${cleanup_path:t}" != mac-prototyping-assets.* ]]; then
+  if [[ "$cleanup_path" == "/" || "${cleanup_path:t}" != .mac-prototyping-assets.* || \
+    "${cleanup_path:h:A}" != "${asset_root:A}" ]]; then
     print -u2 "mac-prototyping: refused to remove unexpected temporary path $cleanup_path"
     return 1
   fi
@@ -84,10 +85,20 @@ fi
 
 mkdir -p "$asset_root/dock" "$asset_root/wallpapers"
 
+# Keep staged files beside their destinations so the final move is a same-volume
+# rename. The guarded EXIT trap removes this directory on every failure path.
+if ! temporary_root=$(mktemp -d "$asset_root/.mac-prototyping-assets.XXXXXX"); then
+  print -u2 "mac-prototyping: could not create a temporary directory for asset hydration"
+  exit 74
+fi
+
 convert_icon() {
   local source=$1
   local destination=$2
   local label=$3
+  local candidate="$temporary_root/icon-${destination:t}"
+  local exit_status
+  local png_signature
 
   if [[ ! -f "$source" ]]; then
     print -u2 "mac-prototyping: skipped $label (not found at $source)"
@@ -97,27 +108,59 @@ convert_icon() {
     return 0
   fi
 
-  "$sips_command" -s format png -z 256 256 "$source" --out "$destination" >/dev/null
+  if "$sips_command" -s format png -z 256 256 "$source" --out "$candidate" >/dev/null; then
+    if [[ ! -s "$candidate" ]]; then
+      print -u2 "mac-prototyping: $label conversion produced no PNG; preserved existing asset at $destination"
+      return 74
+    fi
+  else
+    exit_status=$?
+    print -u2 "mac-prototyping: $label conversion failed (exit $exit_status); preserved existing asset at $destination"
+    return "$exit_status"
+  fi
+
+  if ! png_signature=$(/usr/bin/xxd -p -l 8 "$candidate" 2>/dev/null) || \
+    [[ "$png_signature" != "89504e470d0a1a0a" ]]; then
+    print -u2 "mac-prototyping: $label conversion produced an invalid PNG; preserved existing asset at $destination"
+    return 74
+  fi
+
+  if ! /bin/mv -f -- "$candidate" "$destination"; then
+    print -u2 "mac-prototyping: could not install converted $label at $destination; preserved existing asset"
+    return 74
+  fi
+
   (( hydrated_asset_count += 1 ))
 }
 
-convert_icon \
+hydrate_icon() {
+  local exit_status
+
+  if convert_icon "$@"; then
+    return 0
+  else
+    exit_status=$?
+    exit "$exit_status"
+  fi
+}
+
+hydrate_icon \
   "/System/Library/CoreServices/Finder.app/Contents/Resources/Finder.icns" \
   "$asset_root/dock/finder.png" \
   "Finder icon"
-convert_icon \
+hydrate_icon \
   "/System/Applications/App Store.app/Contents/Resources/AppIcon.icns" \
   "$asset_root/dock/app-store.png" \
   "App Store icon"
-convert_icon \
+hydrate_icon \
   "$chrome_icon_source" \
   "$asset_root/dock/chrome.png" \
   "Google Chrome icon"
-convert_icon \
+hydrate_icon \
   "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/DownloadsFolder.icns" \
   "$asset_root/dock/downloads.png" \
   "Downloads icon"
-convert_icon \
+hydrate_icon \
   "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/TrashIcon.icns" \
   "$asset_root/dock/trash.png" \
   "Trash icon"
@@ -198,11 +241,6 @@ extract_tahoe_with_qlmanage() {
 }
 
 if [[ -f "$tahoe_movie" ]]; then
-  if ! temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/mac-prototyping-assets.XXXXXX"); then
-    print -u2 "mac-prototyping: could not create a temporary directory for wallpaper extraction"
-    exit 74
-  fi
-
   if ! extract_tahoe_with_ffmpeg && ! extract_tahoe_with_qlmanage; then
     print -u2 "mac-prototyping: unable to extract the Tahoe Day wallpaper with ffmpeg or qlmanage"
     exit 74

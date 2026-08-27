@@ -49,6 +49,7 @@ export interface MacWindowManagerValue {
   readonly apps: readonly MacManagedApp[];
   readonly windows: readonly MacManagedWindow[];
   readonly keyWindowId: string | null;
+  /** The active running app; unlike keyWindowId, this survives having no open window. */
   readonly keyAppId: string | null;
   readonly activateApp: (appId: string) => void;
   readonly activateWindow: (windowId: string) => void;
@@ -90,6 +91,8 @@ type WindowRecord = {
 type ManagerState = {
   readonly apps: readonly AppRecord[];
   readonly windows: readonly WindowRecord[];
+  /** Active application identity survives having no open/key window. */
+  readonly activeAppId: string | null;
   readonly nextRegistrationOrder: number;
   readonly nextStackOrder: number;
 };
@@ -142,11 +145,13 @@ const MacAppContext = createContext<MacAppContextValue | null>(null);
 const initialState: ManagerState = {
   apps: [],
   windows: [],
+  activeAppId: null,
   nextRegistrationOrder: 1,
   nextStackOrder: 1,
 };
 
 function initialStateFor(apps: readonly MacAppDefinition[]): ManagerState {
+  const activeAppId = apps.find((app) => app.defaultRunning ?? true)?.id ?? null;
   return {
     apps: apps.map((app, index) => {
       const manifest: AppRegistration = {
@@ -171,6 +176,7 @@ function initialStateFor(apps: readonly MacAppDefinition[]): ManagerState {
       };
     }),
     windows: [],
+    activeAppId,
     nextRegistrationOrder: apps.length + 1,
     nextStackOrder: 1,
   };
@@ -203,6 +209,17 @@ function appActivationTarget(state: ManagerState, appId: string) {
     .sort((left, right) => right.stackOrder - left.stackOrder || left.registrationOrder - right.registrationOrder);
   const primaryWindow = appWindows.slice().sort((left, right) => left.registrationOrder - right.registrationOrder)[0];
   return appWindows.find((window) => window.state !== "closed") ?? primaryWindow;
+}
+
+function fallbackActiveAppId(state: ManagerState, excludingAppId: string) {
+  const frontmostWindow = visibleWindows(state)
+    .filter((window) => window.appId !== excludingAppId)
+    .at(-1);
+  if (frontmostWindow !== undefined) return frontmostWindow.appId;
+  return state.apps
+    .filter((app) => app.id !== excludingAppId && app.running)
+    .slice()
+    .sort((left, right) => left.registrationOrder - right.registrationOrder)[0]?.id ?? null;
 }
 
 export function MacWindowManager({ children, initialApps = [] }: {
@@ -276,6 +293,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
             : app),
         };
       }
+      const launchesVisibleWindow = registration.defaultRunning && current.windows.some((window) => (
+        window.appId === registration.id && window.state === "open"
+      ));
       return {
         ...current,
         apps: [...current.apps, {
@@ -289,6 +309,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
           registrationOrder: current.nextRegistrationOrder,
           running: registration.defaultRunning,
         }],
+        activeAppId: (current.activeAppId === null && registration.defaultRunning) || launchesVisibleWindow
+          ? registration.id
+          : current.activeAppId,
         nextRegistrationOrder: current.nextRegistrationOrder + 1,
       };
     });
@@ -320,10 +343,16 @@ export function MacWindowManager({ children, initialApps = [] }: {
             : app),
         };
       }
-      return {
+      const nextState = {
         ...current,
         apps: current.apps.filter((app) => app.id !== appId),
         windows: current.windows.filter((window) => window.appId !== appId),
+      };
+      return {
+        ...nextState,
+        activeAppId: current.activeAppId === appId
+          ? fallbackActiveAppId(nextState, appId)
+          : current.activeAppId,
       };
     });
   }, [invalidateWindowThumbnailCaptures]);
@@ -355,6 +384,9 @@ export function MacWindowManager({ children, initialApps = [] }: {
           state: registration.defaultOpen ? "open" : "closed",
           zoomed: false,
         }],
+        activeAppId: registration.defaultOpen && appIsRunning(current, registration.appId)
+          ? registration.appId
+          : current.activeAppId,
         nextRegistrationOrder: current.nextRegistrationOrder + 1,
         nextStackOrder: registration.defaultOpen ? current.nextStackOrder + 1 : current.nextStackOrder,
       };
@@ -415,6 +447,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
       if (target === undefined) return current;
       return {
         ...current,
+        activeAppId: target.appId,
         apps: current.apps.map((app) => app.id === target.appId ? { ...app, running: true } : app),
         windows: current.windows.map((window) => window.id === windowId
           ? { ...window, state: "open", stackOrder: current.nextStackOrder, thumbnail: undefined }
@@ -428,9 +461,12 @@ export function MacWindowManager({ children, initialApps = [] }: {
     const currentTarget = appActivationTarget(stateRef.current, appId);
     if (currentTarget !== undefined) invalidateWindowThumbnailCapture(currentTarget.id);
     setState((current) => {
+      const app = current.apps.find((candidate) => candidate.id === appId);
+      if (app === undefined) return current;
       const target = appActivationTarget(current, appId);
       return {
         ...current,
+        activeAppId: appId,
         apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
         windows: target === undefined ? current.windows : current.windows.map((window) => window.id === target.id
           ? { ...window, state: "open", stackOrder: current.nextStackOrder, thumbnail: undefined }
@@ -501,10 +537,18 @@ export function MacWindowManager({ children, initialApps = [] }: {
     );
     setState((current) => {
       const targets = visibleWindows(current).filter((window) => appId === undefined || window.appId === appId);
-      if (targets.length === 0) return current;
+      const activatedApp = appId === undefined
+        ? undefined
+        : current.apps.find((app) => app.id === appId && app.running);
+      if (targets.length === 0) {
+        return activatedApp === undefined || current.activeAppId === activatedApp.id
+          ? current
+          : { ...current, activeAppId: activatedApp.id };
+      }
       const orders = new Map(targets.map((window, index) => [window.id, current.nextStackOrder + index]));
       return {
         ...current,
+        activeAppId: activatedApp?.id ?? current.activeAppId,
         windows: current.windows.map((window) => {
           const stackOrder = orders.get(window.id);
           return stackOrder === undefined ? window : { ...window, stackOrder };
@@ -518,17 +562,29 @@ export function MacWindowManager({ children, initialApps = [] }: {
     invalidateWindowThumbnailCaptures(
       stateRef.current.windows.filter((window) => window.appId === appId).map((window) => window.id),
     );
-    setState((current) => ({
-      ...current,
-      apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
-      windows: current.windows.map((window) => window.appId === appId
-        ? { ...window, state: "closed", thumbnail: undefined }
-        : window),
-    }));
+    setState((current) => {
+      const app = current.apps.find((candidate) => candidate.id === appId);
+      if (app === undefined) return current;
+      const nextState = {
+        ...current,
+        apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
+        windows: current.windows.map((window) => window.appId === appId
+          ? { ...window, state: "closed" as const, thumbnail: undefined }
+          : window),
+      };
+      return {
+        ...nextState,
+        activeAppId: current.activeAppId === appId
+          ? fallbackActiveAppId(nextState, appId)
+          : current.activeAppId,
+      };
+    });
   }, [invalidateWindowThumbnailCaptures]);
 
   const orderedVisibleWindows = visibleWindows(state);
-  const keyWindow = orderedVisibleWindows.at(-1) ?? null;
+  const keyWindow = orderedVisibleWindows
+    .filter((window) => window.appId === state.activeAppId)
+    .at(-1) ?? null;
   const publicWindows: readonly MacManagedWindow[] = state.windows
     .slice()
     .sort((left, right) => left.registrationOrder - right.registrationOrder)
@@ -563,7 +619,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
     apps: publicApps,
     windows: publicWindows,
     keyWindowId: keyWindow?.id ?? null,
-    keyAppId: keyWindow?.appId ?? null,
+    keyAppId: state.activeAppId,
     activateApp,
     activateWindow,
     openWindow,
@@ -584,7 +640,6 @@ export function MacWindowManager({ children, initialApps = [] }: {
     activateWindow,
     bringAllToFront,
     closeWindow,
-    keyWindow?.appId,
     keyWindow?.id,
     minimizeWindow,
     openWindow,
@@ -599,6 +654,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
     unregisterWindow,
     updateWindowLabel,
     consumeKeyboardWindowFocusIntent,
+    state.activeAppId,
   ]);
 
   return <MacWindowManagerContext.Provider value={value}>{children}</MacWindowManagerContext.Provider>;

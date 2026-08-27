@@ -43,7 +43,7 @@ it("renders sectioned rows and reports one selected id", async () => {
   container.remove();
 });
 
-it("does not expose unnamed accessibility groups for undefined or null section titles", async () => {
+it("groups only sections whose ReactNode title renders an accessible label", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -56,7 +56,13 @@ it("does not expose unnamed accessibility groups for undefined or null section t
         sections={[
           { id: "recent", items: [{ id: "draft", label: "Draft" }] },
           { id: "archived", title: null, items: [{ id: "archive", label: "Archive" }] },
+          { id: "empty", title: "", items: [{ id: "empty-title", label: "Empty title" }] },
+          { id: "whitespace", title: "   ", items: [{ id: "whitespace-title", label: "Whitespace title" }] },
+          { id: "false", title: false, items: [{ id: "false-title", label: "False title" }] },
+          { id: "true", title: true, items: [{ id: "true-title", label: "True title" }] },
+          { id: "empty-array", title: [null, false, ""], items: [{ id: "empty-array-title", label: "Empty array title" }] },
           { id: "shared", title: "Shared", items: [{ id: "brief", label: "Brief" }] },
+          { id: "zero", title: 0, items: [{ id: "zero-item", label: "Zero item" }] },
         ]}
       />,
     );
@@ -64,19 +70,27 @@ it("does not expose unnamed accessibility groups for undefined or null section t
 
   const listbox = container.querySelector<HTMLElement>("[role='listbox']");
   const groups = container.querySelectorAll<HTMLElement>("[role='group']");
-  const draft = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
-    .find((option) => option.textContent === "Draft");
-  const archive = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
-    .find((option) => option.textContent === "Archive");
-  const brief = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
-    .find((option) => option.textContent === "Brief");
+  const options = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"));
+  const option = (label: string) => options.find((item) => item.textContent === label);
   expect(listbox?.getAttribute("aria-label")).toBe("Documents");
-  expect(groups).toHaveLength(1);
-  const groupLabelId = groups[0]?.getAttribute("aria-labelledby") ?? "";
-  expect(document.getElementById(groupLabelId)?.textContent).toBe("Shared");
-  expect(draft?.closest("[role='group']")).toBeNull();
-  expect(archive?.closest("[role='group']")).toBeNull();
-  expect(brief?.closest("[role='group']")).toBe(groups[0]);
+  expect(groups).toHaveLength(2);
+  expect(Array.from(groups, (group) => {
+    const labelId = group.getAttribute("aria-labelledby") ?? "";
+    return document.getElementById(labelId)?.textContent;
+  })).toEqual(["Shared", "0"]);
+  for (const label of [
+    "Draft",
+    "Archive",
+    "Empty title",
+    "Whitespace title",
+    "False title",
+    "True title",
+    "Empty array title",
+  ]) {
+    expect(option(label)?.closest("[role='group']")).toBeNull();
+  }
+  expect(option("Brief")?.closest("[role='group']")).toBe(groups[0]);
+  expect(option("Zero item")?.closest("[role='group']")).toBe(groups[1]);
 
   await act(async () => root.unmount());
   container.remove();

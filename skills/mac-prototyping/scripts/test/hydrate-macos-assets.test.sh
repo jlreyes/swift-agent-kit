@@ -29,9 +29,13 @@ assert_contains() {
 }
 
 assert_no_extraction_temporary_directories() {
-  local leftovers=("$runtime_root"/mac-prototyping-assets.*(N))
+  local leftovers=(
+    "$runtime_root"/mac-prototyping-assets.*(N)
+    "$test_root"/**/.mac-prototyping-assets.*(ND)
+  )
 
-  (( ${#leftovers} == 0 )) || fail "wallpaper extraction temporary directory was not removed"
+  (( ${#leftovers} == 0 )) || \
+    fail "asset hydration temporary directory was not removed: ${leftovers[*]}"
 }
 
 mkdir -p "$tools_root" "$runtime_root"
@@ -86,9 +90,6 @@ mkdir -p "$output"
 printf "%s\n" "qlmanage wallpaper" >"$output/${movie##*/}.png"'
 
 apply_fake_tool "$tools_root/sips" '#!/bin/sh
-if [ "${FAKE_SIPS_RESULT:-success}" = "failure" ]; then
-  exit 25
-fi
 previous=
 input=
 output=
@@ -101,7 +102,29 @@ while [ "$#" -gt 0 ]; do
   previous=$1
   shift
 done
-cp "$input" "$output"'
+if [ -z "${FAKE_SIPS_FAIL_INPUT:-}" ] || [ "$input" = "$FAKE_SIPS_FAIL_INPUT" ]; then
+  case "${FAKE_SIPS_RESULT:-success}" in
+    failure)
+      exit 25
+      ;;
+    truncate-failure)
+      : >"$output"
+      exit 25
+      ;;
+    invalid-success)
+      printf "%s\n" "not a png" >"$output"
+      exit 0
+      ;;
+  esac
+fi
+case "$output" in
+  *.png)
+    printf "\211PNG\r\n\032\n%s\n" "fake png" >"$output"
+    ;;
+  *)
+    cp "$input" "$output"
+    ;;
+esac'
 
 run_success_case() {
   local name=$1
@@ -269,5 +292,57 @@ fi
 [[ "$icon_cleanup_failure_status" -eq 74 ]] || \
   fail "icon cleanup failure returned $icon_cleanup_failure_status instead of 74"
 assert_contains "$icon_cleanup_failure_root/stderr" "could not remove stale hydrated Google Chrome icon"
+
+run_atomic_icon_failure_case() {
+  local name=$1
+  local sips_result=$2
+  local expected_status=$3
+  local expected_diagnostic=$4
+  local case_root="$test_root/$name"
+  local prototype="$case_root/prototype"
+  local chrome_source="$case_root/Google Chrome.icns"
+  local chrome_destination="$prototype/public/mac-assets/dock/chrome.png"
+  local before_checksum
+  local after_checksum
+  local run_status
+
+  mkdir -p "${chrome_destination:h}"
+  print -r -- "source icon" >"$chrome_source"
+  printf "\211PNG\r\n\032\n%s\n" "prior valid Chrome icon" >"$chrome_destination"
+  before_checksum=$(/usr/bin/cksum "$chrome_destination")
+
+  if env \
+    TMPDIR="$runtime_root" \
+    MAC_PROTOTYPING_PLATFORM=Darwin \
+    MAC_PROTOTYPING_CHROME_ICON_SOURCE="$chrome_source" \
+    MAC_PROTOTYPING_TAHOE_MOVIE="$case_root/Absent Tahoe Day.mov" \
+    MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+    FAKE_SIPS_RESULT="$sips_result" \
+    FAKE_SIPS_FAIL_INPUT="$chrome_source" \
+    "$hydrator" "$prototype" >"$case_root/stdout" 2>"$case_root/stderr"; then
+    fail "$name unexpectedly succeeded"
+  else
+    run_status=$?
+  fi
+
+  [[ "$run_status" -eq "$expected_status" ]] || \
+    fail "$name returned $run_status instead of $expected_status"
+  after_checksum=$(/usr/bin/cksum "$chrome_destination")
+  [[ "$after_checksum" == "$before_checksum" ]] || fail "$name replaced or truncated the prior valid icon"
+  assert_contains "$case_root/stderr" "$expected_diagnostic"
+  assert_no_extraction_temporary_directories
+}
+
+run_atomic_icon_failure_case \
+  icon-sips-truncate-failure \
+  truncate-failure \
+  25 \
+  "Google Chrome icon conversion failed (exit 25); preserved existing asset"
+
+run_atomic_icon_failure_case \
+  icon-invalid-success \
+  invalid-success \
+  74 \
+  "Google Chrome icon conversion produced an invalid PNG; preserved existing asset"
 
 print "hydrate-macos-assets.test: passed"

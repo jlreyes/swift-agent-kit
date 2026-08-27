@@ -272,6 +272,46 @@ describe("DesktopShell status items", () => {
   });
 });
 
+describe("DesktopShell wallpaper sources", () => {
+  it.each([
+    "url('/wallpaper.jpg')",
+    "var(--wallpaper)",
+    "image-set(url('/wallpaper.png') 1x, url('/wallpaper@2x.png') 2x)",
+    "cross-fade(url('/day.jpg'), url('/night.jpg'), 40%)",
+    "image(url('/wallpaper.avif'), #345)",
+    "element(#wallpaper-source)",
+    "paint(wallpaper)",
+    "linear-gradient(#123, #456)",
+    "radial-gradient(circle, #123, #456)",
+    "conic-gradient(from 90deg, #123, #456)",
+    "repeating-linear-gradient(45deg, #123 0 8px, #456 8px 16px)",
+    "repeating-radial-gradient(circle, #123 0 8px, #456 8px 16px)",
+    "  RePeAtInG-CoNiC-GrAdIeNt(#123 0 20deg, #456 20deg 40deg)",
+  ])("passes through the CSS image value %s", (wallpaper) => {
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      // CSSStyleDeclaration normalizes insignificant leading whitespace.
+      .toBe(wallpaper.trimStart());
+  });
+
+  it("quotes and escapes a bare wallpaper path as a CSS URL", () => {
+    const wallpaper = 'C:\\Wallpapers\\Tahoe "Day".jpg';
+    const { container } = render(
+      <DesktopShell appName="Test" date="Pinned date" clock="Pinned clock" wallpaper={wallpaper}>
+        <p>Desktop</p>
+      </DesktopShell>,
+    );
+
+    expect(container.querySelector<HTMLElement>(".desktop-canvas")?.style.getPropertyValue("--mc-wallpaper"))
+      .toBe('url("C:\\\\Wallpapers\\\\Tahoe \\"Day\\".jpg")');
+  });
+});
+
 describe("DesktopShell menu-bar extras slot", () => {
   it("renders extras in flow beside the status items instead of overlaying them", () => {
     const { container } = render(

@@ -33,10 +33,29 @@ import { createPortal } from "react-dom";
 import { getSymbol, type SymbolName } from "symbolist";
 
 /* Accepts a full CSS <image> value or a bare URL for the wallpaper prop. */
-const stubCssImagePattern = /^(url\(|linear-gradient\(|radial-gradient\(|conic-gradient\(|image-set\(|var\()/;
+const stubCssImageFunctions = new Set([
+  "url",
+  "image",
+  "image-set",
+  "-webkit-image-set",
+  "cross-fade",
+  "-webkit-cross-fade",
+  "element",
+  "paint",
+  "linear-gradient",
+  "radial-gradient",
+  "conic-gradient",
+  "repeating-linear-gradient",
+  "repeating-radial-gradient",
+  "repeating-conic-gradient",
+  "var",
+]);
 
 function stubWallpaperSource(wallpaper: string) {
-  return stubCssImagePattern.test(wallpaper) ? wallpaper : `url("${wallpaper}")`;
+  const functionName = /^\s*([\w-]+)\(/.exec(wallpaper)?.[1]?.toLowerCase();
+  if (functionName !== undefined && stubCssImageFunctions.has(functionName)) return wallpaper;
+  const escaped = wallpaper.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `url("${escaped}")`;
 }
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
@@ -655,6 +674,7 @@ type StubManagerState = {
   readonly apps: readonly StubAppRecord[];
   readonly windows: readonly StubWindowRecord[];
   readonly nextOrder: number;
+  readonly activeAppId: string | null;
 };
 type StubManagerContextValue = MacWindowManagerValue & {
   readonly registerApp: (app: Omit<StubAppRecord, "order" | "running"> & { readonly defaultRunning: boolean }) => void;
@@ -668,6 +688,23 @@ type StubAppContextValue = { readonly id: string; readonly defaultRunning: boole
 
 const StubManagerContext = createContext<StubManagerContextValue | null>(null);
 const StubAppContext = createContext<StubAppContextValue | null>(null);
+
+function stubFallbackActiveAppId(state: StubManagerState, excludingAppId?: string): string | null {
+  const runningAppIds = new Set(state.apps
+    .filter((app) => app.running && app.id !== excludingAppId)
+    .map((app) => app.id));
+  const topVisibleAppId = state.windows
+    .filter((window) => window.state === "open" && runningAppIds.has(window.appId))
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .at(-1)?.appId;
+  if (topVisibleAppId !== undefined) return topVisibleAppId;
+  return state.apps
+    .filter((app) => runningAppIds.has(app.id))
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .at(0)?.id ?? null;
+}
 
 export function MacWindowManager({ children, initialApps = [] }: {
   readonly children: ReactNode;
@@ -688,6 +725,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
     })),
     windows: [],
     nextOrder: initialAppsRef.current.length + 1,
+    activeAppId: initialAppsRef.current.find((app) => app.defaultRunning !== false)?.id ?? null,
   }));
   const interactionModalityRef = useRef<"keyboard" | "pointer" | null>(null);
   useEffect(() => {
@@ -710,13 +748,22 @@ export function MacWindowManager({ children, initialApps = [] }: {
     setState((current) => {
       const existing = current.apps.find((candidate) => candidate.id === app.id);
       if (existing !== undefined) {
-        if (existing.name === app.name && existing.icon === app.icon && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) return current;
-        return { ...current, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
+        const activeAppId = current.activeAppId ?? (existing.running ? existing.id : null);
+        if (existing.name === app.name && existing.icon === app.icon && existing.dockGroup === app.dockGroup && existing.presentation === app.presentation) {
+          return activeAppId === current.activeAppId ? current : { ...current, activeAppId };
+        }
+        return { ...current, activeAppId, apps: current.apps.map((candidate) => candidate.id === app.id ? { ...candidate, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation } : candidate) };
       }
+      const launchesVisibleWindow = app.defaultRunning && current.windows.some((window) => (
+        window.appId === app.id && window.state === "open"
+      ));
       return {
         ...current,
         apps: [...current.apps, { id: app.id, name: app.name, icon: app.icon, dockGroup: app.dockGroup, presentation: app.presentation, running: app.defaultRunning, order: current.nextOrder }],
         nextOrder: current.nextOrder + 1,
+        activeAppId: (current.activeAppId === null && app.defaultRunning) || launchesVisibleWindow
+          ? app.id
+          : current.activeAppId,
       };
     });
   }, []);
@@ -728,14 +775,22 @@ export function MacWindowManager({ children, initialApps = [] }: {
     }
     if (registrations === 0) return;
     appRegistrationCountsRef.current.delete(appId);
-    setState((current) => ({ ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) }));
+    setState((current) => {
+      const next = { ...current, apps: current.apps.filter((app) => app.id !== appId), windows: current.windows.filter((window) => window.appId !== appId) };
+      return { ...next, activeAppId: current.activeAppId === appId ? stubFallbackActiveAppId(next) : current.activeAppId };
+    });
   }, []);
   const registerWindow = useCallback((window: Pick<StubWindowRecord, "id" | "appId" | "label"> & { readonly defaultOpen: boolean }) => {
     windowRegistrationCountsRef.current.set(window.id, (windowRegistrationCountsRef.current.get(window.id) ?? 0) + 1);
-    setState((current) => current.windows.some((candidate) => candidate.id === window.id) ? current : {
-      ...current,
-      windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0 }],
-      nextOrder: window.defaultOpen ? current.nextOrder + 1 : current.nextOrder,
+    setState((current) => {
+      if (current.windows.some((candidate) => candidate.id === window.id)) return current;
+      const activatesApp = window.defaultOpen && current.apps.find((app) => app.id === window.appId)?.running === true;
+      return {
+        ...current,
+        windows: [...current.windows, { id: window.id, appId: window.appId, label: window.label, state: window.defaultOpen ? "open" : "closed", zoomed: false, order: window.defaultOpen ? current.nextOrder : 0 }],
+        nextOrder: window.defaultOpen ? current.nextOrder + 1 : current.nextOrder,
+        activeAppId: activatesApp ? window.appId : current.activeAppId,
+      };
     });
   }, []);
   const unregisterWindow = useCallback((windowId: string) => {
@@ -761,9 +816,12 @@ export function MacWindowManager({ children, initialApps = [] }: {
       apps: current.apps.map((app) => app.id === target.appId ? { ...app, running: true } : app),
       windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "open", order: current.nextOrder, thumbnail: undefined } : window),
       nextOrder: current.nextOrder + 1,
+      activeAppId: target.appId,
     };
   }), []);
   const activateApp = useCallback((appId: string) => setState((current) => {
+    const app = current.apps.find((candidate) => candidate.id === appId);
+    if (app === undefined) return current;
     const registeredWindows = current.windows.filter((window) => window.appId === appId);
     const stackedWindows = registeredWindows.slice().sort((left, right) => right.order - left.order);
     const target = stackedWindows.find((window) => window.state !== "closed") ?? registeredWindows[0];
@@ -772,6 +830,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
       apps: current.apps.map((app) => app.id === appId ? { ...app, running: true } : app),
       windows: target === undefined ? current.windows : current.windows.map((window) => window.id === target.id ? { ...window, state: "open", order: current.nextOrder, thumbnail: undefined } : window),
       nextOrder: target === undefined ? current.nextOrder : current.nextOrder + 1,
+      activeAppId: appId,
     };
   }), []);
   const closeWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "closed", thumbnail: undefined } : window) })), []);
@@ -783,7 +842,14 @@ export function MacWindowManager({ children, initialApps = [] }: {
       .slice()
       .sort((left, right) => left.order - right.order)
       .filter((window) => appId === undefined || window.appId === appId);
-    if (targets.length === 0) return current;
+    const activatedApp = appId === undefined
+      ? undefined
+      : current.apps.find((app) => app.id === appId && app.running);
+    if (targets.length === 0) {
+      return activatedApp === undefined || current.activeAppId === activatedApp.id
+        ? current
+        : { ...current, activeAppId: activatedApp.id };
+    }
     const orders = new Map(targets.map((window, index) => [window.id, current.nextOrder + index]));
     return {
       ...current,
@@ -792,22 +858,29 @@ export function MacWindowManager({ children, initialApps = [] }: {
         return order === undefined ? window : { ...window, order };
       }),
       nextOrder: current.nextOrder + targets.length,
+      activeAppId: activatedApp?.id ?? current.activeAppId,
     };
   }), []);
-  const quitApp = useCallback((appId: string) => setState((current) => ({
-    ...current,
-    apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
-    windows: current.windows.map((window) => window.appId === appId ? { ...window, state: "closed" } : window),
-  })), []);
+  const quitApp = useCallback((appId: string) => setState((current) => {
+    const app = current.apps.find((candidate) => candidate.id === appId);
+    if (app === undefined) return current;
+    const next = {
+      ...current,
+      apps: current.apps.map((app) => app.id === appId ? { ...app, running: false } : app),
+      windows: current.windows.map((window) => window.appId === appId ? { ...window, state: "closed" as const } : window),
+    };
+    return { ...next, activeAppId: current.activeAppId === appId ? stubFallbackActiveAppId(next, appId) : current.activeAppId };
+  }), []);
   const visible = state.windows.filter((window) => window.state === "open" && state.apps.find((app) => app.id === window.appId)?.running).slice().sort((left, right) => left.order - right.order);
-  const keyWindow = visible.at(-1);
+  const activeApp = state.apps.find((app) => app.id === state.activeAppId && app.running);
+  const keyWindow = activeApp === undefined ? undefined : visible.filter((window) => window.appId === activeApp.id).at(-1);
   const windows: readonly MacManagedWindow[] = state.windows.map((window) => ({ ...window, isKeyWindow: window.id === keyWindow?.id, zIndex: 10 + visible.findIndex((candidate) => candidate.id === window.id) }));
   const apps: readonly MacManagedApp[] = state.apps.map((app) => ({ ...app, windowIds: state.windows.filter((window) => window.appId === app.id).map((window) => window.id) }));
   const value = useMemo<StubManagerContextValue>(() => ({
     apps,
     windows,
     keyWindowId: keyWindow?.id ?? null,
-    keyAppId: keyWindow?.appId ?? null,
+    keyAppId: activeApp?.id ?? null,
     activateApp,
     activateWindow,
     openWindow: activateWindow,
@@ -823,7 +896,7 @@ export function MacWindowManager({ children, initialApps = [] }: {
     unregisterWindow,
     updateWindowLabel,
     consumeKeyboardWindowFocusIntent,
-  }), [activateApp, activateWindow, apps, bringAllToFront, closeWindow, consumeKeyboardWindowFocusIntent, keyWindow?.appId, keyWindow?.id, minimizeWindow, quitApp, registerApp, registerWindow, toggleZoom, unregisterApp, unregisterWindow, updateWindowLabel, windows]);
+  }), [activateApp, activateWindow, activeApp?.id, apps, bringAllToFront, closeWindow, consumeKeyboardWindowFocusIntent, keyWindow?.id, minimizeWindow, quitApp, registerApp, registerWindow, toggleZoom, unregisterApp, unregisterWindow, updateWindowLabel, windows]);
   return <StubManagerContext.Provider value={value}>{children}</StubManagerContext.Provider>;
 }
 
@@ -2519,7 +2592,14 @@ export function SetupHeading({ symbol, title }: { readonly symbol?: SystemSymbol
 
 type StubWindowModalKind = "alert" | "sheet";
 type StubModalOwner = { readonly element: HTMLElement; readonly scope: "desktop" | "window" };
-type StubSuppressionState = { count: number; readonly ariaHidden: string | null; readonly inert: boolean };
+type StubSuppressionAttribute = "aria-hidden" | "inert";
+type StubSuppressionState = {
+  count: number;
+  readonly baselineAriaHidden: string | null;
+  readonly baselineInert: string | null;
+  readonly changedAttributes: Set<StubSuppressionAttribute>;
+  readonly observer: MutationObserver;
+};
 type StubModalOwnerStack = {
   readonly layers: HTMLDivElement[];
   readonly owner: StubModalOwner;
@@ -2531,19 +2611,42 @@ type StubModalOwnerStack = {
 const stubSuppressionStates = new WeakMap<HTMLElement, StubSuppressionState>();
 const stubModalOwnerStacks = new WeakMap<HTMLElement, StubModalOwnerStack>();
 
+function stubRecordSuppressionMutations(state: StubSuppressionState, records: readonly MutationRecord[]) {
+  for (const record of records) {
+    if (record.attributeName === "aria-hidden" || record.attributeName === "inert") {
+      state.changedAttributes.add(record.attributeName);
+    }
+  }
+}
+
+function stubRestoreAttribute(element: HTMLElement, name: StubSuppressionAttribute, value: string | null) {
+  if (value === null) element.removeAttribute(name);
+  else element.setAttribute(name, value);
+}
+
 function stubSuppress(element: HTMLElement) {
   const state = stubSuppressionStates.get(element);
   if (state !== undefined) {
     state.count += 1;
     return;
   }
-  stubSuppressionStates.set(element, {
-    count: 1,
-    ariaHidden: element.getAttribute("aria-hidden"),
-    inert: element.hasAttribute("inert"),
-  });
+  const baselineAriaHidden = element.getAttribute("aria-hidden");
+  const baselineInert = element.getAttribute("inert");
   element.setAttribute("inert", "");
   element.setAttribute("aria-hidden", "true");
+  const changedAttributes = new Set<StubSuppressionAttribute>();
+  const nextState: StubSuppressionState = {
+    count: 1,
+    baselineAriaHidden,
+    baselineInert,
+    changedAttributes,
+    observer: new MutationObserver((records) => stubRecordSuppressionMutations(nextState, records)),
+  };
+  stubSuppressionStates.set(element, nextState);
+  nextState.observer.observe(element, {
+    attributeFilter: ["aria-hidden", "inert"],
+    attributes: true,
+  });
 }
 
 function stubRestore(element: HTMLElement) {
@@ -2552,10 +2655,14 @@ function stubRestore(element: HTMLElement) {
   state.count -= 1;
   if (state.count > 0) return;
   stubSuppressionStates.delete(element);
-  if (state.inert) element.setAttribute("inert", "");
-  else element.removeAttribute("inert");
-  if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
-  else element.setAttribute("aria-hidden", state.ariaHidden);
+  stubRecordSuppressionMutations(state, state.observer.takeRecords());
+  state.observer.disconnect();
+  if (!state.changedAttributes.has("inert") && element.getAttribute("inert") === "") {
+    stubRestoreAttribute(element, "inert", state.baselineInert);
+  }
+  if (!state.changedAttributes.has("aria-hidden") && element.getAttribute("aria-hidden") === "true") {
+    stubRestoreAttribute(element, "aria-hidden", state.baselineAriaHidden);
+  }
 }
 
 function stubReconcileModalStack(stack: StubModalOwnerStack) {
@@ -2950,11 +3057,32 @@ export function SetupAssistant({ steps, currentStep, furthestIndex, onSelectStep
   readonly children: ReactNode;
 }) {
   const currentIndex = steps.findIndex((step) => step.id === currentStep);
+  const currentName = currentIndex >= 0 ? steps[currentIndex]?.name : undefined;
   return (
     <WindowChrome className="mc-setup-window" label={label ?? "Setup Assistant"} frame={frame} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
       <div className="mc-setup-titlebar"><TrafficLights /></div>
       <div className="mc-setup-underlay" aria-hidden={modalOpen || undefined}>
-        <nav className="mc-setup-progress" aria-label="Steps">{steps.map((step, index) => <button type="button" key={step.id} disabled={index > furthestIndex} aria-current={step.id === currentStep ? "step" : undefined} onClick={() => onSelectStep(step.id)}>{step.symbol !== undefined ? <SystemSymbol name={step.symbol} /> : null}{step.name}</button>)}</nav>
+        <span className="mc-visually-hidden" aria-live="polite">{currentName}</span>
+        <nav className="mc-setup-progress" aria-label="Steps" data-window-drag-handle="">
+          {steps.map((step, index) => {
+            const isCurrent = step.id === currentStep;
+            const isComplete = index < currentIndex || index < furthestIndex;
+            return (
+              <button
+                type="button"
+                key={step.id}
+                data-no-window-drag=""
+                className={isCurrent ? "mc-current" : isComplete ? "mc-complete" : ""}
+                disabled={index > furthestIndex}
+                aria-current={isCurrent ? "step" : undefined}
+                onClick={() => onSelectStep(step.id)}
+              >
+                {step.symbol !== undefined ? <span aria-hidden="true"><SystemSymbol name={step.symbol} /></span> : null}
+                {step.name}
+              </button>
+            );
+          })}
+        </nav>
         <div className="mc-setup-content">{children}</div>
         <footer className="mc-setup-footer"><button type="button" className="mc-button mc-text" onClick={onBack}>{backLabel}</button><button type="button" className="mc-button mc-primary" disabled={continueDisabled} onClick={onContinue}>{continueLabel}</button></footer>
       </div>

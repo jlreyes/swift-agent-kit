@@ -42,6 +42,7 @@ function ManagedDesktopContents() {
   return (
     <DesktopShell appName={keyAppName} menuItems={["File", "Window"]}>
       <output aria-label="Key window">{manager.keyWindowId ?? "none"}</output>
+      <output aria-label="Key app">{manager.keyAppId ?? "none"}</output>
       <button type="button" onClick={() => manager.toggleZoom("notes:main")}>Menu Zoom</button>
       <button type="button" onClick={() => manager.minimizeWindow("notes:main")}>Menu Minimize</button>
       <button type="button" onClick={() => manager.activateWindow("notes:main")}>Menu Activate</button>
@@ -49,6 +50,7 @@ function ManagedDesktopContents() {
       <button type="button" onClick={() => manager.restoreWindow("notes:main")}>Menu Restore</button>
       <button type="button" onClick={() => manager.activateApp("notes")}>Activate Notes App</button>
       <button type="button" onClick={() => manager.activateApp("showcase")}>Activate Showcase App</button>
+      <button type="button" onClick={() => manager.activateApp("activity")}>Activate Activity App</button>
       <button type="button" onClick={() => manager.bringAllToFront("notes")}>Bring Notes Front</button>
       <button type="button" onClick={() => manager.bringAllToFront("showcase")}>Bring Showcase Front</button>
       <MacApp id="showcase" name="Showcase" icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> }}>
@@ -308,7 +310,7 @@ describe("Mac app and window management", () => {
 
     const notesWindow = managedWindow("notes");
     expect(notesWindow).toBeTruthy();
-    if (!notesWindow) return;
+    if (!notesWindow) throw new Error("Expected the restored Notes window");
     fireEvent.click(within(notesWindow).getByRole("button", { name: "Minimize window" }));
     await waitFor(() => expect(managedWindow("notes")).toBeNull());
     expect(managedDockButton("Notes").classList.contains("is-running")).toBe(true);
@@ -343,6 +345,58 @@ describe("Mac app and window management", () => {
     fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
     await waitFor(() => expect(managedWindow("notes")).toBeNull());
     expect(managedDockButton("Notes window")).toBeTruthy();
+  });
+
+  it("keeps the running app active without a key window and exposes its restore and Quit commands", async () => {
+    render(<ManagedDesktop />);
+    await waitFor(() => expect(screen.getByLabelText("Key app").textContent).toBe("showcase"));
+    fireEvent.click(managedDockButton("Notes"));
+    await waitFor(() => expect(screen.getByLabelText("Key app").textContent).toBe("notes"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu Minimize" }));
+    await waitFor(() => expect(managedWindow("notes")).toBeNull());
+    expect(screen.getByLabelText("Key app").textContent).toBe("notes");
+    expect(screen.getByLabelText("Key window").textContent).toBe("none");
+
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Notes window" }));
+    await waitFor(() => expect(managedWindow("notes")).toBeTruthy());
+
+    const notesWindow = managedWindow("notes");
+    expect(notesWindow).toBeTruthy();
+    if (!notesWindow) return;
+    fireEvent.click(within(notesWindow).getByRole("button", { name: "Close window" }));
+    expect(screen.getByLabelText("Key app").textContent).toBe("notes");
+    expect(screen.getByLabelText("Key window").textContent).toBe("none");
+
+    const appMenu = screen.getAllByRole("button", { name: "Notes" })
+      .find((button) => button.classList.contains("mc-menubar-menu-title"));
+    expect(appMenu).toBeTruthy();
+    if (appMenu === undefined) throw new Error("Expected the Notes application menu");
+    fireEvent.click(appMenu);
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    expect(screen.getByRole("menuitem", { name: "Quit Notes" }).getAttribute("aria-disabled")).not.toBe("true");
+  });
+
+  it("switches active apps independently of windows and falls back after Quit", async () => {
+    render(<ManagedDesktop />);
+    await waitFor(() => expect(screen.getByLabelText("Key app").textContent).toBe("showcase"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Activate Activity App" }));
+    await waitFor(() => expect(screen.getByLabelText("Key app").textContent).toBe("activity"));
+    expect(screen.getByLabelText("Key window").textContent).toBe("none");
+
+    const activityMenu = screen.getAllByRole("button", { name: "Activity" })
+      .find((button) => button.classList.contains("mc-menubar-menu-title"));
+    expect(activityMenu).toBeTruthy();
+    if (activityMenu === undefined) throw new Error("Expected the Activity application menu");
+    fireEvent.click(activityMenu);
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Quit Activity" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Key app").textContent).toBe("showcase"));
+    expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main");
   });
 
   it.each(["Menu Activate", "Menu Open", "Menu Restore"])(
@@ -458,6 +512,8 @@ describe("Mac app and window management", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Hide Notes" }));
     await waitFor(() => expect(managedWindow("notes")).toBeNull());
     expect(managedDockButton("Notes").classList.contains("is-running")).toBe(true);
+    expect(screen.getByLabelText("Key app").textContent).toBe("notes");
+    expect(screen.getByLabelText("Key window").textContent).toBe("none");
 
     fireEvent.click(managedDockButton("Notes"));
     const reopenedAppMenu = screen.getAllByRole("button", { name: "Notes" })
@@ -467,5 +523,7 @@ describe("Mac app and window management", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Quit Notes" }));
     expect(managedWindow("notes")).toBeNull();
     expect(managedDockButton("Notes").classList.contains("is-running")).toBe(false);
+    expect(screen.getByLabelText("Key app").textContent).toBe("showcase");
+    expect(screen.getByLabelText("Key window").textContent).toBe("showcase:main");
   });
 });

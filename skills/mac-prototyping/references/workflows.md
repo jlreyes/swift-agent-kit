@@ -111,7 +111,10 @@ alias; new chrome code imports `SystemSymbol`.
 Use `MacMenu` for command rows and `MacPopover` for arbitrary anchored content
 (`layout` and `contentInset` make that choice explicit). Use
 `MacDisclosureGroup` for collapsed detail and `MacSourceList` for sidebar
-navigation; source-list headers are structural and never navigation targets.
+navigation. Source-list headers are structural and disclosure-only by default.
+A titled section may explicitly become a controlled navigation target with
+`selectable: true` and `selectedSectionId` / `onSectionSelectionChange`; its
+disclosure remains a separate action.
 
 ## Fork an existing prototype
 

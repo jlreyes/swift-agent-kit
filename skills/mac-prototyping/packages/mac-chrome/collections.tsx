@@ -41,6 +41,14 @@ function rowTextValue(row: MacListRow): string {
   return typeof row.label === "string" ? row.label : row.id;
 }
 
+function hasRenderableSectionTitle(title: ReactNode): boolean {
+  if (title === null || title === undefined || typeof title === "boolean") return false;
+  if (typeof title === "string") return title.trim().length > 0;
+  if (Array.isArray(title)) return title.some((part: ReactNode) => hasRenderableSectionTitle(part));
+  // Numbers, including 0, and React elements produce renderable label content.
+  return true;
+}
+
 export function MacList({
   ariaLabel,
   className = "",
@@ -98,7 +106,7 @@ export function MacList({
         // An unnamed ARIA group gives assistive technology no useful boundary.
         // Headerless API sections are visual/data organization only, so expose
         // their options directly under the named listbox.
-        if (section.title === undefined || section.title === null) return sectionRows;
+        if (!hasRenderableSectionTitle(section.title)) return sectionRows;
         return [
           <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
             <Header className="mc-list-section-title">{section.title}</Header>

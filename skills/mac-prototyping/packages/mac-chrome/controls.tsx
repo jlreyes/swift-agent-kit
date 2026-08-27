@@ -21,6 +21,14 @@ import "./styles/controls.css";
 
 export type MacButtonVariant = "regular" | "primary" | "destructive" | "borderless";
 
+type RenderableTextFieldLabel = Exclude<ReactNode, null | undefined | boolean>;
+
+function isRenderableTextFieldLabel(label: ReactNode): label is RenderableTextFieldLabel {
+  if (label === null || label === undefined || typeof label === "boolean") return false;
+  if (typeof label === "string") return label.trim().length > 0;
+  return true;
+}
+
 export function MacButton({
   ariaLabel,
   children,
@@ -86,9 +94,10 @@ export function MacTextField({
   readonly value: string;
   readonly onChange: (value: string) => void;
 }) {
+  const hasVisibleLabel = isRenderableTextFieldLabel(label);
   return (
     <TextField
-      aria-label={label === undefined ? ariaLabel : undefined}
+      aria-label={hasVisibleLabel ? undefined : ariaLabel}
       className={`mc-text-field ${className}`.trim()}
       isDisabled={disabled}
       isInvalid={invalid}
@@ -98,7 +107,7 @@ export function MacTextField({
       value={value}
       onChange={onChange}
     >
-      {label !== undefined ? <Label className="mc-field-label">{label}</Label> : null}
+      {hasVisibleLabel ? <Label className="mc-field-label">{label}</Label> : null}
       <Input className="mc-field-input" autoComplete={autoComplete} placeholder={placeholder} />
       {description !== undefined ? <Text className="mc-field-description" slot="description">{description}</Text> : null}
       {errorMessage !== undefined ? <FieldError className="mc-field-error">{errorMessage}</FieldError> : null}

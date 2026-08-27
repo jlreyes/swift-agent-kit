@@ -51,6 +51,21 @@ it("owns macOS typography when controls.css is imported standalone", () => {
   expect(controlsTypography).toMatch(/font-family:\s*var\(--font-mac\)/);
 });
 
+it("lets labeled-content value columns survive narrow standalone widths", () => {
+  const source = controlsSource();
+  const labeledContent = [...source.matchAll(/\.mc-labeled-content\s*\{[^}]*\}/gs)]
+    .map((match) => match[0])
+    .find((candidate) => candidate.includes("grid-template-columns"));
+  expect(labeledContent, "labeled-content layout rule").toBeDefined();
+
+  expect(labeledContent).toMatch(/width:\s*100%/);
+  expect(labeledContent).toMatch(/min-width:\s*0/);
+  expect(labeledContent).toMatch(
+    /grid-template-columns:\s*minmax\(min\(120px,\s*42%\),\s*0\.42fr\)\s+minmax\(0,\s*1fr\)/,
+  );
+  expect(labeledContent).not.toMatch(/grid-template-columns:\s*minmax\(120px,/);
+});
+
 it("visually disables controls inherited through a native fieldset", () => {
   const source = controlsSource();
   const button = rule(source, ".mc-button[data-disabled],\n.mc-button:disabled");

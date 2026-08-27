@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, getByRole, queryByRole } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import {
@@ -139,6 +139,33 @@ it("keeps text, toggle, and segmented values controlled", async () => {
   expect(segments[0]?.hasAttribute("data-selected")).toBe(true);
   await act(async () => listSegment?.click());
   expect(segmentValue).toBe("list");
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("falls back to ariaLabel when a text field label does not render", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <>
+        <MacTextField label={null} ariaLabel="Null label field" value="" onChange={() => {}} />
+        <MacTextField label={false} ariaLabel="False label field" value="" onChange={() => {}} />
+        <MacTextField label="Visible label" ariaLabel="Ignored fallback" value="" onChange={() => {}} />
+      </>,
+    );
+  });
+
+  const nullLabelInput = getByRole(container, "textbox", { name: "Null label field" });
+  const falseLabelInput = getByRole(container, "textbox", { name: "False label field" });
+  const visibleLabelInput = getByRole(container, "textbox", { name: "Visible label" });
+  expect(nullLabelInput.getAttribute("aria-label")).toBe("Null label field");
+  expect(falseLabelInput.getAttribute("aria-label")).toBe("False label field");
+  expect(visibleLabelInput.getAttribute("aria-label")).toBeNull();
+  expect(queryByRole(container, "textbox", { name: "Ignored fallback" })).toBeNull();
+  expect(container.querySelectorAll(".mc-field-label")).toHaveLength(1);
 
   await act(async () => root.unmount());
   container.remove();

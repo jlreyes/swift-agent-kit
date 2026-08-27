@@ -3139,7 +3139,35 @@ export function useWindowDrag<T extends HTMLElement>() {
   return { windowRef, style: {}, onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerCancel: noop };
 }
 
-const stubFocusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+const stubFocusableSelector = "button, input, select, textarea, a[href], summary, [contenteditable='true'], [tabindex]";
+
+function stubHasHiddenOrInertAncestor(element: HTMLElement, boundary: HTMLElement) {
+  let current: HTMLElement | null = element;
+  while (current !== null) {
+    if (current.hidden || current.hasAttribute("inert") || current.getAttribute("aria-hidden") === "true") return true;
+    const style = window.getComputedStyle(current);
+    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || style.contentVisibility === "hidden") return true;
+    if (current === boundary) return false;
+    current = current.parentElement;
+  }
+  return true;
+}
+
+function stubIsTabbable(element: HTMLElement, boundary: HTMLElement) {
+  if (!element.isConnected || !boundary.contains(element)) return false;
+  if (element.matches(":disabled") || element.getAttribute("aria-disabled") === "true") return false;
+  if (element instanceof HTMLInputElement && element.type === "hidden") return false;
+  if (element.tabIndex < 0) return false;
+  return !stubHasHiddenOrInertAncestor(element, boundary);
+}
+
+function stubTabbableElements(root: HTMLElement, selector = stubFocusableSelector) {
+  return [...root.querySelectorAll<HTMLElement>(selector)].filter((element) => stubIsTabbable(element, root));
+}
+
+function stubInitialFocusTarget(dialog: HTMLElement, selector: string) {
+  return stubTabbableElements(dialog, selector)[0] ?? stubTabbableElements(dialog)[0] ?? dialog;
+}
 
 function stubActiveModalDialogs(ownerElement?: HTMLElement) {
   const candidates = ownerElement === undefined
@@ -3158,7 +3186,7 @@ function stubFocusTargetOrActiveModal(target: HTMLElement | null, ownerElement?:
   }
   const topDialog = activeDialogs.at(-1);
   if (topDialog !== undefined) {
-    (topDialog.querySelector<HTMLElement>(stubFocusableSelector) ?? topDialog).focus();
+    stubInitialFocusTarget(topDialog, stubFocusableSelector).focus();
     return;
   }
   target?.focus();
@@ -3188,7 +3216,7 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
     const frame = window.requestAnimationFrame(() => {
       const dialog = dialogRef.current;
       if (dialog === null) return;
-      (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
+      stubInitialFocusTarget(dialog, initialFocusSelector).focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [dialogRef, focusVersion, initialFocusSelector]);
@@ -3200,13 +3228,13 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
       return;
     }
     if (event.key !== "Tab") return;
-    const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>(stubFocusableSelector) ?? [])];
+    const dialog = dialogRef.current;
+    const controls = dialog === null ? [] : stubTabbableElements(dialog);
     const first = controls[0];
     const last = controls.at(-1);
     if (first === undefined || last === undefined) {
       event.preventDefault();
-      const dialog = dialogRef.current;
-      if (dialog !== null) (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
+      if (dialog !== null) stubInitialFocusTarget(dialog, initialFocusSelector).focus();
       return;
     }
     if (!(document.activeElement instanceof HTMLElement) || !controls.includes(document.activeElement)) {

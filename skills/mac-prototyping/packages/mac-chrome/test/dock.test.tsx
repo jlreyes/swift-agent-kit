@@ -173,6 +173,81 @@ it("renders long edge tooltips outside the scrollport and clamps them to the vie
   container.remove();
 });
 
+it("repositions an active tooltip when stable Dock items insert and reorder around it", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const activeItem = { id: "active", label: "Active", icon: "/active.png" };
+  const firstItem = { id: "first", label: "First", icon: "/first.png" };
+  const lastItem = { id: "last", label: "Last", icon: "/last.png" };
+  let activeItemLeft = 160;
+
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("p0-mac-dock")) {
+      return DOMRect.fromRect({ x: 100, y: 600, width: 300, height: 67 });
+    }
+    if (this.classList.contains("p0-dock-scroll")) {
+      return DOMRect.fromRect({ x: 100, y: 568, width: 300, height: 105 });
+    }
+    if (this.classList.contains("p0-dock-tooltip")) {
+      return DOMRect.fromRect({ width: 60, height: 22 });
+    }
+    if (this.getAttribute("aria-label") === activeItem.label) {
+      return DOMRect.fromRect({ x: activeItemLeft, y: 608, width: 52, height: 52 });
+    }
+    return DOMRect.fromRect();
+  });
+  vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+
+  await act(async () => root.render(<MacDock items={[activeItem, lastItem]} />));
+  const activeButton = container.querySelector<HTMLButtonElement>("[aria-label='Active']");
+  expect(activeButton).toBeTruthy();
+  if (activeButton === null) throw new Error("Expected the active Dock item");
+  await act(async () => fireEvent.pointerEnter(activeButton));
+  expect(container.querySelector<HTMLElement>(".p0-dock-tooltip")?.style.left).toBe("86px");
+
+  activeItemLeft = 216;
+  await act(async () => root.render(<MacDock items={[firstItem, activeItem, lastItem]} />));
+  expect(container.querySelector<HTMLElement>(".p0-dock-tooltip")?.style.left).toBe("142px");
+
+  activeItemLeft = 132;
+  await act(async () => root.render(<MacDock items={[lastItem, activeItem, firstItem]} />));
+  expect(container.querySelector<HTMLElement>(".p0-dock-tooltip")?.style.left).toBe("58px");
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+it("does not resurrect a tooltip when a removed active ID is later reused", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const reusableItem = { id: "reusable", label: "Reusable", icon: "/reusable.png" };
+
+  await act(async () => root.render(<MacDock items={[reusableItem]} />));
+  const initialButton = container.querySelector<HTMLButtonElement>("[aria-label='Reusable']");
+  expect(initialButton).toBeTruthy();
+  if (initialButton === null) throw new Error("Expected the initial reusable Dock item");
+  await act(async () => fireEvent.pointerEnter(initialButton));
+  expect(container.querySelector(".p0-dock-tooltip")).toBeTruthy();
+
+  await act(async () => root.render(<MacDock items={[]} />));
+  expect(container.querySelector(".p0-dock-tooltip")).toBeNull();
+
+  await act(async () => root.render(<MacDock items={[reusableItem]} />));
+  const reusedButton = container.querySelector<HTMLButtonElement>("[aria-label='Reusable']");
+  expect(reusedButton).toBeTruthy();
+  expect(reusedButton?.hasAttribute("aria-describedby")).toBe(false);
+  expect(container.querySelector(".p0-dock-tooltip")).toBeNull();
+
+  if (reusedButton === null) throw new Error("Expected the re-added reusable Dock item");
+  await act(async () => fireEvent.pointerEnter(reusedButton));
+  expect(container.querySelector(".p0-dock-tooltip")).toBeTruthy();
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
 it("fits landscape, portrait, and wide minimized windows inside stable thumbnail slots", async () => {
   const container = document.createElement("div");
   document.body.append(container);

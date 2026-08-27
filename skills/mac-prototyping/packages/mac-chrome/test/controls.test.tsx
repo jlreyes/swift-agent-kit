@@ -144,7 +144,7 @@ it("keeps text, toggle, and segmented values controlled", async () => {
   container.remove();
 });
 
-it("falls back to ariaLabel when a text field label does not render", async () => {
+it("falls back to ariaLabel for recursively empty text-field labels", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -153,19 +153,46 @@ it("falls back to ariaLabel when a text field label does not render", async () =
       <>
         <MacTextField label={null} ariaLabel="Null label field" value="" onChange={() => {}} />
         <MacTextField label={false} ariaLabel="False label field" value="" onChange={() => {}} />
+        <MacTextField label={[]} ariaLabel="Empty array field" value="" onChange={() => {}} />
+        <MacTextField label={<></>} ariaLabel="Empty fragment field" value="" onChange={() => {}} />
+        <MacTextField
+          label={[null, false, "  ", <span key="empty"><>{[undefined, true, ""]}</></span>]}
+          ariaLabel="Nested empty field"
+          value=""
+          onChange={() => {}}
+        />
         <MacTextField label="Visible label" ariaLabel="Ignored fallback" value="" onChange={() => {}} />
+        <MacTextField
+          label={<span><strong>Element content</strong></span>}
+          ariaLabel="Ignored element fallback"
+          value=""
+          onChange={() => {}}
+        />
+        <MacTextField label={0} ariaLabel="Ignored number fallback" value="" onChange={() => {}} />
       </>,
     );
   });
 
   const nullLabelInput = getByRole(container, "textbox", { name: "Null label field" });
   const falseLabelInput = getByRole(container, "textbox", { name: "False label field" });
+  const emptyArrayInput = getByRole(container, "textbox", { name: "Empty array field" });
+  const emptyFragmentInput = getByRole(container, "textbox", { name: "Empty fragment field" });
+  const nestedEmptyInput = getByRole(container, "textbox", { name: "Nested empty field" });
   const visibleLabelInput = getByRole(container, "textbox", { name: "Visible label" });
+  const elementLabelInput = getByRole(container, "textbox", { name: "Element content" });
+  const numericLabelInput = getByRole(container, "textbox", { name: "0" });
   expect(nullLabelInput.getAttribute("aria-label")).toBe("Null label field");
   expect(falseLabelInput.getAttribute("aria-label")).toBe("False label field");
+  expect(emptyArrayInput.getAttribute("aria-label")).toBe("Empty array field");
+  expect(emptyFragmentInput.getAttribute("aria-label")).toBe("Empty fragment field");
+  expect(nestedEmptyInput.getAttribute("aria-label")).toBe("Nested empty field");
   expect(visibleLabelInput.getAttribute("aria-label")).toBeNull();
+  expect(elementLabelInput.getAttribute("aria-label")).toBeNull();
+  expect(numericLabelInput.getAttribute("aria-label")).toBeNull();
   expect(queryByRole(container, "textbox", { name: "Ignored fallback" })).toBeNull();
-  expect(container.querySelectorAll(".mc-field-label")).toHaveLength(1);
+  expect(queryByRole(container, "textbox", { name: "Ignored element fallback" })).toBeNull();
+  expect(queryByRole(container, "textbox", { name: "Ignored number fallback" })).toBeNull();
+  expect(container.querySelectorAll(".mc-field-label")).toHaveLength(3);
 
   await act(async () => root.unmount());
   container.remove();

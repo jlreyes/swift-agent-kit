@@ -289,21 +289,23 @@ function withManagedWindowCommands(
     return entry;
   });
   const reservedIds = new Set(managedItems.map((entry) => entry.id));
-  const managedWindows = keyAppWindows.filter((window) => !reservedIds.has(`window-${window.id}`));
-  for (const window of managedWindows) reservedIds.add(`window-${window.id}`);
-  const separatorId = managedItems.length === 0 || managedWindows.length === 0
+  const managedWindowItems = keyAppWindows.map((window) => {
+    const id = reserveUniqueMenuEntryId(reservedIds, `window-${window.id}`);
+    return {
+      kind: "action" as const,
+      id,
+      label: window.label,
+      checked: window.isKeyWindow,
+      onSelect: command(id, window.label, () => manager.restoreWindow(window.id)),
+    };
+  });
+  const separatorId = managedItems.length === 0 || managedWindowItems.length === 0
     ? null
     : reserveUniqueMenuEntryId(reservedIds, "managed-window-list-separator");
   const items: MenuSpec = [
     ...managedItems,
     ...(separatorId === null ? [] : [{ kind: "separator" as const, id: separatorId }]),
-    ...managedWindows.map((window) => ({
-      kind: "action" as const,
-      id: `window-${window.id}`,
-      label: window.label,
-      checked: window.isKeyWindow,
-      onSelect: command(`window-${window.id}`, window.label, () => manager.restoreWindow(window.id)),
-    })),
+    ...managedWindowItems,
   ];
   return { ...menu, items };
 }

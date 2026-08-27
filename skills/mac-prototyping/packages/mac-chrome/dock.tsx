@@ -65,6 +65,10 @@ function containedThumbnailSize(thumbnail: MacWindowThumbnail) {
   };
 }
 
+function dockItemsLayoutKey(items: readonly DockItem[]) {
+  return JSON.stringify(items.map((item) => [item.id, item.label, item.group ?? null]));
+}
+
 export interface MacDockAppIconProps {
   readonly icon: DockIconSource;
   /** Supply only when the icon is not labelled by surrounding UI. */
@@ -191,6 +195,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   const activeTooltipItem = activeTooltipItemId === null
     ? undefined
     : items.find((item) => item.id === activeTooltipItemId);
+  const itemsLayoutKey = dockItemsLayoutKey(items);
 
   const positionTooltip = useCallback((itemId: string) => {
     const dock = dockRef.current;
@@ -228,6 +233,14 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   }, []);
 
   useLayoutEffect(() => {
+    if (activeTooltipItemId === null || activeTooltipItem !== undefined) return;
+    hoveredItemIdRef.current = null;
+    focusedItemIdRef.current = null;
+    setActiveTooltipItemId(null);
+    setTooltipPosition(null);
+  }, [activeTooltipItem, activeTooltipItemId]);
+
+  useLayoutEffect(() => {
     if (activeTooltipItemId === null || activeTooltipItem === undefined) return;
     const scrollport = scrollRef.current;
     if (scrollport === null) return;
@@ -240,7 +253,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
       scrollport.removeEventListener("scroll", reposition);
       window.removeEventListener("resize", reposition);
     };
-  }, [activeTooltipItem, activeTooltipItemId, positionTooltip]);
+  }, [activeTooltipItem, activeTooltipItemId, itemsLayoutKey, positionTooltip]);
 
   function activateTooltip(itemId: string) {
     setActiveTooltipItemId(itemId);

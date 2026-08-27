@@ -58,6 +58,28 @@ async function flushNextTask() {
   });
 }
 
+function mockPointerCapture(element: HTMLElement) {
+  const capturedPointers = new Set<number>();
+  element.setPointerCapture = vi.fn((pointerId: number) => capturedPointers.add(pointerId));
+  element.hasPointerCapture = vi.fn((pointerId: number) => capturedPointers.has(pointerId));
+  const releasePointerCapture = vi.fn((pointerId: number) => capturedPointers.delete(pointerId));
+  element.releasePointerCapture = releasePointerCapture;
+  return releasePointerCapture;
+}
+
+function mockAnimationFrameQueue() {
+  const queuedFrames = new Map<number, FrameRequestCallback>();
+  let nextFrameId = 1;
+  const requestAnimationFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    const frameId = nextFrameId;
+    nextFrameId += 1;
+    queuedFrames.set(frameId, callback);
+    return frameId;
+  });
+  const cancelAnimationFrame = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+  return { cancelAnimationFrame, queuedFrames, requestAnimationFrame };
+}
+
 type TestLayout = {
   canvasLeft: number;
   canvasTop: number;
@@ -854,6 +876,70 @@ describe("WindowChrome geometry", () => {
     fireEvent.click(getByRole("button", { name: "Zoom window" }));
     expect(windowElement.style.left).toBe("100px");
     expect(windowElement.style.width).toBe("530px");
+  });
+
+  it("cancels an active drag and its queued geometry when zoom disables interaction", () => {
+    mockLayout({ ...standardLayout });
+    const animationFrames = mockAnimationFrameQueue();
+    const { container, getByRole } = renderCanvasWindow({ withControls: true });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+    const releasePointerCapture = mockPointerCapture(windowElement);
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 200 });
+    firePointer(windowElement, "pointermove", { clientX: 250, clientY: 220 });
+    expect(animationFrames.requestAnimationFrame).toHaveBeenCalledTimes(1);
+
+    const zoomButton = getByRole("button", { name: "Zoom window" });
+    fireEvent.click(zoomButton);
+    expect(releasePointerCapture).toHaveBeenCalledWith(7);
+    expect(animationFrames.cancelAnimationFrame).toHaveBeenCalledWith(1);
+
+    // Pointer capture can deliver one more move after release. The disabled
+    // hook must neither revive the gesture nor enqueue replacement geometry.
+    firePointer(windowElement, "pointermove", { clientX: 400, clientY: 300 });
+    expect(animationFrames.requestAnimationFrame).toHaveBeenCalledTimes(1);
+    act(() => animationFrames.queuedFrames.get(1)?.(0));
+
+    fireEvent.click(zoomButton);
+    expect(windowElement.style.left).toBe("100px");
+    expect(windowElement.style.top).toBe("80px");
+    expect(windowElement.style.width).toBe("500px");
+    expect(windowElement.style.height).toBe("400px");
+  });
+
+  it("cancels an active resize and its queued geometry when zoom disables interaction", () => {
+    mockLayout({ ...standardLayout });
+    const animationFrames = mockAnimationFrameQueue();
+    const { container, getByRole } = renderCanvasWindow({ withControls: true });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const resizeHandle = windowElement?.querySelector<HTMLElement>("[data-window-resize-handle='e']");
+    expect(windowElement).toBeTruthy();
+    expect(resizeHandle).toBeTruthy();
+    if (windowElement === null || resizeHandle === null || resizeHandle === undefined) return;
+    const releasePointerCapture = mockPointerCapture(windowElement);
+
+    firePointer(resizeHandle, "pointerdown", { clientX: 200, clientY: 200 });
+    firePointer(windowElement, "pointermove", { clientX: 250, clientY: 200 });
+    expect(animationFrames.requestAnimationFrame).toHaveBeenCalledTimes(1);
+
+    const zoomButton = getByRole("button", { name: "Zoom window" });
+    fireEvent.click(zoomButton);
+    expect(releasePointerCapture).toHaveBeenCalledWith(7);
+    expect(animationFrames.cancelAnimationFrame).toHaveBeenCalledWith(1);
+
+    firePointer(windowElement, "pointermove", { clientX: 400, clientY: 200 });
+    expect(animationFrames.requestAnimationFrame).toHaveBeenCalledTimes(1);
+    act(() => animationFrames.queuedFrames.get(1)?.(0));
+
+    fireEvent.click(zoomButton);
+    expect(windowElement.style.left).toBe("100px");
+    expect(windowElement.style.top).toBe("80px");
+    expect(windowElement.style.width).toBe("500px");
+    expect(windowElement.style.height).toBe("400px");
   });
 });
 

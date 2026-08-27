@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEventHandler, type ReactNode, type Ref } from "react";
+import { Fragment, isValidElement, useState, type FormEventHandler, type ReactNode, type Ref } from "react";
 import {
   Button,
   Checkbox,
@@ -26,6 +26,24 @@ type RenderableTextFieldLabel = Exclude<ReactNode, null | undefined | boolean>;
 function isRenderableTextFieldLabel(label: ReactNode): label is RenderableTextFieldLabel {
   if (label === null || label === undefined || typeof label === "boolean") return false;
   if (typeof label === "string") return label.trim().length > 0;
+  if (typeof label === "number" || typeof label === "bigint") return true;
+  if (Array.isArray(label)) return label.some(isRenderableTextFieldLabel);
+  if (isValidElement<{ readonly children?: ReactNode }>(label)) {
+    // Fragments and host elements expose all of their visible content through
+    // children, so an empty wrapper is not a visible label. Custom components
+    // may render their own content without accepting children and must be
+    // treated as renderable rather than guessed at here.
+    if (label.type === Fragment || typeof label.type === "string") {
+      return isRenderableTextFieldLabel(label.props.children);
+    }
+    return true;
+  }
+  if (typeof label === "object" && Symbol.iterator in label) {
+    for (const child of label as Iterable<ReactNode>) {
+      if (isRenderableTextFieldLabel(child)) return true;
+    }
+    return false;
+  }
   return true;
 }
 

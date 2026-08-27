@@ -655,6 +655,25 @@ function useWindowGeometry({
     });
   }
 
+  function cancelInteraction() {
+    const interaction = interactionRef.current;
+    interactionRef.current = null;
+    pendingGeometryRef.current = null;
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    const element = windowRef.current;
+    if (
+      interaction !== null &&
+      element !== null &&
+      typeof element.hasPointerCapture === "function" &&
+      element.hasPointerCapture(interaction.pointerId)
+    ) {
+      element.releasePointerCapture(interaction.pointerId);
+    }
+  }
+
   function geometryContext(element: HTMLElement) {
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
     if (canvas !== null) {
@@ -693,20 +712,21 @@ function useWindowGeometry({
   }
 
   useLayoutEffect(() => {
-    if (!visible) return;
     const element = windowRef.current;
-    if (element === null) return;
     if (inputSignatureRef.current !== inputSignature) {
       inputSignatureRef.current = inputSignature;
       geometryRef.current = null;
       normalizationRef.current = identityGeometryNormalization;
-      interactionRef.current = null;
-      pendingGeometryRef.current = null;
-      if (animationFrameRef.current !== null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
+      cancelInteraction();
     }
+    /* A zoom/minimize/retention transition is also an interaction boundary.
+       End pointer capture and discard queued geometry before the transient
+       frame is painted so captured moves cannot mutate the restore frame. */
+    if (!visible || !enabled) {
+      cancelInteraction();
+      return;
+    }
+    if (element === null) return;
     /* Zoomed/minimizing windows use a transient authored frame. Keep the
        normal-frame geometry cached, but do not capture the transient box as
        the new restore target when controlled inputs change mid-transition. */
@@ -780,12 +800,10 @@ function useWindowGeometry({
     };
   }, [enabled, inputSignature, minSize.height, minSize.width, visible]);
 
-  useEffect(() => () => {
-    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
-  }, []);
+  useEffect(() => () => cancelInteraction(), []);
 
   function beginDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (!enabled || !draggable || event.button !== 0 || !event.isPrimary) return;
+    if (!enabled || !visible || !draggable || event.button !== 0 || !event.isPrimary) return;
     const target = event.target;
     if (!(target instanceof Element) || !target.closest(dragHandleSelector)) return;
     if (target.closest("button, input, textarea, select, a, [role='button'], .traffic-lights, [data-no-window-drag]")) return;
@@ -805,7 +823,7 @@ function useWindowGeometry({
   }
 
   function beginResize(edge: WindowResizeEdge, event: ReactPointerEvent<HTMLElement>) {
-    if (!enabled || !resizable || event.button !== 0 || !event.isPrimary) return;
+    if (!enabled || !visible || !resizable || event.button !== 0 || !event.isPrimary) return;
     const element = windowRef.current;
     const origin = ensureGeometry();
     if (element === null || origin === null) return;
@@ -825,6 +843,7 @@ function useWindowGeometry({
   }
 
   function onPointerMove(event: ReactPointerEvent<HTMLElement>) {
+    if (!enabled || !visible) return;
     const interaction = interactionRef.current;
     const element = windowRef.current;
     if (interaction === null || element === null || interaction.pointerId !== event.pointerId) return;
@@ -844,6 +863,10 @@ function useWindowGeometry({
   }
 
   function finishInteraction(event: ReactPointerEvent<HTMLElement>) {
+    if (!enabled || !visible) {
+      cancelInteraction();
+      return;
+    }
     const interaction = interactionRef.current;
     const element = windowRef.current;
     if (interaction === null || interaction.pointerId !== event.pointerId) return;

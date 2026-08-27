@@ -27,6 +27,7 @@ import {
   MacSourceList,
   Sheet,
   SetupAssistant,
+  useModalFocusTrap,
   useMacWindowManager,
   MacWindowManager,
   WindowChrome,
@@ -1064,6 +1065,85 @@ describe("template stub public behavior", () => {
     await user.keyboard("{Escape}");
     expect(cancel).toHaveBeenCalledOnce();
     await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
+  test("the modal focus trap ignores hidden, disabled, inert, and negative-tabindex controls at its boundaries", async () => {
+    function FocusTrapHarness() {
+      const dialogRef = useRef<HTMLDivElement>(null);
+      const handleKeyDown = useModalFocusTrap({ dialogRef, onCancel: () => {} });
+      return (
+        <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Focus boundary" tabIndex={-1} onKeyDown={handleKeyDown}>
+          <button type="button" hidden>Hidden before</button>
+          <button type="button" style={{ display: "none" }}>Display none before</button>
+          <button type="button" style={{ visibility: "hidden" }}>Invisible before</button>
+          <input type="hidden" aria-label="Hidden input before" />
+          <button type="button" disabled>Disabled before</button>
+          <button type="button" aria-disabled="true">ARIA disabled before</button>
+          <button type="button" tabIndex={-2}>Negative two before</button>
+          <button type="button" tabIndex={-1}>Negative one before</button>
+          <div inert><button type="button">Inert before</button></div>
+          <div aria-hidden="true"><button type="button">ARIA hidden before</button></div>
+          <button type="button">First tabbable</button>
+          <button type="button">Last tabbable</button>
+          <div aria-hidden="true"><button type="button">ARIA hidden after</button></div>
+          <div inert><button type="button">Inert after</button></div>
+          <button type="button" tabIndex={-1}>Negative one after</button>
+          <button type="button" tabIndex={-2}>Negative two after</button>
+          <button type="button" disabled>Disabled after</button>
+          <button type="button" style={{ display: "none" }}>Display none after</button>
+          <button type="button" hidden>Hidden after</button>
+        </div>
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<FocusTrapHarness />);
+    const first = screen.getByRole("button", { name: "First tabbable" });
+    const last = screen.getByRole("button", { name: "Last tabbable" });
+    await waitFor(() => expect(document.activeElement).toBe(first));
+
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(last);
+    await user.tab();
+    expect(document.activeElement).toBe(first);
+  });
+
+  test("the modal focus trap falls back from an invalid requested target and recognizes the shared candidate set", async () => {
+    function CandidateHarness() {
+      const dialogRef = useRef<HTMLDivElement>(null);
+      const handleKeyDown = useModalFocusTrap({
+        dialogRef,
+        initialFocusSelector: ".preferred-focus",
+        onCancel: () => {},
+      });
+      return (
+        <>
+          <button type="button">Outside boundary</button>
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Candidate boundary" tabIndex={-1} onKeyDown={handleKeyDown}>
+            <button type="button" className="preferred-focus" hidden>Hidden preferred target</button>
+            <div style={{ contentVisibility: "hidden" }}><button type="button">Content-hidden ancestor</button></div>
+            <button type="button" style={{ visibility: "collapse" }}>Collapsed candidate</button>
+            <a href="/modal-help">First link candidate</a>
+            <details><summary>Summary candidate</summary></details>
+            <div contentEditable="true" suppressContentEditableWarning tabIndex={0}>Last editable candidate</div>
+            <div contentEditable="false">Noneditable region</div>
+          </div>
+        </>
+      );
+    }
+
+    render(<CandidateHarness />);
+    const dialog = screen.getByRole("dialog", { name: "Candidate boundary" });
+    const first = screen.getByRole("link", { name: "First link candidate" });
+    const last = screen.getByText("Last editable candidate");
+    await waitFor(() => expect(document.activeElement).toBe(first));
+
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    first.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
   });
 
   test("window modals isolate their underlay, focus the dialog fallback, and restore stacked focus", async () => {

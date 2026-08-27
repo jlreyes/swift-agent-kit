@@ -2,8 +2,37 @@
 
 import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, useRef } from "react";
 
-const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+const focusableSelector = "button, input, select, textarea, a[href], summary, [contenteditable='true'], [tabindex]";
 const modalOwnerSelector = ".mac-window, .desktop-canvas";
+
+function hasHiddenOrInertAncestor(element: HTMLElement, boundary: HTMLElement): boolean {
+  let current: HTMLElement | null = element;
+  while (current !== null) {
+    if (current.hidden || current.hasAttribute("inert") || current.getAttribute("aria-hidden") === "true") return true;
+    const style = window.getComputedStyle(current);
+    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || style.contentVisibility === "hidden") return true;
+    if (current === boundary) return false;
+    current = current.parentElement;
+  }
+  return true;
+}
+
+function isTabbable(element: HTMLElement, boundary: HTMLElement): boolean {
+  if (!element.isConnected || !boundary.contains(element)) return false;
+  if (element.matches(":disabled") || element.getAttribute("aria-disabled") === "true") return false;
+  if (element instanceof HTMLInputElement && element.type === "hidden") return false;
+  if (element.tabIndex < 0) return false;
+  return !hasHiddenOrInertAncestor(element, boundary);
+}
+
+function tabbableElements(boundary: HTMLElement, selector = focusableSelector): readonly HTMLElement[] {
+  return [...boundary.querySelectorAll<HTMLElement>(selector)].filter((element) => isTabbable(element, boundary));
+}
+
+function focusInitialElement(boundary: HTMLElement, initialFocusSelector: string) {
+  const requested = tabbableElements(boundary, initialFocusSelector)[0];
+  (requested ?? tabbableElements(boundary)[0] ?? boundary).focus();
+}
 
 function containingModalOwner(dialog: HTMLElement): HTMLElement | null {
   return dialog.closest<HTMLElement>(modalOwnerSelector)
@@ -28,7 +57,7 @@ function focusTargetOrActiveModal(target: HTMLElement | null, ownerElement: HTML
   }
   const topDialog = activeDialogs.at(-1);
   if (topDialog !== undefined) {
-    (topDialog.querySelector<HTMLElement>(focusableSelector) ?? topDialog).focus();
+    (tabbableElements(topDialog)[0] ?? topDialog).focus();
     return;
   }
   target?.focus();
@@ -72,7 +101,7 @@ export function useModalFocusTrap({
     const frame = window.requestAnimationFrame(() => {
       const dialog = dialogRef.current;
       if (dialog === null) return;
-      (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
+      focusInitialElement(dialog, initialFocusSelector);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [dialogRef, focusVersion, initialFocusSelector]);
@@ -84,13 +113,13 @@ export function useModalFocusTrap({
       return;
     }
     if (event.key !== "Tab") return;
-    const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])];
+    const dialog = dialogRef.current;
+    const controls = dialog === null ? [] : tabbableElements(dialog);
     const first = controls[0];
     const last = controls.at(-1);
     if (!first || !last) {
       event.preventDefault();
-      const dialog = dialogRef.current;
-      if (dialog !== null) (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
+      if (dialog !== null) focusInitialElement(dialog, initialFocusSelector);
       return;
     }
     if (!(document.activeElement instanceof HTMLElement) || !controls.includes(document.activeElement)) {

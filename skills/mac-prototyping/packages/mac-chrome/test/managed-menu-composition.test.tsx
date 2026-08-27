@@ -21,11 +21,15 @@ function ManagedMenuHarness({
   appMenuItems,
   menuItems,
   onMenuAction,
+  secondaryWindow = false,
+  windowId,
 }: {
   readonly appName?: string;
   readonly appMenuItems?: MenuBarMenu["items"];
   readonly menuItems: readonly MenuBarMenu[];
   readonly onMenuAction?: (command: { readonly menu: string; readonly id: string; readonly label: string }) => void;
+  readonly secondaryWindow?: boolean;
+  readonly windowId?: string;
 }) {
   return (
     <MacWindowManager initialApps={[app]}>
@@ -36,7 +40,10 @@ function ManagedMenuHarness({
         onMenuAction={onMenuAction}
       >
         <MacApp {...app}>
-          <WindowChrome label="Managed window"><p>Managed content</p></WindowChrome>
+          <WindowChrome label="Managed window" windowId={windowId}><p>Managed content</p></WindowChrome>
+          {secondaryWindow ? (
+            <WindowChrome label="Secondary window" windowId="secondary"><p>Secondary content</p></WindowChrome>
+          ) : null}
         </MacApp>
       </DesktopShell>
     </MacWindowManager>
@@ -168,6 +175,36 @@ describe("managed menu command composition", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it("keeps a managed window when its generated command ID collides with a consumer command", async () => {
+    const consumerAction = vi.fn();
+    render(
+      <ManagedMenuHarness
+        secondaryWindow
+        windowId="main"
+        menuItems={[{
+          title: "Window",
+          items: [{ kind: "action", id: "window-main", label: "Consumer Main Command", onSelect: consumerAction }],
+        }]}
+      />,
+    );
+    const mainWindow = await waitFor(() => screen.getByRole("region", { name: "Managed window" }));
+    const secondaryWindow = screen.getByRole("region", { name: "Secondary window" });
+    fireEvent.pointerDown(secondaryWindow);
+    await waitFor(() => expect(secondaryWindow.getAttribute("data-key-window")).toBe("true"));
+    expect(mainWindow.getAttribute("data-key-window")).toBe("false");
+
+    await openMenu("Window");
+    expect(screen.getByRole("menuitem", { name: "Consumer Main Command" })).toBeTruthy();
+    expect(screen.getByRole("menuitemradio", { name: "Managed window" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Consumer Main Command" }));
+    expect(consumerAction).toHaveBeenCalledOnce();
+    expect(mainWindow.getAttribute("data-key-window")).toBe("false");
+
+    await openMenu("Window");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Managed window" }));
+    await waitFor(() => expect(mainWindow.getAttribute("data-key-window")).toBe("true"));
   });
 
   it("preserves consumer application-menu lifecycle commands", async () => {

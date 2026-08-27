@@ -421,15 +421,11 @@ function stubWithManagedWindowCommands(
     return { ...entry, disabled, onSelect: disabled ? undefined : command(entry.id, entry.label, action) };
   }
 
-  if (menu.title === "File") {
-    return {
-      ...menu,
-      items: menu.items.map((entry) => entry.kind === "action" && entry.id === "close-window"
-        ? managedCommand(entry, keyWindow === undefined, () => { if (keyWindow !== undefined) manager.closeWindow(keyWindow.id); })
-        : entry),
-    };
-  }
-  if (isApplicationMenu && keyApp !== undefined) {
+  // The application menu is a structural slot, not a title. Check that
+  // identity before standard title dispatch so an app literally named
+  // "File" still receives lifecycle commands instead of File-menu behavior.
+  if (isApplicationMenu) {
+    if (keyApp === undefined) return menu;
     return {
       ...menu,
       items: menu.items.map((entry) => {
@@ -449,6 +445,14 @@ function stubWithManagedWindowCommands(
         if (entry.id === "quit-app") return managedCommand(entry, false, () => manager.quitApp(keyApp.id));
         return entry;
       }),
+    };
+  }
+  if (menu.title === "File") {
+    return {
+      ...menu,
+      items: menu.items.map((entry) => entry.kind === "action" && entry.id === "close-window"
+        ? managedCommand(entry, keyWindow === undefined, () => { if (keyWindow !== undefined) manager.closeWindow(keyWindow.id); })
+        : entry),
     };
   }
   if (menu.title !== "Window") return menu;

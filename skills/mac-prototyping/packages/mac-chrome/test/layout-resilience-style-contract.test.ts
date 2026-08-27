@@ -148,13 +148,16 @@ it("supports native-button list and disclosure states used by the public stub", 
   const collections = styleSource("collections");
   const selected = rule(collections, '.mc-list-row[aria-selected="true"]');
   const disabledRow = rule(collections, ".mc-list-row:disabled");
-  const hover = rule(collections, ".mc-list-row:not(:disabled):hover");
+  const hover = rule(collections, ".mc-list-row:not([data-disabled]):not(:disabled):hover");
+  const nativeFocus = rule(collections, ".mc-list-row:focus-visible");
   const chevron = rule(collections, ".mc-disclosure-chevron::before");
   const expandedChevron = rule(collections, ".mc-disclosure[data-expanded] .mc-disclosure-chevron::before");
   const disabledDisclosure = rule(collections, ".mc-disclosure-trigger:disabled");
 
   expect(selected).toMatch(/background:\s*var\(--selection-tint\)/);
   expect(hover).toMatch(/background:\s*rgba\(0, 0, 0, 0\.035\)/);
+  expect(nativeFocus).toMatch(/outline:\s*none/);
+  expect(nativeFocus).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--focus-ring\)/);
   expect(disabledRow).toMatch(/opacity:\s*0\.42/);
   expect(chevron).toMatch(/content:\s*""/);
   expect(chevron).toMatch(/transform:\s*rotate\(-45deg\)/);

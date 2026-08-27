@@ -211,6 +211,51 @@ describe("template stub public behavior", () => {
     expect(screen.getByTestId("application-menu-state").textContent).toContain("active:closed");
   });
 
+  test("DesktopShell distinguishes an app named File from the standard File menu", async () => {
+    const app = { id: "file-app", name: "File", icon: <span>File icon</span> } as const;
+    function FileMenuCollisionProbe() {
+      const manager = useMacWindowManager();
+      const window = manager.windows.find((candidate) => candidate.id === "file-window");
+      return (
+        <>
+          <button type="button" onClick={() => manager.activateApp(app.id)}>Reactivate File app</button>
+          <output data-testid="file-menu-collision-state">
+            {`${manager.keyWindowId ?? "none"}|${window?.state ?? "missing"}`}
+          </output>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <MacWindowManager initialApps={[app]}>
+        <MacApp {...app}>
+          <DesktopShell appName="File">
+            <WindowChrome label="File Window" windowId="file-window">File content</WindowChrome>
+            <FileMenuCollisionProbe />
+          </DesktopShell>
+        </MacApp>
+      </MacWindowManager>,
+    );
+    await waitFor(() => expect(screen.getByTestId("file-menu-collision-state").textContent).toBe("file-window|open"));
+
+    let fileTriggers = screen.getAllByRole("button", { name: "File" });
+    expect(fileTriggers).toHaveLength(2);
+    await user.click(fileTriggers[0]);
+    let menu = await screen.findByRole("menu", { name: "File menu" });
+    expect(within(menu).queryByRole("menuitem", { name: /Close Window/ })).toBeNull();
+    await user.click(within(menu).getByRole("menuitem", { name: /Hide File/ }));
+    expect(screen.getByTestId("file-menu-collision-state").textContent).toBe("none|minimized");
+
+    await user.click(screen.getByRole("button", { name: "Reactivate File app" }));
+    expect(screen.getByTestId("file-menu-collision-state").textContent).toBe("file-window|open");
+    fileTriggers = screen.getAllByRole("button", { name: "File" });
+    await user.click(fileTriggers[1]);
+    menu = await screen.findByRole("menu", { name: "File menu" });
+    expect(within(menu).queryByRole("menuitem", { name: /Hide File/ })).toBeNull();
+    await user.click(within(menu).getByRole("menuitem", { name: /Close Window/ }));
+    expect(screen.getByTestId("file-menu-collision-state").textContent).toBe("none|closed");
+  });
+
   test("MacMenu honors link, detail, checked state, and popover class contracts", async () => {
     const user = userEvent.setup();
     render(

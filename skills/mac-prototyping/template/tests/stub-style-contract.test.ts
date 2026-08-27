@@ -98,8 +98,9 @@ test("status, native collection states, and disclosure affordances survive eithe
   const primaryStatus = rule(".mc-window-status-primary");
   const trailingStatus = rules(".mc-window-status-trailing");
   const selectedRow = rule('.mc-list-row[aria-selected="true"]');
-  const hoveredRow = rule(".mc-list-row:not(:disabled):hover");
+  const hoveredRow = rule(".mc-list-row:not([data-disabled]):not(:disabled):hover");
   const disabledRow = rule(".mc-list-row:disabled");
+  const focusedRow = rule(".mc-list-row:focus-visible");
   const chevron = rule(".mc-disclosure-chevron::before");
   const expandedChevron = rule(".mc-disclosure[data-expanded] .mc-disclosure-chevron::before");
   const disabledDisclosure = rule(".mc-disclosure-trigger:disabled");
@@ -111,6 +112,8 @@ test("status, native collection states, and disclosure affordances survive eithe
   expect(selectedRow).toMatch(/background:/);
   expect(hoveredRow).toMatch(/background:/);
   expect(disabledRow).toMatch(/opacity:\s*0\.42/);
+  expect(focusedRow).toMatch(/outline:\s*none/);
+  expect(focusedRow).toMatch(/box-shadow:\s*inset 0 0 0 1px/);
   expect(chevron).toMatch(/content:\s*""/);
   expect(chevron).toMatch(/transform:\s*rotate\(-45deg\)/);
   expect(expandedChevron).toMatch(/transform:\s*rotate\(45deg\)/);
@@ -121,6 +124,7 @@ test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   const dockShell = rule(".p0-mac-dock");
   const dockScroll = rule(".p0-dock-scroll");
 
+  expect(ownsBorderBox(".p0-mac-dock")).toBe(true);
   expect(dockShell).toMatch(/width:\s*max-content/);
   expect(dockShell).toMatch(/max-width:\s*calc\(100% - 14px\)/);
   expect(dockShell).toMatch(/overflow:\s*visible/);

@@ -181,6 +181,7 @@
 .p0-mac-dock {
   position: absolute;
   z-index: 60;
+  box-sizing: border-box;
   bottom: 7px;
   left: 50%;
   width: max-content;
@@ -441,7 +442,7 @@
   flex: 0 1 auto;
 }
 
-.mc-list-row:not(:disabled):hover {
+.mc-list-row:not([data-disabled]):not(:disabled):hover {
   background: rgba(0, 0, 0, 0.035);
 }
 
@@ -452,6 +453,11 @@
 
 .mc-list-row:disabled {
   opacity: 0.42;
+}
+
+.mc-list-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(10, 122, 255, 0.55);
 }
 
 .mc-disclosure-trigger .mc-disclosure-chevron {

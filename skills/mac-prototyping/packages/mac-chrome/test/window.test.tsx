@@ -233,6 +233,123 @@ describe("WindowChrome geometry", () => {
     expect(windowElement.style.transform).toBe("rotate(2deg)");
   });
 
+  it("discards a queued generic drag offset when its canvas is recontained", () => {
+    const layout = { left: 300, top: 50, width: 400, height: 300 };
+    const queuedFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 1;
+    let notifyResize: () => void = () => undefined;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      queuedFrames.set(frameId, callback);
+      return frameId;
+    });
+    const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) {
+        return new DOMRect(layout.left, layout.top, layout.width, layout.height);
+      }
+      if (this.classList.contains("legacy-drag-window")) {
+        const [translateX = "0", translateY = "0"] = this.style.translate.split(" ");
+        return new DOMRect(
+          layout.left + 50 + Number.parseFloat(translateX),
+          layout.top + 40 + Number.parseFloat(translateY),
+          300,
+          200,
+        );
+      }
+      return new DOMRect();
+    });
+
+    const { container } = render(<DragHarness />);
+    const windowElement = container.querySelector<HTMLElement>(".legacy-drag-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    firePointer(handle, "pointerdown", { clientX: 400, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 600, clientY: 100 });
+    expect(windowElement.style.translate).toBe("0px 0px");
+
+    layout.width = 300;
+    act(() => notifyResize());
+    expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
+    expect(windowElement.style.translate).toBe("0px 0px");
+
+    // A canceled callback can still be invoked by a hostile scheduler. It
+    // must not resurrect the pre-resize pointer offset.
+    act(() => queuedFrames.get(1)?.(0));
+    expect(windowElement.style.translate).toBe("0px 0px");
+  });
+
+  it("rebases an active generic drag when its canvas shrinks", () => {
+    const layout = { left: 300, top: 50, width: 400, height: 300 };
+    const queuedFrames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 1;
+    let notifyResize: () => void = () => undefined;
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this);
+      }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      queuedFrames.set(frameId, callback);
+      return frameId;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) {
+        return new DOMRect(layout.left, layout.top, layout.width, layout.height);
+      }
+      if (this.classList.contains("legacy-drag-window")) {
+        const [translateX = "0", translateY = "0"] = this.style.translate.split(" ");
+        return new DOMRect(
+          layout.left + 50 + Number.parseFloat(translateX),
+          layout.top + 40 + Number.parseFloat(translateY),
+          300,
+          200,
+        );
+      }
+      return new DOMRect();
+    });
+
+    const { container } = render(<DragHarness />);
+    const windowElement = container.querySelector<HTMLElement>(".legacy-drag-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+
+    firePointer(handle, "pointerdown", { clientX: 400, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 600, clientY: 100 });
+    act(() => queuedFrames.get(1)?.(0));
+    expect(windowElement.style.translate).toBe("200px 0px");
+
+    layout.width = 300;
+    act(() => notifyResize());
+    expect(windowElement.style.translate).toBe("130px 0px");
+
+    firePointer(windowElement, "pointermove", { clientX: 590, clientY: 100 });
+    act(() => queuedFrames.get(2)?.(0));
+    expect(windowElement.style.translate).toBe("120px 0px");
+  });
+
   it("applies the generic default frame, centered", () => {
     const { container } = render(
       <WindowChrome label="Plain">

@@ -163,6 +163,8 @@ export function useWindowDrag<T extends HTMLElement>(
     readonly pointerId: number;
     readonly startX: number;
     readonly startY: number;
+    readonly lastX: number;
+    readonly lastY: number;
     readonly origin: WindowOffset;
     readonly rect: DOMRect;
   } | null>(null);
@@ -213,7 +215,29 @@ export function useWindowDrag<T extends HTMLElement>(
       const element = windowRef.current;
       if (!element) return;
       const current = offsetRef.current;
-      commitOffset(clampedOffset(current, element.getBoundingClientRect(), current.x, current.y));
+      const rect = element.getBoundingClientRect();
+      const next = clampedOffset(current, rect, current.x, current.y);
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      pendingOffsetRef.current = null;
+      commitOffset(next);
+      const drag = dragRef.current;
+      if (drag !== null) {
+        dragRef.current = {
+          ...drag,
+          startX: drag.lastX,
+          startY: drag.lastY,
+          origin: next,
+          rect: new DOMRect(
+            rect.left + next.x - current.x,
+            rect.top + next.y - current.y,
+            rect.width,
+            rect.height,
+          ),
+        };
+      }
     };
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
     const observer = canvas === null || typeof ResizeObserver === "undefined"
@@ -242,6 +266,8 @@ export function useWindowDrag<T extends HTMLElement>(
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
       origin: offsetRef.current,
       rect: element.getBoundingClientRect(),
     };
@@ -253,6 +279,7 @@ export function useWindowDrag<T extends HTMLElement>(
   function onPointerMove(event: ReactPointerEvent<T>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = { ...drag, lastX: event.clientX, lastY: event.clientY };
     scheduleOffset(clampedOffset(
       drag.origin,
       drag.rect,

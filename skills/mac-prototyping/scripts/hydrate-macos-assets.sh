@@ -14,6 +14,7 @@ platform=${MAC_PROTOTYPING_PLATFORM:-$(uname -s)}
 sips_command=${MAC_PROTOTYPING_SIPS_COMMAND:-/usr/bin/sips}
 qlmanage_command=${MAC_PROTOTYPING_QLMANAGE_COMMAND:-/usr/bin/qlmanage}
 ffmpeg_command=${MAC_PROTOTYPING_FFMPEG_COMMAND:-ffmpeg}
+chrome_icon_source=${MAC_PROTOTYPING_CHROME_ICON_SOURCE:-"/Applications/Google Chrome.app/Contents/Resources/app.icns"}
 temporary_root=""
 hydrated_asset_count=0
 
@@ -54,6 +55,23 @@ command_available() {
   fi
 }
 
+remove_stale_hydrated_asset() {
+  local destination=$1
+  local label=$2
+
+  if [[ ! -e "$destination" && ! -L "$destination" ]]; then
+    return 0
+  fi
+
+  if /bin/rm -f -- "$destination"; then
+    print -u2 "mac-prototyping: removed stale hydrated $label at $destination"
+    return 0
+  fi
+
+  print -u2 "mac-prototyping: could not remove stale hydrated $label at $destination"
+  return 74
+}
+
 if [[ "$platform" != "Darwin" ]]; then
   print -u2 "mac-prototyping: local Apple assets require macOS"
   exit 69
@@ -73,6 +91,9 @@ convert_icon() {
 
   if [[ ! -f "$source" ]]; then
     print -u2 "mac-prototyping: skipped $label (not found at $source)"
+    if ! remove_stale_hydrated_asset "$destination" "$label"; then
+      return 74
+    fi
     return 0
   fi
 
@@ -89,7 +110,7 @@ convert_icon \
   "$asset_root/dock/app-store.png" \
   "App Store icon"
 convert_icon \
-  "/Applications/Google Chrome.app/Contents/Resources/app.icns" \
+  "$chrome_icon_source" \
   "$asset_root/dock/chrome.png" \
   "Google Chrome icon"
 convert_icon \
@@ -190,13 +211,8 @@ if [[ -f "$tahoe_movie" ]]; then
   (( hydrated_asset_count += 1 ))
 else
   print -u2 "mac-prototyping: Tahoe Day wallpaper is unavailable on this macOS install ($tahoe_movie)"
-  if [[ -e "$tahoe_still" || -L "$tahoe_still" ]]; then
-    if /bin/rm -f -- "$tahoe_still"; then
-      print -u2 "mac-prototyping: removed stale hydrated Tahoe wallpaper at $tahoe_still"
-    else
-      print -u2 "mac-prototyping: could not remove stale Tahoe wallpaper at $tahoe_still"
-      exit 74
-    fi
+  if ! remove_stale_hydrated_asset "$tahoe_still" "Tahoe wallpaper"; then
+    exit 74
   fi
 fi
 

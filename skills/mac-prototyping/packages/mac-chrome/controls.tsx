@@ -4,6 +4,7 @@ import type { FormEventHandler, ReactNode, Ref } from "react";
 import {
   Button,
   Checkbox,
+  FieldError,
   Input,
   Label,
   Switch,
@@ -100,7 +101,7 @@ export function MacTextField({
       {label !== undefined ? <Label className="mc-field-label">{label}</Label> : null}
       <Input className="mc-field-input" autoComplete={autoComplete} placeholder={placeholder} />
       {description !== undefined ? <Text className="mc-field-description" slot="description">{description}</Text> : null}
-      {errorMessage !== undefined ? <Text className="mc-field-error" slot="errorMessage">{errorMessage}</Text> : null}
+      {errorMessage !== undefined ? <FieldError className="mc-field-error">{errorMessage}</FieldError> : null}
     </TextField>
   );
 }

@@ -206,4 +206,68 @@ assert_contains "$missing_root/stderr" "removed stale hydrated Tahoe wallpaper a
 assert_contains "$missing_root/stdout" "local asset hydration finished with"
 assert_no_extraction_temporary_directories
 
+missing_icon_root="$test_root/missing-optional-icon"
+missing_icon_prototype="$missing_icon_root/prototype"
+missing_chrome_source="$missing_icon_root/Absent Google Chrome.icns"
+missing_icon_movie="$missing_icon_root/Absent Tahoe Day.mov"
+missing_chrome_destination="$missing_icon_prototype/public/mac-assets/dock/chrome.png"
+expected_chrome_destination="${missing_icon_prototype:A}/public/mac-assets/dock/chrome.png"
+
+run_missing_icon_hydration() {
+  local phase=$1
+
+  env \
+    TMPDIR="$runtime_root" \
+    MAC_PROTOTYPING_PLATFORM=Darwin \
+    MAC_PROTOTYPING_CHROME_ICON_SOURCE="$missing_chrome_source" \
+    MAC_PROTOTYPING_TAHOE_MOVIE="$missing_icon_movie" \
+    MAC_PROTOTYPING_FFMPEG_COMMAND="$tools_root/ffmpeg" \
+    MAC_PROTOTYPING_QLMANAGE_COMMAND="$tools_root/qlmanage" \
+    MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+    FAKE_SIPS_RESULT=success \
+    "$hydrator" "$missing_icon_prototype" \
+      >"$missing_icon_root/$phase-stdout" \
+      2>"$missing_icon_root/$phase-stderr"
+}
+
+mkdir -p "${missing_chrome_destination:h}"
+print -r -- "stale Chrome icon" >"$missing_chrome_destination"
+run_missing_icon_hydration stale-file
+
+[[ ! -e "$missing_chrome_destination" ]] || fail "missing Chrome source retained a stale icon"
+assert_contains "$missing_icon_root/stale-file-stderr" "skipped Google Chrome icon (not found at $missing_chrome_source)"
+assert_contains "$missing_icon_root/stale-file-stderr" "removed stale hydrated Google Chrome icon at $expected_chrome_destination"
+
+/bin/ln -s "$missing_icon_root/nonexistent-icon-target" "$missing_chrome_destination"
+run_missing_icon_hydration dangling-symlink
+
+[[ ! -e "$missing_chrome_destination" && ! -L "$missing_chrome_destination" ]] || \
+  fail "missing Chrome source retained a dangling hydrated icon symlink"
+assert_contains "$missing_icon_root/dangling-symlink-stderr" "removed stale hydrated Google Chrome icon at $expected_chrome_destination"
+assert_no_extraction_temporary_directories
+
+icon_cleanup_failure_root="$test_root/icon-cleanup-failure"
+icon_cleanup_failure_prototype="$icon_cleanup_failure_root/prototype"
+icon_cleanup_failure_destination="$icon_cleanup_failure_prototype/public/mac-assets/dock/chrome.png"
+mkdir -p "$icon_cleanup_failure_destination"
+
+if env \
+  TMPDIR="$runtime_root" \
+  MAC_PROTOTYPING_PLATFORM=Darwin \
+  MAC_PROTOTYPING_CHROME_ICON_SOURCE="$icon_cleanup_failure_root/Absent Google Chrome.icns" \
+  MAC_PROTOTYPING_TAHOE_MOVIE="$icon_cleanup_failure_root/Absent Tahoe Day.mov" \
+  MAC_PROTOTYPING_SIPS_COMMAND="$tools_root/sips" \
+  FAKE_SIPS_RESULT=success \
+  "$hydrator" "$icon_cleanup_failure_prototype" \
+    >"$icon_cleanup_failure_root/stdout" \
+    2>"$icon_cleanup_failure_root/stderr"; then
+  fail "missing icon source succeeded after stale destination cleanup failed"
+else
+  icon_cleanup_failure_status=$?
+fi
+
+[[ "$icon_cleanup_failure_status" -eq 74 ]] || \
+  fail "icon cleanup failure returned $icon_cleanup_failure_status instead of 74"
+assert_contains "$icon_cleanup_failure_root/stderr" "could not remove stale hydrated Google Chrome icon"
+
 print "hydrate-macos-assets.test: passed"

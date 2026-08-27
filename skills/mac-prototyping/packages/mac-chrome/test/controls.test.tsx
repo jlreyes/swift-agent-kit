@@ -96,3 +96,47 @@ it("keeps text, toggle, and segmented values controlled", async () => {
   await act(async () => root.unmount());
   container.remove();
 });
+
+it("exposes an error only while the controlled text field is invalid", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const errorMessage = "Enter a title before continuing.";
+
+  await act(async () => {
+    root.render(
+      <MacTextField
+        label="Title"
+        value=""
+        invalid
+        errorMessage={errorMessage}
+        onChange={() => {}}
+      />,
+    );
+  });
+
+  const input = container.querySelector<HTMLInputElement>("input");
+  const error = container.querySelector<HTMLElement>(".mc-field-error");
+  expect(input?.getAttribute("aria-invalid")).toBe("true");
+  expect(error?.textContent).toBe(errorMessage);
+  expect(input?.getAttribute("aria-describedby")?.split(" ")).toContain(error?.id);
+
+  await act(async () => {
+    root.render(
+      <MacTextField
+        label="Title"
+        value=""
+        invalid={false}
+        errorMessage={errorMessage}
+        onChange={() => {}}
+      />,
+    );
+  });
+
+  expect(container.querySelector(".mc-field-error")).toBeNull();
+  expect(input?.getAttribute("aria-invalid")).toBeNull();
+  expect(input?.getAttribute("aria-describedby")).toBeNull();
+
+  await act(async () => root.unmount());
+  container.remove();
+});

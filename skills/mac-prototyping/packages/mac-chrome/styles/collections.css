@@ -44,7 +44,7 @@
 }
 
 .mc-list-row[data-hovered],
-.mc-list-row:not(:disabled):hover {
+.mc-list-row:not([data-disabled]):not(:disabled):hover {
   background: rgba(0, 0, 0, 0.035);
 }
 
@@ -54,7 +54,9 @@
   background: var(--selection-tint);
 }
 
-.mc-list-row[data-focus-visible] {
+.mc-list-row[data-focus-visible],
+.mc-list-row:focus-visible {
+  outline: none;
   box-shadow: inset 0 0 0 1px var(--focus-ring);
 }
 

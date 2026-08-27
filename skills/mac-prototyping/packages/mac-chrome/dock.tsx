@@ -30,6 +30,24 @@ const appIconGeometry = {
   glyphFrameHeight: 30,
 } as const;
 
+const windowThumbnailGeometry = {
+  maxWidth: 48,
+  maxHeight: 44,
+} as const;
+
+function containedThumbnailSize(thumbnail: MacWindowThumbnail) {
+  const sourceWidth = Number.isFinite(thumbnail.width) && thumbnail.width > 0 ? thumbnail.width : 720;
+  const sourceHeight = Number.isFinite(thumbnail.height) && thumbnail.height > 0 ? thumbnail.height : 480;
+  const scale = Math.min(
+    windowThumbnailGeometry.maxWidth / sourceWidth,
+    windowThumbnailGeometry.maxHeight / sourceHeight,
+  );
+  return {
+    width: sourceWidth * scale,
+    height: sourceHeight * scale,
+  };
+}
+
 export interface MacDockAppIconProps {
   readonly icon: DockIconSource;
   /** Supply only when the icon is not labelled by surrounding UI. */
@@ -151,6 +169,9 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
         const startsGroup = previousItem !== undefined && previousItem.group !== item.group;
         const payload = item.draggablePayload;
         const draggable = payload !== undefined && Object.keys(payload).length > 0;
+        const thumbnailSize = item.windowThumbnail === undefined
+          ? undefined
+          : containedThumbnailSize(item.windowThumbnail);
         return (
           <span className="p0-dock-item-wrap" key={item.id}>
             {startsGroup ? <i className="p0-dock-divider" aria-hidden="true" /> : null}
@@ -169,19 +190,22 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
                 event.dataTransfer.effectAllowed = "copy";
               }}
             >
-              {item.windowThumbnail ? (
-                <span
-                  className="p0-window-thumbnail"
-                  style={{
-                    aspectRatio: `${item.windowThumbnail.width} / ${item.windowThumbnail.height}`,
-                    viewTransitionName: item.viewTransitionName,
-                  }}
-                >
-                  {item.windowThumbnail.src ? (
-                    <img src={item.windowThumbnail.src} alt="" draggable={false} />
-                  ) : (
-                    <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>
-                  )}
+              {item.windowThumbnail && thumbnailSize ? (
+                <span className="p0-window-thumbnail-slot">
+                  <span
+                    className="p0-window-thumbnail"
+                    style={{
+                      width: thumbnailSize.width,
+                      height: thumbnailSize.height,
+                      viewTransitionName: item.viewTransitionName,
+                    }}
+                  >
+                    {item.windowThumbnail.src ? (
+                      <img src={item.windowThumbnail.src} alt="" draggable={false} />
+                    ) : (
+                      <span className="p0-window-thumbnail-fallback"><MacDockAppIcon icon={item.icon} /></span>
+                    )}
+                  </span>
                 </span>
               ) : <MacDockAppIcon icon={item.icon} />}
               <span className="p0-dock-tooltip" role="tooltip">{item.label}</span>

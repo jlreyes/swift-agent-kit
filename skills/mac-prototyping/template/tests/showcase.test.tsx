@@ -268,6 +268,33 @@ test("catalog selection and history navigate stories without replacing the app w
   expect(screen.getByRole("main", { name: "Navigation & Split View story" })).toBeDefined();
 });
 
+test("the navigation story switches its middle collection and detail with the sidebar", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await user.click(sourceItem("Navigation & Split View"));
+  const sidebar = screen.getByRole("complementary", { name: "Example sidebar" });
+  const content = screen.getByRole("region", { name: "Project list" });
+  const detail = screen.getByRole("region", { name: "Project detail" });
+  expect(within(content).getByRole("listbox", { name: "Projects" })).toBeDefined();
+  expect(within(content).getByText("Website refresh")).toBeDefined();
+
+  await user.click(within(sidebar).getByText("Archive"));
+  const archive = within(content).getByRole("listbox", { name: "Archive" });
+  expect(within(archive).getByRole("option", { name: /Completed launch/ }).getAttribute("aria-selected")).toBe("true");
+  expect(within(content).queryByText("Website refresh")).toBeNull();
+  expect(within(detail).getByRole("heading", { name: "Completed launch" })).toBeDefined();
+  expect(within(detail).getByText("Archived Aug 14")).toBeDefined();
+
+  await user.click(within(archive).getByRole("option", { name: /Legacy research/ }));
+  expect(within(detail).getByRole("heading", { name: "Legacy research" })).toBeDefined();
+
+  await user.click(within(sidebar).getByText("Projects"));
+  expect(within(content).getByRole("listbox", { name: "Projects" })).toBeDefined();
+  expect(within(content).queryByText("Legacy research")).toBeNull();
+  expect(within(detail).getByRole("heading", { name: "Website refresh" })).toBeDefined();
+});
+
 test("Window & Toolbar composes the public toolbar surface and controls", async () => {
   const user = userEvent.setup();
   render(<ShowcaseDesktop />);
@@ -516,6 +543,38 @@ test("full compositions open in their own window instead of nesting in the catal
   expect(screen.getByRole("listbox", { name: "Documents" })).toBeDefined();
   expect(screen.getByRole("region", { name: "Mac Chrome component showcase" })).toBeDefined();
   expect(screen.getByRole("region", { name: "Finder showcase" })).toBeDefined();
+});
+
+test("Finder locations replace entries and reset selection to that location", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+
+  await user.click(dockButton("Finder"));
+  const finder = screen.getByRole("region", { name: "Finder showcase" });
+  const documents = within(finder).getByRole("listbox", { name: "Documents" });
+  expect(within(documents).getByText("Project Brief.md")).toBeDefined();
+
+  const recentsLabel = within(finder).getByText("Recents");
+  const recentsControl = recentsLabel.closest<HTMLElement>("button, [role='treeitem']");
+  // The scaffold stub is intentionally structural; real vendoring supplies
+  // MacSourceList's interactive sidebar contract exercised below.
+  if (recentsControl === null) return;
+
+  await user.click(recentsControl);
+  const recents = within(finder).getByRole("listbox", { name: "Recents" });
+  expect(within(recents).getByRole("option", { name: /Design Review\.pdf/ }).getAttribute("aria-selected")).toBe("true");
+  expect(within(recents).getByText("Meeting Notes.md")).toBeDefined();
+  expect(within(finder).queryByText("Project Brief.md")).toBeNull();
+
+  const sharedLabel = within(finder).getByText("Shared Server");
+  const sharedControl = sharedLabel.closest<HTMLElement>("button, [role='treeitem']");
+  if (sharedControl === null) throw new Error("Shared Server sidebar item was not interactive");
+  await user.click(sharedControl);
+  const shared = within(finder).getByRole("listbox", { name: "Shared Server" });
+  expect(within(shared).getByRole("option", { name: /Team Roadmap\.md/ }).getAttribute("aria-selected")).toBe("true");
+  expect(within(shared).getByText("Brand Assets")).toBeDefined();
+  expect(within(finder).queryByText("Design Review.pdf")).toBeNull();
+  expect(within(finder).queryByText("Project Brief.md")).toBeNull();
 });
 
 test("component search filters the persistent source list", async () => {

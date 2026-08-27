@@ -201,6 +201,11 @@ body > .mc-window-modal-layer-desktop {
   white-space: nowrap;
 }
 
+.mc-window-status-primary {
+  flex: 1 1 auto;
+}
+
 .mc-window-status-trailing {
-  flex: 0 0 auto;
+  max-width: 50%;
+  flex: 0 1 auto;
 }

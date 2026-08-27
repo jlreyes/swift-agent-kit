@@ -43,11 +43,13 @@
   cursor: default;
 }
 
-.mc-list-row[data-hovered] {
+.mc-list-row[data-hovered],
+.mc-list-row:not(:disabled):hover {
   background: rgba(0, 0, 0, 0.035);
 }
 
-.mc-list-row[data-selected] {
+.mc-list-row[data-selected],
+.mc-list-row[aria-selected="true"] {
   color: var(--text-strong);
   background: var(--selection-tint);
 }
@@ -56,7 +58,8 @@
   box-shadow: inset 0 0 0 1px var(--focus-ring);
 }
 
-.mc-list-row[data-disabled] {
+.mc-list-row[data-disabled],
+.mc-list-row:disabled {
   opacity: 0.42;
 }
 
@@ -151,13 +154,27 @@
   box-shadow: inset 0 0 0 1.5px var(--focus-ring);
 }
 
-.mc-disclosure-trigger .mc-disclosure-indicator {
+.mc-disclosure-trigger .mc-disclosure-indicator,
+.mc-disclosure-trigger .mc-disclosure-chevron {
   width: 12px;
   height: 18px;
   flex: 0 0 12px;
   display: grid;
   place-items: center;
   color: var(--text-soft);
+}
+
+.mc-disclosure-chevron::before {
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.mc-disclosure[data-expanded] .mc-disclosure-chevron::before {
+  transform: rotate(45deg);
 }
 
 .mc-disclosure-trigger .mc-disclosure-indicator .mc-system-symbol {
@@ -171,5 +188,9 @@
 }
 
 .mc-disclosure[data-disabled] {
+  opacity: 0.45;
+}
+
+.mc-disclosure-trigger:disabled {
   opacity: 0.45;
 }

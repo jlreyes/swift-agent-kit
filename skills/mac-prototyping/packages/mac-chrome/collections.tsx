@@ -62,6 +62,27 @@ export function MacList({
     onSelectionChange(typeof next === "string" ? next : null);
   }
 
+  function rows(section: MacListSection): readonly ReactNode[] {
+    return section.items.map((row) => (
+      <ListBoxItem
+        key={row.id}
+        id={row.id}
+        textValue={rowTextValue(row)}
+        className="mc-list-row"
+        isDisabled={row.disabled}
+        onAction={row.onAction}
+      >
+        {row.icon !== undefined ? <span className="mc-list-row-icon" aria-hidden="true">{row.icon}</span> : null}
+        <span className="mc-list-row-copy">
+          <span className="mc-list-row-label">{row.label}</span>
+          {row.description !== undefined ? <small>{row.description}</small> : null}
+        </span>
+        {row.secondary !== undefined ? <span className="mc-list-row-secondary">{row.secondary}</span> : null}
+        {row.accessory !== undefined ? <span className="mc-list-row-accessory">{row.accessory}</span> : null}
+      </ListBoxItem>
+    ));
+  }
+
   return (
     <ListBox
       aria-label={ariaLabel}
@@ -72,29 +93,19 @@ export function MacList({
       onSelectionChange={handleSelectionChange}
       renderEmptyState={() => <div className="mc-list-empty">{emptyState}</div>}
     >
-      {sections.map((section) => (
-        <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
-          {section.title !== undefined ? <Header className="mc-list-section-title">{section.title}</Header> : null}
-          {section.items.map((row) => (
-            <ListBoxItem
-              key={row.id}
-              id={row.id}
-              textValue={rowTextValue(row)}
-              className="mc-list-row"
-              isDisabled={row.disabled}
-              onAction={row.onAction}
-            >
-              {row.icon !== undefined ? <span className="mc-list-row-icon" aria-hidden="true">{row.icon}</span> : null}
-              <span className="mc-list-row-copy">
-                <span className="mc-list-row-label">{row.label}</span>
-                {row.description !== undefined ? <small>{row.description}</small> : null}
-              </span>
-              {row.secondary !== undefined ? <span className="mc-list-row-secondary">{row.secondary}</span> : null}
-              {row.accessory !== undefined ? <span className="mc-list-row-accessory">{row.accessory}</span> : null}
-            </ListBoxItem>
-          ))}
-        </ListBoxSection>
-      ))}
+      {sections.flatMap((section) => {
+        const sectionRows = rows(section);
+        // An unnamed ARIA group gives assistive technology no useful boundary.
+        // Headerless API sections are visual/data organization only, so expose
+        // their options directly under the named listbox.
+        if (section.title === undefined) return sectionRows;
+        return [
+          <ListBoxSection key={section.id} id={section.id} className="mc-list-section">
+            <Header className="mc-list-section-title">{section.title}</Header>
+            {sectionRows}
+          </ListBoxSection>,
+        ];
+      })}
     </ListBox>
   );
 }

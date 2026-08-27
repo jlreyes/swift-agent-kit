@@ -43,6 +43,41 @@ it("renders sectioned rows and reports one selected id", async () => {
   container.remove();
 });
 
+it("does not expose unnamed accessibility groups for headerless sections", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <MacList
+        ariaLabel="Documents"
+        selectedId={null}
+        onSelectionChange={() => undefined}
+        sections={[
+          { id: "recent", items: [{ id: "draft", label: "Draft" }] },
+          { id: "shared", title: "Shared", items: [{ id: "brief", label: "Brief" }] },
+        ]}
+      />,
+    );
+  });
+
+  const listbox = container.querySelector<HTMLElement>("[role='listbox']");
+  const groups = container.querySelectorAll<HTMLElement>("[role='group']");
+  const draft = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
+    .find((option) => option.textContent === "Draft");
+  const brief = Array.from(container.querySelectorAll<HTMLElement>("[role='option']"))
+    .find((option) => option.textContent === "Brief");
+  expect(listbox?.getAttribute("aria-label")).toBe("Documents");
+  expect(groups).toHaveLength(1);
+  const groupLabelId = groups[0]?.getAttribute("aria-labelledby") ?? "";
+  expect(document.getElementById(groupLabelId)?.textContent).toBe("Shared");
+  expect(draft?.closest("[role='group']")).toBeNull();
+  expect(brief?.closest("[role='group']")).toBe(groups[0]);
+
+  await act(async () => root.unmount());
+  container.remove();
+});
+
 it("uses controlled disclosure state and an accessible content-unavailable heading", async () => {
   const container = document.createElement("div");
   document.body.append(container);

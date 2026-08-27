@@ -76,6 +76,7 @@ type StoryId =
   | "setup"
   | "chat";
 type RecipeId = "finder" | "chooser" | "setup" | "chat";
+type FinderLocation = "Recents" | "Documents" | "Shared Server";
 
 type StoryDefinition = {
   readonly id: StoryId;
@@ -218,12 +219,24 @@ export const coveredExports = [
   "WindowChrome",
 ] as const;
 
-const finderEntries: readonly FinderEntry[] = [
-  { id: "brief", name: "Project Brief.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Today, 10:24 AM", size: "18 KB" },
-  { id: "references", name: "References", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Yesterday", size: "—" },
-  { id: "research", name: "Research Notes.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Monday", size: "42 KB" },
-  { id: "archive", name: "Archive", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Aug 18", size: "—" },
-];
+const finderEntriesByLocation: Readonly<Record<FinderLocation, readonly FinderEntry[]>> = {
+  Recents: [
+    { id: "design-review", name: "Design Review.pdf", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Today, 11:02 AM", size: "2.4 MB" },
+    { id: "sprint-assets", name: "Sprint Assets", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Today, 9:18 AM", size: "—" },
+    { id: "meeting-notes", name: "Meeting Notes.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Yesterday", size: "12 KB" },
+  ],
+  Documents: [
+    { id: "brief", name: "Project Brief.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Today, 10:24 AM", size: "18 KB" },
+    { id: "references", name: "References", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Yesterday", size: "—" },
+    { id: "research", name: "Research Notes.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Monday", size: "42 KB" },
+    { id: "archive", name: "Archive", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Aug 18", size: "—" },
+  ],
+  "Shared Server": [
+    { id: "team-roadmap", name: "Team Roadmap.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Today, 8:45 AM", size: "31 KB" },
+    { id: "brand-assets", name: "Brand Assets", kind: "folder", icon: <SystemSymbol name="folder" />, modified: "Friday", size: "—" },
+    { id: "release-notes", name: "Release Notes.md", kind: "document", icon: <SystemSymbol name="doc.text.fill" />, modified: "Aug 21", size: "27 KB" },
+  ],
+};
 
 const chooserChoices: readonly ChooserChoice[] = [
   { id: "personal", symbol: "person.crop.circle", title: "Personal", caption: "A private workspace for one person", preview: <StoryPreview symbol="person.crop.circle" title="Personal workspace" detail="A focused starting point with private defaults." /> },
@@ -355,7 +368,7 @@ function WindowToolbarStory() {
 
 function NavigationStory() {
   const [section, setSection] = useState("projects");
-  const [item, setItem] = useState("website");
+  const [item, setItem] = useState<string | null>("website");
   const sidebarSections: readonly MacSourceListSection[] = [{
     id: "workspace",
     title: "Workspace",
@@ -365,28 +378,44 @@ function NavigationStory() {
       { id: "archive", label: "Archive", icon: <SystemSymbol name="folder" /> },
     ],
   }];
-  const listSections: readonly MacListSection[] = [{
-    id: "projects",
-    items: [
+  const listSectionsBySidebar: Readonly<Record<string, MacListSection>> = {
+    projects: {
+      id: "projects",
+      items: [
       { id: "website", label: "Website refresh", description: "Updated today", icon: <SystemSymbol name="network" /> },
       { id: "launch", label: "Launch plan", description: "Updated yesterday", icon: <SystemSymbol name="doc.text.fill" /> },
       { id: "research", label: "Research", description: "Updated Monday", icon: <SystemSymbol name="folder" /> },
-    ],
-  }];
-  const selectedLabel = listSections[0]?.items.find((row) => row.id === item)?.label ?? "No selection";
+      ],
+    },
+    archive: {
+      id: "archive",
+      items: [
+        { id: "completed-launch", label: "Completed launch", description: "Archived Aug 14", icon: <SystemSymbol name="doc.text.fill" /> },
+        { id: "legacy-research", label: "Legacy research", description: "Archived Jul 29", icon: <SystemSymbol name="folder" /> },
+      ],
+    },
+  };
+  const activeListSection = listSectionsBySidebar[section] ?? listSectionsBySidebar.projects;
+  const selectedRow = activeListSection.items.find((row) => row.id === item);
+  function selectSection(id: string) {
+    const nextSection = listSectionsBySidebar[id];
+    if (nextSection === undefined) return;
+    setSection(id);
+    setItem(nextSection.items[0]?.id ?? null);
+  }
   return (
     <div className="showcase-story-pane">
       <StoryHeader title="A true three-column navigation split" description="Sidebar → content list → detail is a navigation hierarchy. The showcase inspector remains a separate fourth, supplementary region." />
       <div className="showcase-navigation-demo">
         <MacNavigationSplitView
           id="navigation-story"
-          sidebar={<MacSourceList label="Example sidebar" sections={sidebarSections} selectedId={section} onSelectionChange={setSection} />}
-          content={<MacList ariaLabel="Projects" sections={listSections} selectedId={item} onSelectionChange={(id) => id !== null && setItem(id)} />}
+          sidebar={<MacSourceList label="Example sidebar" sections={sidebarSections} selectedId={section} onSelectionChange={selectSection} />}
+          content={<MacList ariaLabel={section === "archive" ? "Archive" : "Projects"} sections={[activeListSection]} selectedId={item} onSelectionChange={setItem} />}
           detail={
             <div className="showcase-navigation-detail">
               <SystemSymbol name={section === "archive" ? "folder" : "doc.text.fill"} />
-              <h3>{selectedLabel}</h3>
-              <p>The detail column responds to the selection in the middle content list.</p>
+              <h3>{selectedRow?.label ?? "No selection"}</h3>
+              <p>{selectedRow?.description ?? "Choose an item from the middle list."}</p>
             </div>
           }
           sidebarLabel="Example sidebar"
@@ -724,16 +753,25 @@ function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeCha
 }) {
   const [selectedId, setSelectedId] = useState<string | null>("brief");
   const [query, setQuery] = useState("");
-  const [location, setLocation] = useState("Documents");
+  const [location, setLocation] = useState<FinderLocation>("Documents");
   const [status, setStatus] = useState("Select an item, then press Space for Quick Look.");
+  function selectLocation(nextLocation: FinderLocation) {
+    const nextEntries = finderEntriesByLocation[nextLocation];
+    setLocation(nextLocation);
+    setSelectedId(nextEntries[0]?.id ?? null);
+    setQuery("");
+    setStatus(`Showing ${nextLocation}.`);
+  }
   const sidebar: readonly SidebarSection[] = [
     { id: "favorites", title: "Favorites", collapsible: true, items: [
-      { id: "recents", label: "Recents", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, selected: location === "Recents", onSelect: () => setLocation("Recents") },
-      { id: "documents", label: "Documents", icon: <SystemSymbol name="doc.text.fill" />, badge: 4, selected: location === "Documents", onSelect: () => setLocation("Documents") },
+      { id: "recents", label: "Recents", icon: <SystemSymbol name="arrow.triangle.2.circlepath" />, selected: location === "Recents", onSelect: () => selectLocation("Recents") },
+      { id: "documents", label: "Documents", icon: <SystemSymbol name="doc.text.fill" />, badge: finderEntriesByLocation.Documents.length, selected: location === "Documents", onSelect: () => selectLocation("Documents") },
     ] },
-    { id: "locations", title: "Locations", items: [{ id: "cloud", label: "Shared Server", icon: <SystemSymbol name="network" />, selected: location === "Shared Server", onSelect: () => setLocation("Shared Server") }] },
+    { id: "locations", title: "Locations", items: [{ id: "cloud", label: "Shared Server", icon: <SystemSymbol name="network" />, selected: location === "Shared Server", onSelect: () => selectLocation("Shared Server") }] },
   ];
-  const shownEntries = finderEntries.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()));
+  const locationEntries = finderEntriesByLocation[location];
+  const shownEntries = locationEntries.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()));
+  const visibleSelectedId = shownEntries.some((entry) => entry.id === selectedId) ? selectedId : null;
   return (
     <FinderWindow
       title={location}
@@ -748,7 +786,7 @@ function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeCha
       previewVisible={previewVisible}
       onPreviewVisibleChange={onPreviewVisibleChange}
       search={{ value: query, onChange: setQuery }}
-      selection={{ selectedId, onSelect: setSelectedId }}
+      selection={{ selectedId: visibleSelectedId, onSelect: setSelectedId }}
       onOpen={(entry) => setStatus(`Opened ${entry.name}`)}
       preview={(entry) => entry === null ? <p className="showcase-empty-preview">Select an item to preview it.</p> : <StoryPreview symbol={entry.kind === "folder" ? "folder" : "doc.text.fill"} title={entry.name} detail={[entry.modified, entry.size].filter(Boolean).join(" · ")} />}
       statusBar={<span>{shownEntries.length} items · {status}</span>}

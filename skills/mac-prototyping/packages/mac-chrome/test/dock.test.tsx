@@ -89,7 +89,7 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
   container.remove();
 });
 
-it("renders minimized windows as a separate normalized thumbnail group", async () => {
+it("fits landscape, portrait, and wide minimized windows inside stable thumbnail slots", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -100,12 +100,26 @@ it("renders minimized windows as a separate normalized thumbnail group", async (
         items={[
           { id: "app", label: "App", icon: "/app.png", group: "apps", running: true },
           {
-            id: "window",
-            label: "Project window",
+            id: "landscape",
+            label: "Landscape window",
             icon: "/app.png",
             group: "windows",
             viewTransitionName: "mc-window-project",
             windowThumbnail: { src: "data:image/png;base64,d2luZG93", width: 900, height: 600 },
+          },
+          {
+            id: "portrait",
+            label: "Portrait window",
+            icon: "/app.png",
+            group: "windows",
+            windowThumbnail: { src: "data:image/png;base64,cG9ydHJhaXQ=", width: 600, height: 900 },
+          },
+          {
+            id: "wide",
+            label: "Wide window",
+            icon: "/app.png",
+            group: "windows",
+            windowThumbnail: { src: "data:image/png;base64,d2lkZQ==", width: 1600, height: 400 },
           },
           { id: "trash", label: "Trash", icon: "/trash.png", group: "places" },
         ]}
@@ -113,13 +127,21 @@ it("renders minimized windows as a separate normalized thumbnail group", async (
     );
   });
 
-  const thumbnailButton = container.querySelector<HTMLElement>(".p0-dock-item.is-window-thumbnail");
-  const thumbnail = thumbnailButton?.querySelector<HTMLElement>(".p0-window-thumbnail");
+  const thumbnailButtons = container.querySelectorAll<HTMLElement>(".p0-dock-item.is-window-thumbnail");
+  const thumbnailSlots = container.querySelectorAll<HTMLElement>(".p0-window-thumbnail-slot");
+  const thumbnails = container.querySelectorAll<HTMLElement>(".p0-window-thumbnail");
   expect(container.querySelectorAll(".p0-dock-divider")).toHaveLength(2);
-  expect(thumbnailButton?.querySelector(".p0-app-icon")).toBeNull();
-  expect(thumbnail?.style.aspectRatio).toBe("900 / 600");
-  expect(thumbnail?.style.viewTransitionName).toBe("mc-window-project");
-  expect(thumbnail?.querySelector("img")?.getAttribute("src")).toContain("data:image/png");
+  expect(thumbnailButtons).toHaveLength(3);
+  expect(thumbnailSlots).toHaveLength(3);
+  expect(Array.from(thumbnailButtons, (button) => button.querySelector(".p0-app-icon"))).toEqual([null, null, null]);
+  expect(Number.parseFloat(thumbnails[0]?.style.width ?? "0")).toBeCloseTo(48);
+  expect(Number.parseFloat(thumbnails[0]?.style.height ?? "0")).toBeCloseTo(32);
+  expect(Number.parseFloat(thumbnails[1]?.style.width ?? "0")).toBeCloseTo(29.333, 3);
+  expect(Number.parseFloat(thumbnails[1]?.style.height ?? "0")).toBeCloseTo(44);
+  expect(Number.parseFloat(thumbnails[2]?.style.width ?? "0")).toBeCloseTo(48);
+  expect(Number.parseFloat(thumbnails[2]?.style.height ?? "0")).toBeCloseTo(12);
+  expect(thumbnails[0]?.style.viewTransitionName).toBe("mc-window-project");
+  expect(thumbnails[0]?.querySelector("img")?.getAttribute("src")).toContain("data:image/png");
 
   await act(async () => root.unmount());
   container.remove();

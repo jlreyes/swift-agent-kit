@@ -129,9 +129,18 @@
   font-size: 20px;
 }
 
-.p0-window-thumbnail {
+.p0-window-thumbnail-slot {
   width: 48px;
   height: 44px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.p0-window-thumbnail {
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -141,14 +150,12 @@
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.26),
     0 8px 14px rgba(0, 0, 0, 0.12);
-  pointer-events: none;
 }
 
 .p0-window-thumbnail > img {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  display: block;
   object-fit: contain;
 }
 
@@ -210,5 +217,26 @@
 @media (prefers-reduced-motion: reduce) {
   .p0-dock-item {
     transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .p0-mac-dock {
+    box-sizing: border-box;
+    width: calc(100% - 12px);
+    max-width: calc(100% - 12px);
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .p0-dock-item-wrap {
+    flex: 0 0 auto;
+  }
+
+  .p0-mac-dock::-webkit-scrollbar {
+    display: none;
   }
 }

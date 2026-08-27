@@ -3,8 +3,8 @@
 // PLACEHOLDER components — replaced wholesale when the real packages/mac-chrome
 // is vendored over this directory. The stub keeps the public APIs and common
 // interaction contracts honest so template code remains functional before
-// vendoring. Advanced window drag/resize, modal ownership/portals, and visual
-// transition machinery remain exclusive to the real package.
+// vendoring. Advanced window dragging, visual transitions, and screenshot-
+// thumbnail machinery remain exclusive to the real package.
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
 import {
   Button,
@@ -24,6 +24,7 @@ import {
   type Selection,
 } from "react-aria-components";
 import { Group, Panel, Separator as PanelSeparator } from "react-resizable-panels";
+import { createPortal } from "react-dom";
 import { getSymbol, type SymbolName } from "symbolist";
 
 /* ----- Menu types (mirrors menu.tsx / desktop-shell.tsx) ----- */
@@ -290,9 +291,68 @@ export type WindowFrame = {
 export type WindowSize = { readonly width: number; readonly height: number };
 
 const stubResizeEdges = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
+type StubResizeEdge = typeof stubResizeEdges[number];
 
 const genericDefaultSize: WindowSize = { width: 720, height: 480 };
+const genericMinimumSize: WindowSize = { width: 420, height: 280 };
 const finderDefaultSize: WindowSize = { width: 940, height: 580 };
+
+type StubWindowGeometry = { readonly left: number; readonly top: number; readonly width: number; readonly height: number };
+type StubWindowBounds = { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number; readonly minWidth: number; readonly minHeight: number };
+const stubWindowSafeInsets = { top: 28, right: 24, bottom: 88, left: 24 } as const;
+
+function stubContractedInsets(length: number, leading: number, trailing: number): readonly [number, number] {
+  const total = leading + trailing;
+  if (length <= 0 || total <= 0) return [0, 0];
+  const scale = Math.min(1, length / (total * 2));
+  return [leading * scale, trailing * scale];
+}
+
+function stubSafeBounds(width: number, height: number, minSize: WindowSize): StubWindowBounds | null {
+  if (width <= 0 || height <= 0) return null;
+  const [leftInset, rightInset] = stubContractedInsets(width, stubWindowSafeInsets.left, stubWindowSafeInsets.right);
+  const [topInset, bottomInset] = stubContractedInsets(height, stubWindowSafeInsets.top, stubWindowSafeInsets.bottom);
+  const left = leftInset;
+  const right = width - rightInset;
+  const top = topInset;
+  const bottom = height - bottomInset;
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    minWidth: Math.min(Math.max(0, minSize.width), right - left),
+    minHeight: Math.min(Math.max(0, minSize.height), bottom - top),
+  };
+}
+
+function stubClampedGeometry(geometry: StubWindowGeometry, bounds: StubWindowBounds): StubWindowGeometry {
+  const width = Math.min(Math.max(geometry.width, bounds.minWidth), bounds.right - bounds.left);
+  const height = Math.min(Math.max(geometry.height, bounds.minHeight), bounds.bottom - bounds.top);
+  return {
+    left: Math.min(Math.max(geometry.left, bounds.left), bounds.right - width),
+    top: Math.min(Math.max(geometry.top, bounds.top), bounds.bottom - height),
+    width,
+    height,
+  };
+}
+
+function stubResizedGeometry(origin: StubWindowGeometry, edge: StubResizeEdge, deltaX: number, deltaY: number, bounds: StubWindowBounds): StubWindowGeometry {
+  let left = origin.left;
+  let right = origin.left + origin.width;
+  let top = origin.top;
+  let bottom = origin.top + origin.height;
+  if (edge.includes("w")) left = Math.min(Math.max(origin.left + deltaX, bounds.left), right - bounds.minWidth);
+  else if (edge.includes("e")) right = Math.min(Math.max(right + deltaX, left + bounds.minWidth), bounds.right);
+  if (edge.includes("n")) top = Math.min(Math.max(origin.top + deltaY, bounds.top), bottom - bounds.minHeight);
+  else if (edge.includes("s")) bottom = Math.min(Math.max(bottom + deltaY, top + bounds.minHeight), bounds.bottom);
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+function stubInlineLength(value: string, fallback: number): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 function cssLength(value: number | string): string {
   return typeof value === "number" ? `${value}px` : value;
@@ -325,20 +385,35 @@ export interface DesktopShellProps {
   readonly children: ReactNode;
 }
 
+function stubNativeDate(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("weekday")} ${value("month")} ${value("day")}`;
+}
+
+function stubNativeClock(now: Date) {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(now);
+}
+
 export function DesktopShell({
   appName,
   menuItems = ["File", "Edit", "View", "Window", "Help"],
   appleMenuItems,
   appMenuItems,
   onMenuAction,
-  date = "Wed Aug 6",
-  clock = "9:47 AM",
+  date,
+  clock,
   menuBarExtras,
   wallpaper,
   children,
 }: DesktopShellProps) {
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const menus: readonly MenuBarMenu[] = [
     { title: "Apple", items: appleMenuItems ?? stubAppleMenu() },
     { title: appName, items: appMenuItems ?? stubAppMenu(appName) },
@@ -389,8 +464,8 @@ export function DesktopShell({
             <span className="mc-status-symbol" data-status-icon="battery" aria-label="Battery" role="img"><SystemSymbol name="battery.100percent" /></span>
             <span className="mc-status-symbol" data-status-icon="wifi" aria-label="Wi-Fi" role="img"><SystemSymbol name="wifi" /></span>
             <span className="mc-status-symbol" data-status-icon="control-center" aria-label="Control Center" role="img"><SystemSymbol name="switch.2" /></span>
-            <span>{date}</span>
-            <span>{clock}</span>
+            <span suppressHydrationWarning>{date ?? stubNativeDate(now)}</span>
+            <span suppressHydrationWarning>{clock ?? stubNativeClock(now)}</span>
           </div>
         </header>
         {children}
@@ -576,9 +651,21 @@ export function MacWindowManager({ children, initialApps = [] }: {
   const minimizeWindow = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, state: "minimized", thumbnail: { width: 720, height: 480 } } : window) })), []);
   const toggleZoom = useCallback((windowId: string) => setState((current) => ({ ...current, windows: current.windows.map((window) => window.id === windowId ? { ...window, zoomed: !window.zoomed } : window) })), []);
   const bringAllToFront = useCallback((appId?: string) => setState((current) => {
-    let nextOrder = current.nextOrder;
-    const windows = current.windows.map((window) => window.state === "open" && (appId === undefined || window.appId === appId) ? { ...window, order: nextOrder++ } : window);
-    return { ...current, windows, nextOrder };
+    const targets = current.windows
+      .filter((window) => window.state === "open" && current.apps.find((app) => app.id === window.appId)?.running)
+      .slice()
+      .sort((left, right) => left.order - right.order)
+      .filter((window) => appId === undefined || window.appId === appId);
+    if (targets.length === 0) return current;
+    const orders = new Map(targets.map((window, index) => [window.id, current.nextOrder + index]));
+    return {
+      ...current,
+      windows: current.windows.map((window) => {
+        const order = orders.get(window.id);
+        return order === undefined ? window : { ...window, order };
+      }),
+      nextOrder: current.nextOrder + targets.length,
+    };
   }), []);
   const quitApp = useCallback((appId: string) => setState((current) => ({
     ...current,
@@ -656,7 +743,7 @@ export function WindowChrome({
   defaultSize = genericDefaultSize,
   frame,
   label,
-  minSize: _minSize,
+  minSize = genericMinimumSize,
   resizable = true,
   style,
   windowId,
@@ -683,6 +770,9 @@ export function WindowChrome({
 }) {
   const manager = useContext(StubManagerContext);
   const app = useContext(StubAppContext);
+  const windowRef = useRef<HTMLElement>(null);
+  const [geometry, setGeometry] = useState<StubWindowGeometry | null>(null);
+  const resizeRef = useRef<{ readonly edge: StubResizeEdge; readonly pointerId: number; readonly startX: number; readonly startY: number; readonly origin: StubWindowGeometry; readonly bounds: StubWindowBounds } | null>(null);
   const resolvedWindowId = manager !== null && app !== null ? windowId ?? `${app.id}:main` : null;
   useEffect(() => {
     if (manager === null || app === null || resolvedWindowId === null) return;
@@ -697,10 +787,62 @@ export function WindowChrome({
     minimize: () => { onMinimize?.(); if (resolvedWindowId !== null) manager?.minimizeWindow(resolvedWindowId); },
     zoom: () => { onZoom?.(); if (resolvedWindowId !== null) manager?.toggleZoom(resolvedWindowId); },
   };
+
+  function resizeContext(element: HTMLElement) {
+    const canvas = element.closest<HTMLElement>(".desktop-canvas");
+    const rect = canvas?.getBoundingClientRect();
+    const width = rect?.width ?? window.innerWidth;
+    const height = rect?.height ?? window.innerHeight;
+    const bounds = stubSafeBounds(width, height, minSize);
+    return bounds === null ? null : { bounds, originLeft: rect?.left ?? 0, originTop: rect?.top ?? 0 };
+  }
+
+  function beginResize(edge: StubResizeEdge, event: ReactPointerEvent<HTMLElement>) {
+    if (!resizable || event.button !== 0 || event.isPrimary === false) return;
+    const element = windowRef.current;
+    if (element === null) return;
+    const context = resizeContext(element);
+    if (context === null) return;
+    const rect = element.getBoundingClientRect();
+    const origin = stubClampedGeometry({
+      left: rect.left - context.originLeft,
+      top: rect.top - context.originTop,
+      width: rect.width || stubInlineLength(element.style.width, minSize.width),
+      height: rect.height || stubInlineLength(element.style.height, minSize.height),
+    }, context.bounds);
+    resizeRef.current = { edge, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origin, bounds: context.bounds };
+    setGeometry(origin);
+    event.preventDefault();
+    event.stopPropagation();
+    element.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleResizeMove(event: ReactPointerEvent<HTMLElement>) {
+    const resize = resizeRef.current;
+    if (resize === null || resize.pointerId !== event.pointerId) return;
+    setGeometry(stubResizedGeometry(resize.origin, resize.edge, event.clientX - resize.startX, event.clientY - resize.startY, resize.bounds));
+  }
+
+  function finishResize(event: ReactPointerEvent<HTMLElement>) {
+    const resize = resizeRef.current;
+    const element = windowRef.current;
+    if (resize === null || resize.pointerId !== event.pointerId) return;
+    resizeRef.current = null;
+    if (element?.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture?.(event.pointerId);
+  }
+
   if (!visible) return null;
+  const windowStyle: CSSProperties = {
+    ...framePlacement(frame, defaultSize),
+    ...style,
+    ...(managedWindow?.zoomed || geometry === null ? undefined : geometry),
+    zIndex: managedWindow?.zIndex ?? style?.zIndex,
+    viewTransitionName: resolvedWindowId === null ? undefined : `mc-window-${resolvedWindowId.replaceAll(":", "-3a-")}`,
+  };
   return (
     <StubWindowControlsContext.Provider value={controls}>
       <section
+        ref={windowRef}
         className={`mac-window ${className}${managedWindow?.zoomed ? " mc-zoomed" : ""}`.trim()}
         aria-label={label}
         data-app-id={app?.id}
@@ -712,10 +854,13 @@ export function WindowChrome({
         onFocusCapture={() => {
           if (resolvedWindowId !== null && manager?.consumeKeyboardWindowFocusIntent()) manager.activateWindow(resolvedWindowId);
         }}
-        style={{ ...framePlacement(frame, defaultSize), ...style, zIndex: managedWindow?.zIndex ?? style?.zIndex, viewTransitionName: resolvedWindowId === null ? undefined : `mc-window-${resolvedWindowId.replaceAll(":", "-3a-")}` }}
+        onPointerMove={handleResizeMove}
+        onPointerUp={finishResize}
+        onPointerCancel={finishResize}
+        style={windowStyle}
       >
         {children}
-        {resizable ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} />) : null}
+        {resizable && !managedWindow?.zoomed ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} onPointerDown={(event) => beginResize(edge, event)} />) : null}
       </section>
     </StubWindowControlsContext.Provider>
   );
@@ -1581,6 +1726,15 @@ export type FinderSearch = {
   readonly onChange: (value: string) => void;
 };
 
+function stubFinderIdPart(id: string): string {
+  let encoded = "";
+  for (let index = 0; index < id.length; index += 1) encoded += id.charCodeAt(index).toString(16).padStart(4, "0");
+  return encoded;
+}
+
+function stubFinderSectionId(id: string): string { return `finder-section-${stubFinderIdPart(id)}`; }
+function stubFinderItemId(sectionId: string, itemId: string): string { return `finder-item-${stubFinderIdPart(sectionId)}-${stubFinderIdPart(itemId)}`; }
+
 // Finder shell mirroring the real package's rendered structure (window label,
 // sidebar header/sections, listbox/option roles, and mc-finder-* classes).
 export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebarVisibleChange, entries, mode, onModeChange, search, selection, onOpen, preview, previewVisible, onPreviewVisibleChange, statusBar, toolbarExtras, title, label, frame, onClose, onMinimize, onZoom }: {
@@ -1610,9 +1764,53 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
 }) {
   const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
   const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
+  const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
+  const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const sourceListSections: readonly MacSourceListSection[] = sidebar.map((section) => ({
+    id: stubFinderSectionId(section.id),
+    title: section.title,
+    selectable: section.selected === true || section.onTitleSelect !== undefined,
+    collapsible: section.collapsible,
+    count: section.count,
+    action: section.action,
+    className: section.className,
+    items: section.items.map((item) => ({ id: stubFinderItemId(section.id, item.id), icon: item.icon, label: item.label, badge: item.badge, indent: item.indent })),
+  }));
+  const collapsibleSectionIds = sourceListSections.filter((section) => section.title !== undefined && section.collapsible === true).map((section) => section.id);
+  const expandedSectionIds = new Set(collapsibleSectionIds.filter((id) => !collapsedSectionIds.has(id)));
+  const selectedSectionId = sidebar.find((section) => section.title !== undefined && section.selected)?.id;
+  let selectedItemId: string | null = null;
+  for (const section of sidebar) {
+    const selectedItem = section.items.find((item) => item.selected);
+    if (selectedItem !== undefined) {
+      selectedItemId = stubFinderItemId(section.id, selectedItem.id);
+      break;
+    }
+  }
   function setSidebarVisibility(visible: boolean) {
     if (sidebarVisible === undefined) setUncontrolledSidebarVisible(visible);
     onSidebarVisibleChange?.(visible);
+  }
+  function setPreviewVisibility(visible: boolean) {
+    if (previewVisible === undefined) setUncontrolledPreviewVisible(visible);
+    onPreviewVisibleChange?.(visible);
+  }
+  function handleSourceSelection(id: string) {
+    for (const section of sidebar) {
+      if (id === stubFinderSectionId(section.id)) {
+        section.onTitleSelect?.();
+        return;
+      }
+      const item = section.items.find((candidate) => id === stubFinderItemId(section.id, candidate.id));
+      if (item !== undefined) {
+        item.onSelect();
+        return;
+      }
+    }
+  }
+  function handleExpandedChange(expanded: ReadonlySet<string>) {
+    setCollapsedSectionIds(new Set(collapsibleSectionIds.filter((id) => !expanded.has(id))));
   }
   return (
     <WindowChrome className="mc-finder-window" label={label ?? title ?? "Finder"} frame={frame} defaultSize={finderDefaultSize} onClose={onClose} onMinimize={onMinimize} onZoom={onZoom}>
@@ -1622,23 +1820,15 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
         </div>
         {sidebarHeader !== undefined ? <div className="mc-finder-sidebar-header">{sidebarHeader}</div> : null}
         <nav aria-label="Sidebar">
-          {sidebar.map((section) => (
-            <section
-              key={section.id}
-              className={`mc-sidebar-section${section.className !== undefined ? ` ${section.className}` : ""}`}
-            >
-              {section.title !== undefined ? <strong className="mc-sidebar-section-label">{section.title}</strong> : null}
-              <div className="mc-sidebar-items">
-                {section.items.map((item) => (
-                  <span key={item.id} className={`mc-sidebar-item${item.selected ? " mc-selected" : ""}`}>
-                    {item.icon !== undefined ? <span className="mc-sidebar-item-icon" aria-hidden="true">{item.icon}</span> : null}
-                    <span className="mc-sidebar-item-label">{item.label}</span>
-                    {item.badge !== undefined ? <small className="mc-sidebar-item-badge">{item.badge}</small> : null}
-                  </span>
-                ))}
-              </div>
-            </section>
-          ))}
+          <MacSourceList
+            sections={sourceListSections}
+            selectedId={selectedItemId}
+            selectedSectionId={selectedSectionId === undefined ? null : stubFinderSectionId(selectedSectionId)}
+            onSelectionChange={handleSourceSelection}
+            onSectionSelectionChange={handleSourceSelection}
+            expandedSectionIds={expandedSectionIds}
+            onExpandedSectionIdsChange={handleExpandedChange}
+          />
         </nav>
       </aside> : null}
       <main className="mc-finder-main">
@@ -1659,9 +1849,9 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
               </ToolbarCapsule>
               {preview !== undefined ? (
                 <ToolbarToggle
-                  label={previewVisible === false ? "Show Preview" : "Hide Preview"}
-                  pressed={previewVisible !== false}
-                  onPressedChange={(visible) => onPreviewVisibleChange?.(visible)}
+                  label={isPreviewVisible ? "Hide Preview" : "Show Preview"}
+                  pressed={isPreviewVisible}
+                  onPressedChange={setPreviewVisibility}
                 >
                   <SystemSymbol name="sidebar.trailing" />
                 </ToolbarToggle>
@@ -1690,7 +1880,7 @@ export function FinderWindow({ sidebar, sidebarHeader, sidebarVisible, onSidebar
         </div>
         {statusBar !== undefined ? <MacWindowStatusBar className="mc-finder-status">{statusBar}</MacWindowStatusBar> : null}
       </main>
-      {preview !== undefined && previewVisible !== false ? <aside className="mc-finder-preview">{preview(entries.find((entry) => entry.id === selection.selectedId) ?? null)}</aside> : null}
+      {preview !== undefined && isPreviewVisible ? <aside className="mc-finder-preview">{preview(entries.find((entry) => entry.id === selection.selectedId) ?? null)}</aside> : null}
     </WindowChrome>
   );
 }
@@ -1866,28 +2056,174 @@ export function SetupHeading({ symbol, title }: { readonly symbol?: SystemSymbol
   return <header className="mc-setup-heading">{symbol !== undefined ? <SystemSymbol name={symbol} /> : null}<h1>{title}</h1></header>;
 }
 
-function StubModalPanel({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, className, fallbackFocusRef, initialFocusSelector, onCancel, onDefault, role }: {
+type StubWindowModalKind = "alert" | "sheet";
+type StubModalOwner = { readonly element: HTMLElement; readonly scope: "desktop" | "window" };
+type StubSuppressionState = { count: number; readonly ariaHidden: string | null; readonly inert: boolean };
+type StubModalOwnerStack = {
+  readonly layers: HTMLDivElement[];
+  readonly owner: StubModalOwner;
+  readonly suppressed: Set<HTMLElement>;
+  readonly ownerObserver: MutationObserver;
+  readonly bodyObserver: MutationObserver | null;
+};
+
+const stubSuppressionStates = new WeakMap<HTMLElement, StubSuppressionState>();
+const stubModalOwnerStacks = new WeakMap<HTMLElement, StubModalOwnerStack>();
+
+function stubSuppress(element: HTMLElement) {
+  const state = stubSuppressionStates.get(element);
+  if (state !== undefined) {
+    state.count += 1;
+    return;
+  }
+  stubSuppressionStates.set(element, {
+    count: 1,
+    ariaHidden: element.getAttribute("aria-hidden"),
+    inert: element.hasAttribute("inert"),
+  });
+  element.setAttribute("inert", "");
+  element.setAttribute("aria-hidden", "true");
+}
+
+function stubRestore(element: HTMLElement) {
+  const state = stubSuppressionStates.get(element);
+  if (state === undefined) return;
+  state.count -= 1;
+  if (state.count > 0) return;
+  stubSuppressionStates.delete(element);
+  if (state.inert) element.setAttribute("inert", "");
+  else element.removeAttribute("inert");
+  if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+  else element.setAttribute("aria-hidden", state.ariaHidden);
+}
+
+function stubReconcileModalStack(stack: StubModalOwnerStack) {
+  const topLayer = stack.layers.at(-1);
+  const desired = new Set<HTMLElement>();
+  for (const child of stack.owner.element.children) {
+    if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
+  }
+  if (stack.owner.scope === "desktop" && stack.owner.element !== document.body) {
+    let branch: HTMLElement = stack.owner.element;
+    while (branch.parentElement !== null && branch.parentElement !== document.body) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling instanceof HTMLElement && sibling !== branch) desired.add(sibling);
+      }
+      branch = branch.parentElement;
+    }
+    for (const child of document.body.children) {
+      if (!(child instanceof HTMLElement) || child === branch || child.contains(stack.owner.element)) continue;
+      desired.add(child);
+    }
+  }
+
+  for (const element of stack.suppressed) {
+    if (!desired.has(element)) {
+      stubRestore(element);
+      stack.suppressed.delete(element);
+    }
+  }
+  for (const element of desired) {
+    if (!stack.suppressed.has(element)) {
+      stubSuppress(element);
+      stack.suppressed.add(element);
+    }
+  }
+}
+
+function stubRegisterModalLayer(owner: StubModalOwner, layer: HTMLDivElement) {
+  let stack = stubModalOwnerStacks.get(owner.element);
+  if (stack === undefined) {
+    const ownerObserver = new MutationObserver(() => {
+      const current = stubModalOwnerStacks.get(owner.element);
+      if (current !== undefined) stubReconcileModalStack(current);
+    });
+    const bodyObserver = owner.scope === "desktop" && owner.element !== document.body
+      ? new MutationObserver(() => {
+          const current = stubModalOwnerStacks.get(owner.element);
+          if (current !== undefined) stubReconcileModalStack(current);
+        })
+      : null;
+    stack = { layers: [], owner, suppressed: new Set(), ownerObserver, bodyObserver };
+    stubModalOwnerStacks.set(owner.element, stack);
+    ownerObserver.observe(owner.element, { childList: true });
+    bodyObserver?.observe(document.body, { childList: true, subtree: true });
+  }
+  stack.layers.push(layer);
+  stubReconcileModalStack(stack);
+
+  return () => {
+    const current = stubModalOwnerStacks.get(owner.element);
+    if (current === undefined) return;
+    const index = current.layers.lastIndexOf(layer);
+    if (index !== -1) current.layers.splice(index, 1);
+    if (current.layers.length > 0) {
+      stubReconcileModalStack(current);
+      return;
+    }
+    current.ownerObserver.disconnect();
+    current.bodyObserver?.disconnect();
+    for (const element of current.suppressed) stubRestore(element);
+    current.suppressed.clear();
+    stubModalOwnerStacks.delete(owner.element);
+  };
+}
+
+function stubManagedKeyWindow(windowId: string | null): HTMLElement | null {
+  if (windowId === null) return null;
+  return [...document.querySelectorAll<HTMLElement>(".mac-window[data-window-id]")]
+    .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
+}
+
+function stubResolveModalOwner({ allowDesktopFallback, anchor, fallbackFocus, keyWindowId, presentationScope }: {
+  readonly allowDesktopFallback: boolean;
+  readonly anchor: HTMLElement | null;
+  readonly fallbackFocus: HTMLElement | null;
+  readonly keyWindowId: string | null;
+  readonly presentationScope: "automatic" | "desktop";
+}): StubModalOwner | null {
+  if (presentationScope === "automatic") {
+    const nearestWindow = fallbackFocus?.closest<HTMLElement>(".mac-window")
+      ?? anchor?.closest<HTMLElement>(".mac-window")
+      ?? stubManagedKeyWindow(keyWindowId)
+      ?? document.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
+    if (nearestWindow !== null) return { element: nearestWindow, scope: "window" };
+  }
+  if (!allowDesktopFallback) return null;
+  return { element: document.querySelector<HTMLElement>(".desktop-canvas") ?? document.body, scope: "desktop" };
+}
+
+function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, className, dialogRef, fallbackFocusRef, initialFocusSelector, kind, onCancel, onDefault, owner, role }: {
   readonly ariaDescribedBy?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
   readonly children: ReactNode;
   readonly className: string;
+  readonly dialogRef: RefObject<HTMLElement | null>;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly initialFocusSelector?: string;
+  readonly kind: StubWindowModalKind;
   readonly onCancel?: () => void;
   readonly onDefault?: () => void;
+  readonly owner: StubModalOwner;
   readonly role: "alertdialog" | "dialog";
 }) {
-  const dialogRef = useRef<HTMLElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const handleFocusTrapKeyDown = useModalFocusTrap({
     dialogRef,
     fallbackFocusRef,
     ...(initialFocusSelector === undefined ? {} : { initialFocusSelector }),
+    ownerElement: owner.element,
     onCancel: onCancel ?? (() => {}),
   });
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (layer === null) return;
+    return stubRegisterModalLayer(owner, layer);
+  }, [owner]);
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") !== null;
+    const target = event.target instanceof Element ? event.target : null;
+    const consumesReturn = target?.closest("button, select, textarea, [contenteditable='true']") instanceof HTMLElement;
     if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
       event.preventDefault();
       onDefault();
@@ -1896,18 +2232,86 @@ function StubModalPanel({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, 
     handleFocusTrapKeyDown(event);
   }
   return (
-    <section
-      ref={dialogRef}
-      className={className}
-      role={role}
-      aria-modal="true"
-      aria-label={ariaLabel}
-      aria-labelledby={ariaLabelledBy}
-      aria-describedby={ariaDescribedBy}
-      onKeyDown={handleKeyDown}
+    <div
+      ref={layerRef}
+      className={`mc-window-modal-layer mc-window-modal-layer-${kind} mc-window-modal-layer-${owner.scope}`}
+      data-modal-kind={kind}
+      data-modal-scope={owner.scope}
     >
-      {children}
-    </section>
+      <div className="mc-window-modal-scrim" role="presentation" />
+      <section
+        ref={dialogRef}
+        className={className}
+        tabIndex={-1}
+        role={role}
+        aria-modal="true"
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        onKeyDown={handleKeyDown}
+      >
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function StubWindowModalHost({ allowDesktopFallback = false, ariaDescribedBy, ariaLabel, ariaLabelledBy, children, className, fallbackFocusRef, initialFocusSelector, kind, onCancel, onDefault, open, presentationScope = "automatic", role }: {
+  readonly allowDesktopFallback?: boolean;
+  readonly ariaDescribedBy?: string;
+  readonly ariaLabel?: string;
+  readonly ariaLabelledBy?: string;
+  readonly children: ReactNode;
+  readonly className: string;
+  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly initialFocusSelector?: string;
+  readonly kind: StubWindowModalKind;
+  readonly onCancel?: () => void;
+  readonly onDefault?: () => void;
+  readonly open: boolean;
+  readonly presentationScope?: "automatic" | "desktop";
+  readonly role: "alertdialog" | "dialog";
+}) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const manager = useContext(StubManagerContext);
+  const [owner, setOwner] = useState<StubModalOwner | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setOwner(null);
+      return;
+    }
+    setOwner(stubResolveModalOwner({
+      allowDesktopFallback,
+      anchor: anchorRef.current,
+      fallbackFocus: fallbackFocusRef?.current ?? null,
+      keyWindowId: manager?.keyWindowId ?? null,
+      presentationScope,
+    }));
+  }, [allowDesktopFallback, fallbackFocusRef, manager?.keyWindowId, open, presentationScope]);
+  return (
+    <>
+      <span ref={anchorRef} className="mc-window-modal-anchor" aria-hidden="true" />
+      {!open || owner === null ? null : createPortal(
+        <StubModalLayer
+          ariaDescribedBy={ariaDescribedBy}
+          ariaLabel={ariaLabel}
+          ariaLabelledBy={ariaLabelledBy}
+          className={className}
+          dialogRef={dialogRef}
+          fallbackFocusRef={fallbackFocusRef}
+          initialFocusSelector={initialFocusSelector}
+          kind={kind}
+          onCancel={onCancel}
+          onDefault={onDefault}
+          owner={owner}
+          role={role}
+        >
+          {children}
+        </StubModalLayer>,
+        owner.element,
+      )}
+    </>
   );
 }
 
@@ -1919,8 +2323,7 @@ export function Sheet({ open, onClose, label, fallbackFocusRef, initialFocusSele
   readonly initialFocusSelector?: string;
   readonly children: ReactNode;
 }) {
-  if (!open) return null;
-  return <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window"><div className="mc-window-modal-scrim" role="presentation" /><StubModalPanel className="mc-sheet mc-sheet-legacy" role="dialog" ariaLabel={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector} onCancel={onClose}>{children}</StubModalPanel></div>;
+  return <StubWindowModalHost className="mc-sheet mc-sheet-legacy" role="dialog" ariaLabel={label} fallbackFocusRef={fallbackFocusRef} initialFocusSelector={initialFocusSelector} kind="sheet" onCancel={onClose} open={open}>{children}</StubWindowModalHost>;
 }
 
 export type MacDialogActionRole = "cancel" | "destructive";
@@ -2001,28 +2404,23 @@ export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSele
   const defaultAction = stubEnabledAction(actions, stubActionIsDefault);
   const resolvedInitialFocus = initialFocusSelector
     ?? (defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])");
-  if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
   return (
-    <>
-      <span className="mc-window-modal-anchor" aria-hidden="true" />
-      <div className="mc-window-modal-layer mc-window-modal-layer-sheet mc-window-modal-layer-window" data-modal-kind="sheet" data-modal-scope="window">
-        <div className="mc-window-modal-scrim" role="presentation" />
-        <StubModalPanel
-          className="mc-sheet"
-          role="dialog"
-          ariaLabelledBy={titleId}
-          ariaDescribedBy={bodyId}
-          fallbackFocusRef={fallbackFocusRef}
-          initialFocusSelector={resolvedInitialFocus}
-          onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
-          onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
-        >
-          <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
-          <div className="mc-sheet-body" id={bodyId}>{children}</div>
-          <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
-        </StubModalPanel>
-      </div>
-    </>
+    <StubWindowModalHost
+      className="mc-sheet"
+      role="dialog"
+      ariaLabelledBy={titleId}
+      ariaDescribedBy={bodyId}
+      fallbackFocusRef={fallbackFocusRef}
+      initialFocusSelector={resolvedInitialFocus}
+      kind="sheet"
+      onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
+      onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
+      open={open}
+    >
+      <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
+      <div className="mc-sheet-body" id={bodyId}>{children}</div>
+      <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
+    </StubWindowModalHost>
   );
 }
 
@@ -2050,29 +2448,25 @@ export function MacAlert({ actions, applicationName, fallbackFocusRef, icon, mes
   const messageId = useId();
   const cancelAction = stubEnabledAction(actions, (action) => action.role === "cancel");
   const defaultAction = stubEnabledAction(actions, stubActionIsDefault);
-  if (!open) return <span className="mc-window-modal-anchor" aria-hidden="true" />;
-  const scope = presentationScope === "desktop" ? "desktop" : "window";
   return (
-    <>
-      <span className="mc-window-modal-anchor" aria-hidden="true" />
-      <div className={`mc-window-modal-layer mc-window-modal-layer-alert mc-window-modal-layer-${scope}`} data-modal-kind="alert" data-modal-scope={scope}>
-        <div className="mc-window-modal-scrim" role="presentation" />
-        <StubModalPanel
-          className={`mc-alert${icon === undefined ? " mc-alert-no-icon" : ""}`}
-          role="alertdialog"
-          ariaLabelledBy={titleId}
-          ariaDescribedBy={messageId}
-          fallbackFocusRef={fallbackFocusRef}
-          initialFocusSelector={defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])"}
-          onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
-          onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
-        >
-        {icon === undefined ? null : <div className="mc-alert-icon" aria-hidden="true">{icon}</div>}
-          <div className="mc-alert-copy">{applicationName === undefined ? null : <div className="mc-alert-application">{applicationName}</div>}<h2 id={titleId}>{title}</h2><div className="mc-alert-message" id={messageId}>{message}</div></div>
-          <footer className="mc-alert-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
-        </StubModalPanel>
-      </div>
-    </>
+    <StubWindowModalHost
+      allowDesktopFallback
+      className={`mc-alert${icon === undefined ? " mc-alert-no-icon" : ""}`}
+      role="alertdialog"
+      ariaLabelledBy={titleId}
+      ariaDescribedBy={messageId}
+      fallbackFocusRef={fallbackFocusRef}
+      initialFocusSelector={defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])"}
+      kind="alert"
+      onCancel={cancelAction === undefined ? undefined : () => stubPerformAndClose(cancelAction, onClose)}
+      onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
+      open={open}
+      presentationScope={presentationScope}
+    >
+      {icon === undefined ? null : <div className="mc-alert-icon" aria-hidden="true">{icon}</div>}
+      <div className="mc-alert-copy">{applicationName === undefined ? null : <div className="mc-alert-application">{applicationName}</div>}<h2 id={titleId}>{title}</h2><div className="mc-alert-message" id={messageId}>{message}</div></div>
+      <footer className="mc-alert-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
+    </StubWindowModalHost>
   );
 }
 
@@ -2158,11 +2552,36 @@ export function useWindowDrag<T extends HTMLElement>() {
 
 const stubFocusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
-export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, initialFocusSelector = stubFocusableSelector, onCancel }: {
+function stubActiveModalDialogs(ownerElement?: HTMLElement) {
+  const candidates = ownerElement === undefined
+    ? [...document.querySelectorAll<HTMLElement>('[aria-modal="true"]')]
+    : [...ownerElement.children]
+        .filter((child): child is HTMLElement => child instanceof HTMLElement && child.classList.contains("mc-window-modal-layer"))
+        .flatMap((layer) => [...layer.querySelectorAll<HTMLElement>('[aria-modal="true"]')]);
+  return candidates.filter((dialog) => dialog.closest('[inert], [aria-hidden="true"]') === null);
+}
+
+function stubFocusTargetOrActiveModal(target: HTMLElement | null, ownerElement?: HTMLElement) {
+  const activeDialogs = stubActiveModalDialogs(ownerElement);
+  if (target !== null && activeDialogs.some((dialog) => dialog === target || dialog.contains(target))) {
+    target.focus();
+    return;
+  }
+  const topDialog = activeDialogs.at(-1);
+  if (topDialog !== undefined) {
+    (topDialog.querySelector<HTMLElement>(stubFocusableSelector) ?? topDialog).focus();
+    return;
+  }
+  target?.focus();
+}
+
+export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, initialFocusSelector = stubFocusableSelector, ownerElement, onCancel }: {
   readonly dialogRef: RefObject<HTMLElement | null>;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly focusVersion?: string;
   readonly initialFocusSelector?: string;
+  /** Limits stacked-modal focus ownership to one window or desktop canvas. */
+  readonly ownerElement?: HTMLElement;
   readonly onCancel: () => void;
 }) {
   const openerRef = useRef<HTMLElement | null>(null);
@@ -2172,12 +2591,16 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
     return () => {
       const fallbackTarget = fallbackFocusRef?.current;
       const target = fallbackTarget?.isConnected ? fallbackTarget : openerRef.current?.isConnected ? openerRef.current : null;
-      window.requestAnimationFrame(() => target?.focus());
+      window.requestAnimationFrame(() => stubFocusTargetOrActiveModal(target, ownerElement));
     };
-  }, [fallbackFocusRef]);
+  }, [fallbackFocusRef, ownerElement]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus());
+    const frame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (dialog === null) return;
+      (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [dialogRef, focusVersion, initialFocusSelector]);
 
@@ -2193,7 +2616,8 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
     const last = controls.at(-1);
     if (first === undefined || last === undefined) {
       event.preventDefault();
-      dialogRef.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus();
+      const dialog = dialogRef.current;
+      if (dialog !== null) (dialog.querySelector<HTMLElement>(initialFocusSelector) ?? dialog).focus();
       return;
     }
     if (!(document.activeElement instanceof HTMLElement) || !controls.includes(document.activeElement)) {

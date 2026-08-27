@@ -52,7 +52,13 @@ function Harness({
   );
 }
 
-function ControlledPreviewHarness({ onChange }: { readonly onChange: (visible: boolean) => void }) {
+function ControlledPreviewHarness({
+  onChange,
+  onPreviewMount,
+}: {
+  readonly onChange: (visible: boolean) => void;
+  readonly onPreviewMount?: () => void;
+}) {
   const [visible, setVisible] = useState(true);
 
   function handleVisibleChange(nextVisible: boolean) {
@@ -74,7 +80,9 @@ function ControlledPreviewHarness({ onChange }: { readonly onChange: (visible: b
         search={{ value: "", onChange: () => undefined }}
         selection={{ selectedId: "e1", onSelect: () => undefined }}
         onOpen={() => undefined}
-        preview={(entry) => <span>{entry?.name ?? "No selection"}</span>}
+        preview={(entry) => onPreviewMount === undefined
+          ? <span>{entry?.name ?? "No selection"}</span>
+          : <PreviewMountProbe onMount={onPreviewMount} />}
         previewVisible={visible}
         onPreviewVisibleChange={handleVisibleChange}
         iconColumns={3}
@@ -377,6 +385,18 @@ describe("FinderWindow toolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Preview" }));
     fireEvent.click(screen.getByRole("button", { name: "Show Preview" }));
+
+    expect(screen.getByText("Preview state")).toBeDefined();
+    expect(onMount).toHaveBeenCalledTimes(2);
+  });
+
+  it("mounts preview children once per controlled re-show", () => {
+    const onMount = vi.fn();
+    render(<ControlledPreviewHarness onChange={() => undefined} onPreviewMount={onMount} />);
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Preview from View menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Preview from View menu" }));
 
     expect(screen.getByText("Preview state")).toBeDefined();
     expect(onMount).toHaveBeenCalledTimes(2);

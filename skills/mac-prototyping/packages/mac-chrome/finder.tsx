@@ -261,10 +261,19 @@ export function FinderWindow({
   const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
   const [uncontrolledPreviewVisible, setUncontrolledPreviewVisible] = useState(true);
   const isPreviewVisible = previewVisible ?? uncontrolledPreviewVisible;
-  // Bumped on every re-show so the remounted preview panel gets a fresh id —
-  // the panel group must not restore the collapsed layout it hid at.
-  const [previewGeneration, setPreviewGeneration] = useState(0);
-  const previousPreviewVisible = useRef(isPreviewVisible);
+  // Update transition state during render. React immediately retries this
+  // component before committing descendants, so both controlled and
+  // uncontrolled re-shows mount preview children once under the fresh panel
+  // id instead of mounting a stale generation and correcting it in an effect.
+  const [previewVisibilityState, setPreviewVisibilityState] = useState(() => ({
+    visible: isPreviewVisible,
+    generation: 0,
+  }));
+  let previewGeneration = previewVisibilityState.generation;
+  if (previewVisibilityState.visible !== isPreviewVisible) {
+    previewGeneration += isPreviewVisible ? 1 : 0;
+    setPreviewVisibilityState({ visible: isPreviewVisible, generation: previewGeneration });
+  }
   // MacSourceList is conditionally unmounted with the sidebar panel. Keep its
   // collapsed-section state at the Finder recipe boundary so hide/show does
   // not silently reset every disclosure to expanded.
@@ -329,18 +338,6 @@ export function FinderWindow({
     grid.focus();
   });
 
-  useEffect(() => {
-    const wasVisible = previousPreviewVisible.current;
-    previousPreviewVisible.current = isPreviewVisible;
-    // A controlled parent can show the preview without going through the
-    // toolbar callback. Give that externally driven re-show the same fresh
-    // panel identity as the built-in toggle so a collapsed width is not
-    // restored by react-resizable-panels.
-    if (previewVisible !== undefined && isPreviewVisible && !wasVisible) {
-      setPreviewGeneration((generation) => generation + 1);
-    }
-  }, [isPreviewVisible, previewVisible]);
-
   function columnsForNavigation(): number {
     if (mode === "list") return 1;
     if (iconColumns !== undefined && iconColumns >= 1) return Math.floor(iconColumns);
@@ -398,12 +395,6 @@ export function FinderWindow({
 
   function setPreviewVisibility(visible: boolean) {
     if (previewVisible === undefined) {
-      // Choose the fresh panel identity before rendering an uncontrolled
-      // re-show. Incrementing in the post-render sync would mount preview
-      // children once under the stale id and immediately mount them again.
-      if (visible && !isPreviewVisible) {
-        setPreviewGeneration((generation) => generation + 1);
-      }
       setUncontrolledPreviewVisible(visible);
     }
     onPreviewVisibleChange?.(visible);

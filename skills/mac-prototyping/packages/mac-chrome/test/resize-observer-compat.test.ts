@@ -117,6 +117,42 @@ describe("panel ResizeObserver compatibility", () => {
     expect(callback).toHaveBeenLastCalledWith([entry(group)], observer);
   });
 
+  it("lets an immediate mixed-batch callback disconnect before deferred delivery", () => {
+    vi.useFakeTimers();
+    const { CompatibleResizeObserver, disconnect, nativeCallback } = harness();
+    const canvas = document.createElement("main");
+    const group = panelGroup();
+    let observer: ResizeObserver | null = null;
+    const callback = vi.fn((entries: ResizeObserverEntry[]) => {
+      if (entries[0]?.target === canvas) observer?.disconnect();
+    });
+    observer = new CompatibleResizeObserver(callback);
+
+    nativeCallback([entry(canvas), entry(group)]);
+    expect(callback).toHaveBeenCalledOnce();
+    expect(disconnect).toHaveBeenCalledOnce();
+    vi.runOnlyPendingTimers();
+    expect(callback).toHaveBeenCalledOnce();
+  });
+
+  it("lets an immediate mixed-batch callback unobserve the deferred panel", () => {
+    vi.useFakeTimers();
+    const { CompatibleResizeObserver, nativeCallback, unobserve } = harness();
+    const canvas = document.createElement("main");
+    const group = panelGroup();
+    let observer: ResizeObserver | null = null;
+    const callback = vi.fn((entries: ResizeObserverEntry[]) => {
+      if (entries[0]?.target === canvas) observer?.unobserve(group);
+    });
+    observer = new CompatibleResizeObserver(callback);
+
+    nativeCallback([entry(canvas), entry(group)]);
+    expect(callback).toHaveBeenCalledOnce();
+    expect(unobserve).toHaveBeenCalledWith(group);
+    vi.runOnlyPendingTimers();
+    expect(callback).toHaveBeenCalledOnce();
+  });
+
   it("cancels pending delivery when a target is removed or the observer disconnects", () => {
     vi.useFakeTimers();
     const { CompatibleResizeObserver, disconnect, nativeCallback, unobserve } = harness();

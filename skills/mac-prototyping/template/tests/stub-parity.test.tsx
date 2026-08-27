@@ -22,6 +22,7 @@ import {
   MacPopover,
   MacSheet,
   MacSourceList,
+  Sheet,
   SetupAssistant,
   useMacWindowManager,
   MacWindowManager,
@@ -43,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   window.localStorage.clear();
   Reflect.deleteProperty(window, "localStorage");
   vi.restoreAllMocks();
@@ -64,6 +66,26 @@ describe("template stub public behavior", () => {
 
     await user.click(screen.getByRole("menuitem", { name: /About Prototype/ }));
     expect(onMenuAction).toHaveBeenCalledWith({ menu: "Prototype", id: "about-app", label: "About Prototype" });
+  });
+
+  test("DesktopShell defaults to live host-local date and time", () => {
+    vi.useFakeTimers();
+    const initial = new Date(2026, 7, 26, 12, 34, 45);
+    vi.setSystemTime(initial);
+    render(<DesktopShell appName="Prototype"><div /></DesktopShell>);
+    const status = screen.getByLabelText("Mac status items");
+    const nativeDate = (date: Date) => {
+      const parts = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).formatToParts(date);
+      const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+      return `${value("weekday")} ${value("month")} ${value("day")}`;
+    };
+    const nativeClock = (date: Date) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+    expect(status.textContent).toContain(nativeDate(initial));
+    expect(status.textContent).toContain(nativeClock(initial));
+
+    const later = new Date(initial.getTime() + 30_000);
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(status.textContent).toContain(nativeClock(later));
   });
 
   test("MacMenu honors link, detail, checked state, and popover class contracts", async () => {
@@ -260,6 +282,113 @@ describe("template stub public behavior", () => {
     expect(screen.getByRole("region", { name: "Floating utility" }).style.zIndex).toBe("77");
   });
 
+  test("bringAllToFront preserves the app's current stacking order and key window", async () => {
+    const app = { id: "stack", name: "Stack", icon: <span>Icon</span> } as const;
+    function StackProbe() {
+      const manager = useMacWindowManager();
+      const ordered = manager.windows.slice().sort((left, right) => left.zIndex - right.zIndex).map((window) => window.id).join(",");
+      return (
+        <>
+          <button type="button" onClick={() => manager.activateWindow("first")}>Activate first</button>
+          <button type="button" onClick={() => manager.bringAllToFront("stack")}>Bring all forward</button>
+          <output data-testid="key-window">{manager.keyWindowId}</output>
+          <output data-testid="window-order">{ordered}</output>
+        </>
+      );
+    }
+    function StackHarness() {
+      return (
+        <MacWindowManager initialApps={[app]}>
+          <MacApp {...app}>
+            <WindowChrome label="First" windowId="first">First</WindowChrome>
+            <WindowChrome label="Second" windowId="second">Second</WindowChrome>
+            <WindowChrome label="Third" windowId="third">Third</WindowChrome>
+            <StackProbe />
+          </MacApp>
+        </MacWindowManager>
+      );
+    }
+    const user = userEvent.setup();
+    render(<StackHarness />);
+    await waitFor(() => expect(screen.getByTestId("window-order").textContent).toBe("first,second,third"));
+    await user.click(screen.getByRole("button", { name: "Activate first" }));
+    expect(screen.getByTestId("key-window").textContent).toBe("first");
+    expect(screen.getByTestId("window-order").textContent).toBe("second,third,first");
+    await user.click(screen.getByRole("button", { name: "Bring all forward" }));
+    expect(screen.getByTestId("key-window").textContent).toBe("first");
+    expect(screen.getByTestId("window-order").textContent).toBe("second,third,first");
+  });
+
+  test("WindowChrome resize handles enforce minimum size and desktop canvas bounds", async () => {
+    render(
+      <div className="desktop-canvas">
+        <WindowChrome label="Resizable" frame={{ left: 100, top: 100, width: 500, height: 400 }} minSize={{ width: 300, height: 200 }}>
+          Content
+        </WindowChrome>
+      </div>,
+    );
+    const windowElement = screen.getByRole("region", { name: "Resizable" });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(0, 0, 1000, 800);
+      if (this === windowElement) return new DOMRect(100, 100, 500, 400);
+      return new DOMRect();
+    });
+    Object.assign(windowElement, {
+      setPointerCapture: vi.fn(),
+      releasePointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+    });
+    const eastHandle = windowElement.querySelector<HTMLElement>('[data-window-resize-handle="e"]');
+    expect(eastHandle).not.toBeNull();
+    fireEvent.pointerDown(eastHandle!, { button: 0, clientX: 600, clientY: 300, isPrimary: true, pointerId: 4 });
+    fireEvent.pointerMove(windowElement, { clientX: 0, clientY: 300, pointerId: 4 });
+    await waitFor(() => expect(windowElement.style.width).toBe("300px"));
+    fireEvent.pointerMove(windowElement, { clientX: 1_200, clientY: 300, pointerId: 4 });
+    await waitFor(() => expect(windowElement.style.width).toBe("876px"));
+    fireEvent.pointerUp(windowElement, { pointerId: 4 });
+    expect(windowElement.releasePointerCapture).toHaveBeenCalledWith(4);
+  });
+
+  test("Finder sidebar callbacks, disclosure state, and preview visibility are recipe-owned", async () => {
+    const onTitleSelect = vi.fn();
+    const onItemSelect = vi.fn();
+    const onPreviewVisibleChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <FinderWindow
+        title="Files"
+        sidebar={[{
+          id: "favorites",
+          title: "Favorites",
+          collapsible: true,
+          onTitleSelect,
+          items: [{ id: "documents", label: "Documents", onSelect: onItemSelect }],
+        }]}
+        entries={[]}
+        mode="icons"
+        onModeChange={() => {}}
+        search={{ value: "", onChange: () => {} }}
+        selection={{ selectedId: null, onSelect: () => {} }}
+        onOpen={() => {}}
+        preview={() => <span>Preview pane</span>}
+        onPreviewVisibleChange={onPreviewVisibleChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("row", { name: "Documents" }));
+    expect(onItemSelect).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("row", { name: /Favorites/ }));
+    expect(onTitleSelect).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: /Collapse Favorites/ }));
+    expect(screen.queryByRole("row", { name: "Documents" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Hide Preview" }));
+    expect(screen.queryByText("Preview pane")).toBeNull();
+    expect(onPreviewVisibleChange).toHaveBeenLastCalledWith(false);
+    await user.click(screen.getByRole("button", { name: "Show Preview" }));
+    expect(screen.getByText("Preview pane")).toBeDefined();
+    expect(onPreviewVisibleChange).toHaveBeenLastCalledWith(true);
+  });
+
   test("window recipes forward all lifecycle callbacks", async () => {
     const user = userEvent.setup();
     const callbacks = () => ({ onClose: vi.fn(), onMinimize: vi.fn(), onZoom: vi.fn() });
@@ -340,5 +469,52 @@ describe("template stub public behavior", () => {
     await user.keyboard("{Escape}");
     expect(cancel).toHaveBeenCalledOnce();
     await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
+  test("window modals isolate their underlay, focus the dialog fallback, and restore stacked focus", async () => {
+    function ModalStack({ lowerOpen, upperOpen }: { readonly lowerOpen: boolean; readonly upperOpen: boolean }) {
+      return (
+        <WindowChrome label="Modal owner">
+          <button type="button">Underlay action</button>
+          <MacSheet actions={[]} onClose={() => {}} open={lowerOpen} title="Lower sheet">
+            <span>Lower body</span>
+          </MacSheet>
+          <MacSheet actions={[]} onClose={() => {}} open={upperOpen} title="Upper sheet">
+            <span>Upper body</span>
+          </MacSheet>
+        </WindowChrome>
+      );
+    }
+
+    const view = render(<ModalStack lowerOpen upperOpen />);
+    const owner = screen.getByRole("region", { name: "Modal owner" });
+    const underlay = screen.getByText("Underlay action").closest("button");
+    const upper = await screen.findByRole("dialog", { name: "Upper sheet" });
+    await waitFor(() => expect(document.activeElement).toBe(upper));
+    expect(underlay?.hasAttribute("inert")).toBe(true);
+    expect(underlay?.getAttribute("aria-hidden")).toBe("true");
+    const layers = owner.querySelectorAll<HTMLElement>(".mc-window-modal-layer");
+    expect(layers).toHaveLength(2);
+    expect(layers[0]?.hasAttribute("inert")).toBe(true);
+    expect(layers[0]?.getAttribute("aria-hidden")).toBe("true");
+    expect(layers[1]?.hasAttribute("inert")).toBe(false);
+
+    view.rerender(<ModalStack lowerOpen={false} upperOpen />);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Upper sheet" })));
+    view.rerender(<ModalStack lowerOpen={false} upperOpen={false} />);
+    await waitFor(() => expect(owner.querySelectorAll(".mc-window-modal-layer")).toHaveLength(0));
+    expect(underlay?.hasAttribute("inert")).toBe(false);
+    expect(underlay?.hasAttribute("aria-hidden")).toBe(false);
+  });
+
+  test("legacy Sheet focuses its dialog when it has no focusable controls", async () => {
+    render(
+      <WindowChrome label="Legacy owner">
+        <Sheet label="Information" onClose={() => {}} open>Nothing actionable</Sheet>
+      </WindowChrome>,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Information" });
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    expect(dialog.getAttribute("tabindex")).toBe("-1");
   });
 });

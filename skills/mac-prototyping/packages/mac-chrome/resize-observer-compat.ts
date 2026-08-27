@@ -48,17 +48,22 @@ export function createPanelSafeResizeObserver(NativeResizeObserver: ResizeObserv
       this.#observer = new NativeResizeObserver((entries) => {
         const immediateEntries = entries.filter((entry) => !isPanelGroupEntry(entry));
         const deferredEntries = entries.filter(isPanelGroupEntry);
+        /* Queue panel entries before invoking immediate consumers. Their
+           callback may synchronously unobserve a panel or disconnect the
+           observer; those methods must see and cancel the queued work rather
+           than allowing this delivery frame to enqueue it afterward. */
+        if (deferredEntries.length > 0) {
+          for (const entry of deferredEntries) this.#pendingEntries.set(entry.target, entry);
+          if (this.#deliveryTask === null) {
+            this.#deliveryTask = window.setTimeout(() => {
+              this.#deliveryTask = null;
+              const pending = [...this.#pendingEntries.values()];
+              this.#pendingEntries.clear();
+              if (pending.length > 0) this.#callback(pending, this);
+            }, 0);
+          }
+        }
         if (immediateEntries.length > 0) callback(immediateEntries, this);
-        if (deferredEntries.length === 0) return;
-
-        for (const entry of deferredEntries) this.#pendingEntries.set(entry.target, entry);
-        if (this.#deliveryTask !== null) return;
-        this.#deliveryTask = window.setTimeout(() => {
-          this.#deliveryTask = null;
-          const pending = [...this.#pendingEntries.values()];
-          this.#pendingEntries.clear();
-          if (pending.length > 0) this.#callback(pending, this);
-        }, 0);
       });
     }
 

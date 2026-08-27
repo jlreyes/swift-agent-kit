@@ -71,15 +71,59 @@ test("stub alerts include their padding in the constrained inline size", () => {
   expect(alert).toMatch(/width:\s*min\(390px, calc\(100% - 24px\)\)/);
 });
 
-test("stub Dock thumbnails preserve tall capture proportions", () => {
+test("Dock thumbnails preserve tall capture proportions in their 48 by 44 slot", () => {
   const thumbnail = rule(".p0-window-thumbnail");
   const image = rule(".p0-window-thumbnail > img");
 
-  expect(thumbnail).toMatch(/width:\s*48px/);
-  expect(thumbnail).toMatch(/height:\s*44px/);
-  expect(image).toMatch(/width:\s*auto/);
-  expect(image).toMatch(/height:\s*auto/);
-  expect(image).toMatch(/max-width:\s*100%/);
-  expect(image).toMatch(/max-height:\s*100%/);
+  if (importedPackageStyles) {
+    const slot = rule(".p0-window-thumbnail-slot");
+    expect(slot).toMatch(/width:\s*48px/);
+    expect(slot).toMatch(/height:\s*44px/);
+    expect(thumbnail).toMatch(/max-width:\s*100%/);
+    expect(thumbnail).toMatch(/max-height:\s*100%/);
+    expect(image).toMatch(/width:\s*100%/);
+    expect(image).toMatch(/height:\s*100%/);
+  } else {
+    expect(thumbnail).toMatch(/width:\s*48px/);
+    expect(thumbnail).toMatch(/height:\s*44px/);
+    expect(image).toMatch(/width:\s*auto/);
+    expect(image).toMatch(/height:\s*auto/);
+    expect(image).toMatch(/max-width:\s*100%/);
+    expect(image).toMatch(/max-height:\s*100%/);
+  }
   expect(image).toMatch(/object-fit:\s*contain/);
+});
+
+test("status, native collection states, and disclosure affordances survive either distribution", () => {
+  const primaryStatus = rule(".mc-window-status-primary");
+  const trailingStatus = rules(".mc-window-status-trailing");
+  const selectedRow = rule('.mc-list-row[aria-selected="true"]');
+  const hoveredRow = rule(".mc-list-row:not(:disabled):hover");
+  const disabledRow = rule(".mc-list-row:disabled");
+  const chevron = rule(".mc-disclosure-chevron::before");
+  const expandedChevron = rule(".mc-disclosure[data-expanded] .mc-disclosure-chevron::before");
+  const disabledDisclosure = rule(".mc-disclosure-trigger:disabled");
+
+  expect(primaryStatus).toMatch(/flex:\s*1 1 auto/);
+  expect(trailingStatus).toMatch(/max-width:\s*50%/);
+  expect(trailingStatus).toMatch(/flex:\s*0 1 auto/);
+  expect(trailingStatus).toMatch(/text-overflow:\s*ellipsis/);
+  expect(selectedRow).toMatch(/background:/);
+  expect(hoveredRow).toMatch(/background:/);
+  expect(disabledRow).toMatch(/opacity:\s*0\.42/);
+  expect(chevron).toMatch(/content:\s*""/);
+  expect(chevron).toMatch(/transform:\s*rotate\(-45deg\)/);
+  expect(expandedChevron).toMatch(/transform:\s*rotate\(45deg\)/);
+  expect(disabledDisclosure).toMatch(/opacity:\s*0\.45/);
+});
+
+test("the Dock remains horizontally reachable when the public shell is narrow", () => {
+  const dockRules = rules(".p0-mac-dock");
+
+  expect(source).toMatch(/@media\s*\(max-width:\s*600px\)/);
+  expect(dockRules).toMatch(/width:\s*calc\(100% - 12px\)/);
+  expect(dockRules).toMatch(/max-width:\s*calc\(100% - 12px\)/);
+  expect(dockRules).toMatch(/overflow-x:\s*auto/);
+  expect(dockRules).toMatch(/overscroll-behavior-inline:\s*contain/);
+  expect(rules(".p0-dock-item-wrap")).toMatch(/flex:\s*0 0 auto/);
 });

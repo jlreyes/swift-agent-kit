@@ -173,6 +173,7 @@ export const coveredExports = [
   "createStoredIdList",
   "defaultDockItems",
   "DesktopShell",
+  "fixedDesktopReviewViewport",
   "finderKeyTarget",
   "FinderWindow",
   "MacApp",
@@ -304,7 +305,7 @@ function AppAnatomyStory() {
       <section className="showcase-anatomy" aria-label="Mac app anatomy layers">
         <div className="showcase-anatomy-icon">
           <MacDockAppIcon
-            icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "#0a84ff", foreground: "#ffffff" }}
+            icon={{ kind: "systemSymbol", name: "laptopcomputer", background: "#0a84ff", foreground: "#ffffff" }}
             label="Showcase app icon"
           />
         </div>
@@ -982,31 +983,31 @@ const showcaseApps = {
     id: "showcase-activity",
     name: "Showcase Activity",
     presentation: "menuBar",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" /> },
+    icon: { kind: "systemSymbol", name: "sparkles" },
   },
   catalog: {
     id: "catalog",
     name: "Mac Chrome",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" />, background: "var(--accent)", foreground: "var(--on-accent)" },
+    icon: { kind: "systemSymbol", name: "laptopcomputer", background: "var(--accent)", foreground: "var(--on-accent)" },
   },
   finder: { id: "finder", name: "Finder", defaultRunning: false, icon: defaultDockItem("finder").icon },
   chooser: {
     id: "chooser",
     name: "Workspace Chooser",
     defaultRunning: false,
-    icon: { kind: "symbol", symbol: <SystemSymbol name="square.grid.2x2" />, background: "var(--selection-strong)", foreground: "var(--on-accent)" },
+    icon: { kind: "systemSymbol", name: "square.grid.2x2", background: "var(--selection-strong)", foreground: "var(--on-accent)" },
   },
   setup: {
     id: "setup",
     name: "Setup Assistant",
     defaultRunning: false,
-    icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" />, background: "var(--brand-strong)", foreground: "var(--on-accent)" },
+    icon: { kind: "systemSymbol", name: "sparkles", background: "var(--brand-strong)", foreground: "var(--on-accent)" },
   },
   chat: {
     id: "chat",
     name: "Chat",
     defaultRunning: false,
-    icon: { kind: "symbol", symbol: <SystemSymbol name="person.2.fill" />, background: "var(--chrome-ink)", foreground: "var(--on-accent)" },
+    icon: { kind: "systemSymbol", name: "person.2.fill", background: "var(--chrome-ink)", foreground: "var(--on-accent)" },
   },
   appStore: { id: "app-store", name: "App Store", defaultRunning: false, icon: defaultDockItem("app-store").icon },
   chrome: { id: "chrome", name: "Google Chrome", defaultRunning: false, icon: defaultDockItem("chrome").icon },
@@ -1139,6 +1140,7 @@ function ManagedShowcaseDesktop() {
     <DesktopShell
       appName={keyAppName}
       menuItems={menuItems}
+      mobileReviewMode="fixed-desktop"
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
       menuBarExtras={(
         <MacApp {...showcaseApps.activity}>

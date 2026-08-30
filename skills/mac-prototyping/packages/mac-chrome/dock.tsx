@@ -11,25 +11,39 @@ import {
   type ReactNode,
 } from "react";
 
-import { SystemSymbol } from "./system-symbol.tsx";
+import { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 import type { MacWindowThumbnail } from "./window-transition.ts";
 import "./styles/tokens.css";
 import "./styles/dock.css";
 
-/** Canonical Dock icon input: either prepared artwork or a generated tile. */
+/** Canonical Dock icon input: prepared artwork or a normalized generated tile. */
 export type DockIcon =
   | {
       readonly kind: "asset";
       readonly src: string;
     }
   | {
+      readonly kind: "systemSymbol";
+      readonly name: SystemSymbolName;
+      readonly background?: string;
+      readonly foreground?: string;
+    }
+  | {
+      /** Advanced escape hatch for generated artwork that is not a system symbol. */
+      readonly kind: "artwork";
+      readonly artwork: ReactNode;
+      readonly background?: string;
+      readonly foreground?: string;
+    }
+  | {
+      /** @deprecated Use `systemSymbol` for SF Symbols or `artwork` for custom artwork. */
       readonly kind: "symbol";
       readonly symbol: ReactNode;
       readonly background?: string;
       readonly foreground?: string;
     };
 
-/** String and ReactNode inputs remain supported as asset/symbol shorthand. */
+/** String and ReactNode inputs remain supported as legacy shorthands. */
 export type DockIconSource = DockIcon | ReactNode | string;
 
 const appIconGeometry = {
@@ -78,6 +92,8 @@ export interface MacDockAppIconProps {
 function isDockIcon(icon: DockIconSource): icon is DockIcon {
   if (typeof icon !== "object" || icon === null || !("kind" in icon)) return false;
   if (icon.kind === "asset") return "src" in icon && typeof icon.src === "string";
+  if (icon.kind === "systemSymbol") return "name" in icon && typeof icon.name === "string";
+  if (icon.kind === "artwork") return "artwork" in icon;
   return icon.kind === "symbol" && "symbol" in icon;
 }
 
@@ -90,16 +106,17 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
     ? { kind: "asset", src: icon }
     : isDockIcon(icon)
       ? icon
-      : { kind: "symbol", symbol: icon };
+      : { kind: "artwork", artwork: icon };
   const variant = normalizedIcon.kind === "asset" ? "asset" : "tile";
-  const tileStyle: CSSProperties = normalizedIcon.kind === "symbol"
-    ? {
+  const glyphVariant = normalizedIcon.kind === "systemSymbol" ? "system-symbol" : "artwork";
+  const tileStyle: CSSProperties = normalizedIcon.kind === "asset"
+    ? { width: appIconGeometry.canvas, height: appIconGeometry.canvas }
+    : {
         width: appIconGeometry.tile,
         height: appIconGeometry.tile,
         backgroundColor: normalizedIcon.background,
         color: normalizedIcon.foreground,
-      }
-    : { width: appIconGeometry.canvas, height: appIconGeometry.canvas };
+      };
 
   return (
     <span
@@ -114,13 +131,17 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
           ? <img className="p0-app-icon-image" src={normalizedIcon.src} alt="" draggable={false} loading="lazy" fetchPriority="low" decoding="async" />
           : (
               <span
-                className="p0-app-icon-glyph"
+                className={`p0-app-icon-glyph p0-app-icon-glyph--${glyphVariant}`}
                 style={{
                   width: appIconGeometry.glyphFrameWidth,
                   height: appIconGeometry.glyphFrameHeight,
                 }}
               >
-                {normalizedIcon.symbol}
+                {normalizedIcon.kind === "systemSymbol"
+                  ? <SystemSymbol name={normalizedIcon.name} size={20} />
+                  : normalizedIcon.kind === "artwork"
+                    ? normalizedIcon.artwork
+                    : normalizedIcon.symbol}
               </span>
             )}
       </span>
@@ -131,7 +152,7 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
 export interface DockItem {
   readonly id: string;
   readonly label: string;
-  /** Prefer a typed DockIcon; URL and ReactNode shorthands remain supported. */
+  /** Prefer a typed DockIcon; URL and ReactNode shorthands remain supported for compatibility. */
   readonly icon: DockIconSource;
   /** A minimized window renders as a real preview, not another app icon. */
   readonly windowThumbnail?: MacWindowThumbnail;
@@ -149,32 +170,32 @@ export const defaultDockItems: readonly DockItem[] = [
   {
     id: "finder",
     label: "Finder",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" },
+    icon: { kind: "systemSymbol", name: "face.smiling", background: "#0a84ff" },
     running: true,
     group: "apps",
   },
   {
     id: "app-store",
     label: "App Store",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" },
+    icon: { kind: "systemSymbol", name: "app.gift.fill", background: "#1597f4" },
     group: "apps",
   },
   {
     id: "chrome",
     label: "Google Chrome",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="globe" />, background: "#4385f5" },
+    icon: { kind: "systemSymbol", name: "globe", background: "#4385f5" },
     group: "apps",
   },
   {
     id: "downloads",
     label: "Downloads",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="folder.fill" />, background: "#58baf5" },
+    icon: { kind: "systemSymbol", name: "folder.fill", background: "#58baf5" },
     group: "places",
   },
   {
     id: "trash",
     label: "Trash",
-    icon: { kind: "symbol", symbol: <SystemSymbol name="trash.fill" />, background: "#8e969e" },
+    icon: { kind: "systemSymbol", name: "trash.fill", background: "#8e969e" },
     group: "places",
   },
 ];

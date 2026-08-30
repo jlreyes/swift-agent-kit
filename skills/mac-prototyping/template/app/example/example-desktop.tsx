@@ -9,7 +9,6 @@ import {
   MacApp,
   MacAppDock,
   MacWindowManager,
-  SystemSymbol,
   type MacAppDefinition,
   type MenuBarMenu,
   type MenuCommand,
@@ -29,8 +28,8 @@ const exampleApp = {
   id: "finder",
   name: "Finder",
   icon: {
-    kind: "symbol",
-    symbol: <SystemSymbol name="face.smiling" />,
+    kind: "systemSymbol",
+    name: "face.smiling",
     background: "var(--accent)",
     foreground: "var(--on-accent)",
   },

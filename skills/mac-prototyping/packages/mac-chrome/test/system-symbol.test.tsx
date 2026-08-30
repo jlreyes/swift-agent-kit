@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSymbol } from "symbolist";
 
 import { SystemSymbol, type SystemSymbolName } from "../system-symbol.tsx";
@@ -11,6 +11,7 @@ import { ToolbarButton, ToolbarGlyph, type ToolbarGlyphName } from "../toolbar.t
 afterEach(() => {
   cleanup();
   document.head.querySelector("style[data-system-symbol-role-test]")?.remove();
+  vi.restoreAllMocks();
 });
 
 describe("SystemSymbol", () => {
@@ -36,6 +37,19 @@ describe("SystemSymbol", () => {
     expect(html).toContain('style="--mc-system-symbol-size:20px"');
     expect(html).not.toContain("mc-system-symbol-glyph");
     expect(html).not.toContain("--mc-symbol-fit");
+  });
+
+  it("warns once when an invalid symbol name reaches the runtime boundary", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const invalidName = "not.a.real.symbol" as SystemSymbolName;
+
+    const first = render(<SystemSymbol name={invalidName} />);
+    expect(first.container.querySelector(".mc-system-symbol")?.textContent).toBe("");
+    first.unmount();
+    render(<SystemSymbol name={invalidName} />);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("[mac-chrome] Unknown SystemSymbol name: not.a.real.symbol");
   });
 
   it("maps every toolbar role to the corresponding native symbol name", () => {
@@ -71,7 +85,7 @@ describe("SystemSymbol", () => {
         <span data-symbol-role="content" className="mc-content-unavailable-icon"><SystemSymbol name="folder" size={40} /></span>
         <span data-symbol-role="chooser" className="mc-chooser-choice"><SystemSymbol name="folder" size={40} /></span>
         <span data-symbol-role="chat" className="mc-chat-send"><SystemSymbol name="folder" size={40} /></span>
-        <span data-symbol-role="dock" className="p0-app-icon-glyph"><SystemSymbol name="folder" size={40} /></span>
+        <span data-symbol-role="dock" className="p0-app-icon-glyph p0-app-icon-glyph--system-symbol"><SystemSymbol name="folder" size={40} /></span>
       </>,
     );
     const expectedSizes = {
@@ -79,7 +93,7 @@ describe("SystemSymbol", () => {
       content: "42px",
       chooser: "27px",
       chat: "13px",
-      dock: "26px",
+      dock: "20px",
     } as const;
 
     for (const [role, expectedSize] of Object.entries(expectedSizes)) {

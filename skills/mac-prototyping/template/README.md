@@ -55,6 +55,19 @@ bespoke popup to a toolbar. The toolkit defaults to restrained opaque or
 near-opaque materials, compact command menus, and readable status popovers —
 not a web approximation of Liquid Glass.
 
+### Review a Mac desktop from a phone
+
+The `/showcase` route demonstrates the opt-in fixed-desktop review mode. Its
+route-local layout exports `fixedDesktopReviewViewport`, and its
+`DesktopShell` uses `mobileReviewMode="fixed-desktop"`. Together they keep the
+1200x750 Mac canvas intact while the browser owns pan, pinch, and double-tap
+zoom. Other routes remain responsive.
+
+Windows keep their authored frame by default. A content workspace may pass
+`mobilePresentation="maximized"` to `WindowChrome`; utility and comparison
+windows should normally remain `authored`. Touch never starts simulated window
+dragging or resizing, and focus changes do not recenter the browser viewport.
+
 ## Compose with mac-chrome
 
 Build a product surface from public primitives before adding local components:
@@ -109,8 +122,10 @@ Build a product surface from public primitives before adding local components:
   handoff with stable focus restoration.
 - Use typed `DockIcon` data with `MacDock` for app tiles; `MacDockAppIcon` is
   the shared runtime renderer. Asset icons preserve their own safe area;
-  generated symbol icons use the shared tile and glyph boxes. Do not create a
-  local full-size Dock icon tile or per-app scaling.
+  `{ kind: "systemSymbol", name }` lets it construct and size a typed system
+  glyph, while `{ kind: "artwork", artwork }` is the explicit custom-artwork
+  escape hatch. Generated icons use the shared tile and glyph boxes. Do not
+  create a local full-size Dock icon tile or per-app scaling.
 
 `FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
 complete recipes layered above the primitives. Use them when their flow fits;

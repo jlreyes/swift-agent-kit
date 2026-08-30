@@ -38,8 +38,9 @@ it("gives generated Dock artwork a stable slot before centering intrinsic symbol
   const dock = source(join(stylesRoot, "dock.css"));
 
   expect(dock).toMatch(/\.p0-app-icon-glyph\s*\{[^}]*width:\s*34px;[^}]*height:\s*30px;/s);
-  expect(dock).toMatch(/\.p0-app-icon-glyph > svg\s*\{[^}]*width:\s*26px;[^}]*height:\s*26px;/s);
-  expect(dock).toMatch(/\.p0-app-icon-glyph > \.mc-system-symbol\s*\{[^}]*font-size:\s*26px;/s);
+  expect(dock).toMatch(/\.p0-app-icon-glyph--artwork > svg\s*\{[^}]*width:\s*26px;[^}]*height:\s*26px;/s);
+  expect(dock).toMatch(/\.p0-app-icon-glyph--system-symbol > \.mc-system-symbol\s*\{[^}]*font-size:\s*20px;/s);
+  expect(dock).not.toMatch(/\.p0-app-icon-glyph[^}]*\.mc-system-symbol\s*\{[^}]*font-size:\s*26px;/s);
 });
 
 it("gives every SVG-capable role an equivalent canonical font-symbol size", () => {
@@ -48,7 +49,7 @@ it("gives every SVG-capable role an equivalent canonical font-symbol size", () =
     ["chooser.css", ".mc-chooser-choice > .mc-system-symbol", "27"],
     ["chooser.css", ".mc-chooser-secondary-trigger > .mc-system-symbol", "19"],
     ["chat.css", ".mc-chat-send .mc-system-symbol", "13"],
-    ["dock.css", ".p0-app-icon-glyph > .mc-system-symbol", "26"],
+    ["dock.css", ".p0-app-icon-glyph--system-symbol > .mc-system-symbol", "20"],
     ["finder.css", ".mc-quicklook-panel > header button .mc-system-symbol", "10"],
     ["popover.css", ".mc-menu-popover .mc-menu-icon > .mc-system-symbol", "15"],
     ["popover.css", ".mc-menu-popover .mc-menu-trailing > .mc-system-symbol", "13"],

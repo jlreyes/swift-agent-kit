@@ -145,6 +145,8 @@ export type MenuCommand = {
   readonly label: string;
 };
 
+export type MobileReviewMode = "fixed-desktop";
+
 const stubStandardMenus: Readonly<Record<string, MenuSpec>> = {
   File: [
     { kind: "action", id: "new-window", label: "New Window", shortcut: "⌘N" },
@@ -367,6 +369,7 @@ export type WindowFrame = {
 };
 
 export type WindowSize = { readonly width: number; readonly height: number };
+export type WindowMobilePresentation = "authored" | "maximized";
 
 const stubResizeEdges = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 type StubResizeEdge = typeof stubResizeEdges[number];
@@ -458,6 +461,8 @@ export interface DesktopShellProps {
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items. */
   readonly menuBarExtras?: ReactNode;
+  /** Keep the 1200x750 Mac canvas fixed on phone/coarse-pointer viewports. */
+  readonly mobileReviewMode?: MobileReviewMode;
   /** CSS image value (url(...), gradient, var(...)) or a bare image URL. */
   readonly wallpaper?: string;
   readonly children: ReactNode;
@@ -580,6 +585,7 @@ export function DesktopShell({
   date,
   clock,
   menuBarExtras,
+  mobileReviewMode,
   wallpaper,
   children,
 }: DesktopShellProps) {
@@ -612,7 +618,7 @@ export function DesktopShell({
     ? ({ "--mc-wallpaper": stubWallpaperSource(wallpaper) } as CSSProperties)
     : undefined;
   return (
-    <main className="showcase-viewport">
+    <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
           <div ref={menuBarRef} className="menu-left">
@@ -1041,6 +1047,7 @@ export function WindowChrome({
   frame,
   label,
   minSize = genericMinimumSize,
+  mobilePresentation = "authored",
   resizable = true,
   style,
   windowId,
@@ -1058,6 +1065,7 @@ export function WindowChrome({
   readonly frame?: WindowFrame;
   readonly label: string;
   readonly minSize?: WindowSize;
+  readonly mobilePresentation?: WindowMobilePresentation;
   readonly resizable?: boolean;
   readonly style?: CSSProperties;
   readonly windowId?: string;
@@ -1103,7 +1111,7 @@ export function WindowChrome({
   }
 
   function beginResize(edge: StubResizeEdge, event: ReactPointerEvent<HTMLElement>) {
-    if (!resizable || event.button !== 0 || event.isPrimary === false) return;
+    if (!resizable || event.pointerType === "touch" || event.button !== 0 || event.isPrimary === false) return;
     const element = windowRef.current;
     if (element === null) return;
     const context = resizeContext(element);
@@ -1152,6 +1160,7 @@ export function WindowChrome({
         aria-label={label}
         data-app-id={app?.id}
         data-key-window={managedWindow === undefined ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
+        data-mobile-presentation={mobilePresentation}
         data-window-id={resolvedWindowId ?? undefined}
         data-window-resizable={resizable ? "true" : "false"}
         data-window-state={managedWindow?.state}
@@ -1274,6 +1283,9 @@ export function ToolbarSearchBubble({ label = "Search", open, placeholder = "Sea
 
 export type DockIcon =
   | { readonly kind: "asset"; readonly src: string }
+  | { readonly kind: "systemSymbol"; readonly name: SystemSymbolName; readonly background?: string; readonly foreground?: string }
+  | { readonly kind: "artwork"; readonly artwork: ReactNode; readonly background?: string; readonly foreground?: string }
+  /** @deprecated Use `systemSymbol` for SF Symbols or `artwork` for custom artwork. */
   | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string };
 
 export type DockIconSource = DockIcon | ReactNode | string;
@@ -1286,7 +1298,7 @@ export interface MacDockAppIconProps {
 function stubDockIcon(icon: DockIconSource): DockIcon {
   if (typeof icon === "string") return { kind: "asset", src: icon };
   if (typeof icon === "object" && icon !== null && "kind" in icon) return icon as DockIcon;
-  return { kind: "symbol", symbol: icon };
+  return { kind: "artwork", artwork: icon };
 }
 
 export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
@@ -1295,9 +1307,19 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
     <span className={`p0-app-icon p0-app-icon--${normalized.kind === "asset" ? "asset" : "tile"}`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
       <span
         className="p0-app-icon-artwork"
-        style={normalized.kind === "symbol" ? { backgroundColor: normalized.background, color: normalized.foreground } : undefined}
+        style={normalized.kind === "asset" ? undefined : { backgroundColor: normalized.background, color: normalized.foreground }}
       >
-        {normalized.kind === "asset" ? <img className="p0-app-icon-image" src={normalized.src} alt="" draggable={false} loading="lazy" fetchPriority="low" decoding="async" /> : <span className="p0-app-icon-glyph">{normalized.symbol}</span>}
+        {normalized.kind === "asset"
+          ? <img className="p0-app-icon-image" src={normalized.src} alt="" draggable={false} loading="lazy" fetchPriority="low" decoding="async" />
+          : (
+              <span className={`p0-app-icon-glyph p0-app-icon-glyph--${normalized.kind === "systemSymbol" ? "system-symbol" : "artwork"}`}>
+                {normalized.kind === "systemSymbol"
+                  ? <SystemSymbol name={normalized.name} size={20} />
+                  : normalized.kind === "artwork"
+                    ? normalized.artwork
+                    : normalized.symbol}
+              </span>
+            )}
       </span>
     </span>
   );
@@ -1347,11 +1369,11 @@ function stubDockItemsLayoutKey(items: readonly DockItem[]) {
 }
 
 export const defaultDockItems: readonly DockItem[] = [
-  { id: "finder", label: "Finder", icon: { kind: "symbol", symbol: <SystemSymbol name="face.smiling" />, background: "#0a84ff" }, running: true, group: "apps" },
-  { id: "app-store", label: "App Store", icon: { kind: "symbol", symbol: <SystemSymbol name="app.gift.fill" />, background: "#1597f4" }, group: "apps" },
-  { id: "chrome", label: "Google Chrome", icon: { kind: "symbol", symbol: <SystemSymbol name="globe" />, background: "#4385f5" }, group: "apps" },
-  { id: "downloads", label: "Downloads", icon: { kind: "symbol", symbol: <SystemSymbol name="folder.fill" />, background: "#58baf5" }, group: "places" },
-  { id: "trash", label: "Trash", icon: { kind: "symbol", symbol: <SystemSymbol name="trash.fill" />, background: "#8e969e" }, group: "places" },
+  { id: "finder", label: "Finder", icon: { kind: "systemSymbol", name: "face.smiling", background: "#0a84ff" }, running: true, group: "apps" },
+  { id: "app-store", label: "App Store", icon: { kind: "systemSymbol", name: "app.gift.fill", background: "#1597f4" }, group: "apps" },
+  { id: "chrome", label: "Google Chrome", icon: { kind: "systemSymbol", name: "globe", background: "#4385f5" }, group: "apps" },
+  { id: "downloads", label: "Downloads", icon: { kind: "systemSymbol", name: "folder.fill", background: "#58baf5" }, group: "places" },
+  { id: "trash", label: "Trash", icon: { kind: "systemSymbol", name: "trash.fill", background: "#8e969e" }, group: "places" },
 ];
 
 export function MacDock({ items = defaultDockItems, label = "Dock" }: {
@@ -3397,7 +3419,10 @@ export function ChatWindow({ conversations, activeConversationId, onSelectConver
   );
 }
 
-export function useWindowDrag<T extends HTMLElement>() {
+export function useWindowDrag<T extends HTMLElement>(
+  _enabled: boolean,
+  _handleSelector: string = "[data-window-drag-handle]",
+) {
   const windowRef = useRef<T>(null);
   const noop = () => undefined;
   return { windowRef, style: {}, onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerCancel: noop };
@@ -3515,6 +3540,18 @@ export function useModalFocusTrap({ dialogRef, fallbackFocusRef, focusVersion, i
   };
 }
 
+const stubWarnedMissingSystemSymbols = new Set<string>();
+
+function stubSystemSymbolGlyph(name: SystemSymbolName): string {
+  const glyph = getSymbol(name);
+  if (glyph !== undefined) return glyph;
+  if (!stubWarnedMissingSystemSymbols.has(name)) {
+    stubWarnedMissingSystemSymbols.add(name);
+    console.warn(`[mac-chrome] Unknown SystemSymbol name: ${name}`);
+  }
+  return "";
+}
+
 export function SystemSymbol({ className = "", name, size }: {
   readonly className?: string;
   readonly name: SystemSymbolName;
@@ -3524,6 +3561,6 @@ export function SystemSymbol({ className = "", name, size }: {
     ? undefined
     : { "--mc-system-symbol-size": `${size}px` };
   return (
-    <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={style}>{getSymbol(name) ?? ""}</span>
+    <span aria-hidden="true" className={`mc-system-symbol ${className}`.trim()} data-system-symbol={name} style={style}>{stubSystemSymbolGlyph(name)}</span>
   );
 }

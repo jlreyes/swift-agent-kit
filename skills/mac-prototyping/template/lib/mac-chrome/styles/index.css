@@ -352,14 +352,18 @@
   max-height: 30px;
 }
 
-.p0-app-icon-glyph > svg {
+.p0-app-icon-glyph--artwork > svg {
   width: 26px;
   height: 26px;
   display: block;
 }
 
-.p0-app-icon-glyph > .mc-system-symbol {
-  font-size: 26px;
+.p0-app-icon-glyph--system-symbol > .mc-system-symbol {
+  font-size: 20px;
+}
+
+.p0-app-icon-glyph--artwork > .mc-system-symbol {
+  font-size: 20px;
 }
 
 .p0-dock-running-dot {
@@ -833,5 +837,48 @@
 
   .desktop-canvas {
     height: 100dvh;
+  }
+}
+
+/* Route-level opt-in: a phone pans and zooms the authored Mac desktop instead
+   of asking each simulated window to become a responsive web card. */
+@media (max-width: 600px), (hover: none) and (pointer: coarse) {
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] {
+    width: 1200px;
+    min-width: 1200px;
+    height: 750px;
+    min-height: 750px;
+    overflow: visible;
+    touch-action: auto;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] > .desktop-canvas {
+    width: 1200px;
+    min-width: 1200px;
+    height: 750px;
+    min-height: 750px;
+    margin: 0;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"]
+    .mac-window[data-mobile-presentation="maximized"] {
+    top: 24px !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: calc(100% - 105px) !important;
+    max-width: none;
+    max-height: none;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    translate: 0 0 !important;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] .mc-window-resize-handle {
+    display: none;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] [data-window-drag-handle] {
+    touch-action: auto;
   }
 }

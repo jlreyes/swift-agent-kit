@@ -53,6 +53,7 @@ export {
   useWindowDrag,
   WindowChrome,
 } from "./stub.tsx";
+export { fixedDesktopReviewViewport } from "./viewport.ts";
 export type {
   ChatAuthor,
   ChatComposer,
@@ -102,6 +103,7 @@ export type {
   MenuBarMenu,
   MenuCommand,
   MenuEntry,
+  MobileReviewMode,
   MenuPopoverConfig,
   MenuSpec,
   SidebarItem,
@@ -111,5 +113,7 @@ export type {
   SystemSymbolName,
   ToolbarGlyphName,
   WindowFrame,
+  WindowMobilePresentation,
   WindowSize,
 } from "./stub.tsx";
+export type { FixedDesktopReviewViewport } from "./viewport.ts";

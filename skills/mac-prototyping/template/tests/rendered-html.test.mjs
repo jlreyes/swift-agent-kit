@@ -66,3 +66,16 @@ test("the showcase server-renders its catalog shell", async () => {
   assert.match(html, /href="\/mac-chrome-showcase\.svg"/);
   assert.match(html, /Window &amp; Toolbar/);
 });
+
+test("only the showcase opts into fixed-desktop phone review metadata", async () => {
+  const defaultHtml = await render("/example").then((response) => response.text());
+  const showcaseHtml = await render("/showcase").then((response) => response.text());
+
+  assert.match(defaultHtml, /<meta name="viewport" content="width=device-width, initial-scale=1"\s*\/>/);
+  assert.doesNotMatch(defaultHtml, /width=1200/);
+  assert.match(
+    showcaseHtml,
+    /<meta name="viewport" content="width=1200, initial-scale=1, minimum-scale=0\.25, maximum-scale=4, user-scalable=yes"\s*\/>/,
+  );
+  assert.match(showcaseHtml, /data-mobile-review-mode="fixed-desktop"/);
+});

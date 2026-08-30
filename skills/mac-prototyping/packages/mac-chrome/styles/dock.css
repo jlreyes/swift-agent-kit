@@ -138,14 +138,18 @@
   max-height: 30px;
 }
 
-.p0-app-icon-glyph > svg {
+.p0-app-icon-glyph--artwork > svg {
   width: 26px;
   height: 26px;
   display: block;
 }
 
-.p0-app-icon-glyph > .mc-system-symbol {
-  font-size: 26px;
+.p0-app-icon-glyph--system-symbol > .mc-system-symbol {
+  font-size: 20px;
+}
+
+.p0-app-icon-glyph--artwork > .mc-system-symbol {
+  font-size: 20px;
 }
 
 .p0-window-thumbnail-slot {

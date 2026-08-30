@@ -637,7 +637,7 @@ describe("template stub public behavior", () => {
   });
 
   test("default Dock icons are bundled symbol tiles rather than missing asset URLs", () => {
-    expect(defaultDockItems.every((item) => typeof item.icon === "object" && item.icon !== null && "kind" in item.icon && item.icon.kind === "symbol")).toBe(true);
+    expect(defaultDockItems.every((item) => typeof item.icon === "object" && item.icon !== null && "kind" in item.icon && item.icon.kind === "systemSymbol")).toBe(true);
     const { container } = render(<MacDock />);
     const dock = screen.getByRole("navigation", { name: "Dock" });
     const scroller = dock.querySelector<HTMLElement>(":scope > .p0-dock-scroll");

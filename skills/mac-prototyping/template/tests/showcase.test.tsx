@@ -41,6 +41,7 @@ async function openRecipe(user: TestUser, story: "Chat" | "Chooser" | "Setup Ass
 test("the showcase opens as a persistent split-view component catalog", () => {
   render(<ShowcaseDesktop />);
 
+  expect(document.querySelector(".showcase-viewport")?.getAttribute("data-mobile-review-mode")).toBe("fixed-desktop");
   const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
   expect(catalog).toBeDefined();
   expect(catalog.getAttribute("style")).toContain("100% - 32px");

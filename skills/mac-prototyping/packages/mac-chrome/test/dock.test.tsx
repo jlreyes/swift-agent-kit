@@ -37,6 +37,10 @@ it("normalizes asset and generated app icons onto the same canvas", async () => 
   expect(asset?.getAttribute("role")).toBe("img");
   expect(asset?.getAttribute("aria-label")).toBe("Finder");
   expect(tile?.getAttribute("aria-hidden")).toBe("true");
+  const assetImage = asset?.querySelector<HTMLImageElement>(".p0-app-icon-image");
+  expect(assetImage?.getAttribute("loading")).toBe("lazy");
+  expect(assetImage?.getAttribute("fetchpriority")).toBe("low");
+  expect(assetImage?.getAttribute("decoding")).toBe("async");
 
   expect(asset?.style.width).toBe("50px");
   expect(asset?.style.height).toBe("50px");

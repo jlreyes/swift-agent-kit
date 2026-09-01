@@ -1297,7 +1297,7 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
         className="p0-app-icon-artwork"
         style={normalized.kind === "symbol" ? { backgroundColor: normalized.background, color: normalized.foreground } : undefined}
       >
-        {normalized.kind === "asset" ? <img className="p0-app-icon-image" src={normalized.src} alt="" draggable={false} /> : <span className="p0-app-icon-glyph">{normalized.symbol}</span>}
+        {normalized.kind === "asset" ? <img className="p0-app-icon-image" src={normalized.src} alt="" draggable={false} loading="lazy" fetchPriority="low" decoding="async" /> : <span className="p0-app-icon-glyph">{normalized.symbol}</span>}
       </span>
     </span>
   );

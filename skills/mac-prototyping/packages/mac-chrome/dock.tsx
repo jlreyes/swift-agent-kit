@@ -111,7 +111,7 @@ export function MacDockAppIcon({ icon, label }: MacDockAppIconProps) {
     >
       <span className="p0-app-icon-artwork" style={tileStyle}>
         {normalizedIcon.kind === "asset"
-          ? <img className="p0-app-icon-image" src={normalizedIcon.src} alt="" draggable={false} />
+          ? <img className="p0-app-icon-image" src={normalizedIcon.src} alt="" draggable={false} loading="lazy" fetchPriority="low" decoding="async" />
           : (
               <span
                 className="p0-app-icon-glyph"

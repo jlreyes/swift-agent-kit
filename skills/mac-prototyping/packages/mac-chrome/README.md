@@ -192,6 +192,10 @@ shorthand for assets and symbols. Do not wrap a local full-size tile in
 generated ink escape the boundary. `overflow: hidden` is only a safety
 boundary; all app icons must enter through this normalizer.
 
+Raster Dock artwork is low-priority lazy-loaded by `mac-chrome`; callers only
+supply right-sized source assets. The Dock canvas is 50px, so 256px source
+artwork is ample for current zoom and Retina use.
+
 ### SystemSymbol
 maps to: SwiftUI `Image(systemName:)` (SF Symbols).
 `SystemSymbol({ className, name, size }: { readonly className?: string; readonly name: SystemSymbolName; readonly size?: number })`
@@ -214,6 +218,9 @@ do not add post-render symbol measurement, `ResizeObserver`, transform
 correction, or icon-specific translate/scale hacks. The template retains
 `components/SFSymbol.tsx` as a deprecated compatibility alias; package
 consumers import `SystemSymbol`.
+
+When that fallback is a symbol font, use `font-display: swap`. Product apps
+must not globally preload a 1MB symbol font.
 
 ### MacToolbar
 maps to: SwiftUI `.toolbar { ... }` / `NSToolbar` — rendered as a react-aria `Toolbar` (`role="toolbar"`), so arrow keys move focus between the controls.

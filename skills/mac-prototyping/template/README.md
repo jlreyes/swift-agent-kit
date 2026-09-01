@@ -68,6 +68,28 @@ Windows keep their authored frame by default. A content workspace may pass
 windows should normally remain `authored`. Touch never starts simulated window
 dragging or resizing, and focus changes do not recenter the browser viewport.
 
+### Browser acceptance
+
+Run the real-browser acceptance lane after installing its official browser
+builds:
+
+```sh
+pnpm exec playwright install chromium webkit
+pnpm test:browser
+```
+
+The lane builds and serves the production prototype, then exercises both a
+desktop Chromium project and a phone-sized WebKit project. It protects the
+interactions that jsdom cannot faithfully cover: settled and reloaded Dock
+symbol geometry; menu/status separation and hit testing; split-view resizing
+and contained windows; visible error overlays and browser failures; and the
+fixed 1200x750 phone review mode, including hidden resize handles,
+touch-owned navigation, and focus that does not recenter the viewport.
+
+The optional unhydrated Tahoe wallpaper may return 404; the browser checks
+explicitly exempt that asset URL. Any other failed response, failed request,
+page error, or console error fails the run.
+
 ## Compose with mac-chrome
 
 Build a product surface from public primitives before adding local components:

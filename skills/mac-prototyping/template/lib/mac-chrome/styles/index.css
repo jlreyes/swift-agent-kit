@@ -216,6 +216,30 @@
   overflow: hidden;
 }
 
+.mc-navigation-separator {
+  position: relative;
+  z-index: 2;
+  width: 1px;
+  flex: 0 0 1px;
+  background: var(--line);
+  cursor: col-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.mc-navigation-separator::after {
+  position: absolute;
+  inset: 0 -4px;
+  content: "";
+}
+
+.mc-navigation-separator[data-separator="focus"],
+.mc-navigation-separator:focus-visible {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
 .mc-sidebar-tree {
   width: 100%;
   min-height: 0;

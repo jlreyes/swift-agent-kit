@@ -5,8 +5,10 @@
   /* Semantic chrome tokens used by the public stub. Keep these names aligned
      with the real package so exact vendoring changes implementation, not the
      Dock's material contract. */
+  --accent: #0a7aff;
   --capsule-border: rgba(0, 0, 0, 0.11);
   --dock-glass: #e1e5ea;
+  --focus-ring: rgba(10, 122, 255, 0.55);
 }
 
 .showcase-viewport {
@@ -216,6 +218,30 @@
   overflow: hidden;
 }
 
+.mc-navigation-separator {
+  position: relative;
+  z-index: 2;
+  width: 1px;
+  flex: 0 0 1px;
+  background: var(--line);
+  cursor: col-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.mc-navigation-separator::after {
+  position: absolute;
+  inset: 0 -4px;
+  content: "";
+}
+
+.mc-navigation-separator[data-separator="focus"],
+.mc-navigation-separator:focus-visible {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
 .mc-sidebar-tree {
   width: 100%;
   min-height: 0;
@@ -352,14 +378,18 @@
   max-height: 30px;
 }
 
-.p0-app-icon-glyph > svg {
+.p0-app-icon-glyph--artwork > svg {
   width: 26px;
   height: 26px;
   display: block;
 }
 
-.p0-app-icon-glyph > .mc-system-symbol {
-  font-size: 26px;
+.p0-app-icon-glyph--system-symbol > .mc-system-symbol {
+  font-size: 20px;
+}
+
+.p0-app-icon-glyph--artwork > .mc-system-symbol {
+  font-size: 20px;
 }
 
 .p0-dock-running-dot {
@@ -833,5 +863,48 @@
 
   .desktop-canvas {
     height: 100dvh;
+  }
+}
+
+/* Route-level opt-in: a phone pans and zooms the authored Mac desktop instead
+   of asking each simulated window to become a responsive web card. */
+@media (max-width: 600px), (hover: none) and (pointer: coarse) {
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] {
+    width: 1200px;
+    min-width: 1200px;
+    height: 750px;
+    min-height: 750px;
+    overflow: visible;
+    touch-action: auto;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] > .desktop-canvas {
+    width: 1200px;
+    min-width: 1200px;
+    height: 750px;
+    min-height: 750px;
+    margin: 0;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"]
+    .mac-window[data-mobile-presentation="maximized"] {
+    top: 24px !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: calc(100% - 105px) !important;
+    max-width: none;
+    max-height: none;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    translate: 0 0 !important;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] .mc-window-resize-handle {
+    display: none;
+  }
+
+  .showcase-viewport[data-mobile-review-mode="fixed-desktop"] [data-window-drag-handle] {
+    touch-action: auto;
   }
 }

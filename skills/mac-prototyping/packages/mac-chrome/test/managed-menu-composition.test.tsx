@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MacApp, MacWindowManager } from "../app.tsx";
 import { DesktopShell, type MenuBarMenu } from "../desktop-shell.tsx";
-import { SystemSymbol } from "../system-symbol.tsx";
 import { WindowChrome } from "../window.tsx";
 
 vi.mock("html-to-image", () => ({
@@ -17,7 +16,7 @@ afterEach(cleanup);
 const app = {
   id: "managed",
   name: "Managed",
-  icon: { kind: "symbol" as const, symbol: <SystemSymbol name="app" /> },
+  icon: { kind: "systemSymbol" as const, name: "app" as const },
 };
 
 function ManagedMenuHarness({
@@ -70,12 +69,12 @@ describe("managed menu command composition", () => {
     const firstApp = {
       id: "first",
       name: "First App",
-      icon: { kind: "symbol" as const, symbol: <SystemSymbol name="app" /> },
+      icon: { kind: "systemSymbol" as const, name: "app" as const },
     };
     const secondApp = {
       id: "second",
       name: "Second App",
-      icon: { kind: "symbol" as const, symbol: <SystemSymbol name="app" /> },
+      icon: { kind: "systemSymbol" as const, name: "app" as const },
     };
     render(
       <MacWindowManager initialApps={[firstApp, secondApp]}>

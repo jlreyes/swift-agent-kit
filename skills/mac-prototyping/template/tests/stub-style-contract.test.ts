@@ -215,6 +215,16 @@ test("the Dock material resolves through defined semantic tokens", () => {
   expect(dockShell).toMatch(/inset 0 0 0 0\.5px var\(--capsule-border\)/);
 });
 
+test("navigation separators preserve visible focus through defined semantic tokens", () => {
+  const rootTokens = rules(":root");
+  const focusedSeparator = rule(".mc-navigation-separator:focus-visible");
+
+  expect(rootTokens).toMatch(/--accent:\s*#0a7aff/);
+  expect(rootTokens).toMatch(/--focus-ring:\s*rgba\(10, 122, 255, 0\.55\)/);
+  expect(focusedSeparator).toMatch(/background:\s*var\(--accent\)/);
+  expect(focusedSeparator).toMatch(/box-shadow:\s*0 0 0 1px var\(--focus-ring\)/);
+});
+
 test("source lists own scrolling within their clipped navigation sidebar", () => {
   const column = rule(".mc-navigation-column");
   const sidebar = rule(".mc-navigation-sidebar");

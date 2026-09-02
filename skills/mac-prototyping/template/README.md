@@ -55,6 +55,42 @@ bespoke popup to a toolbar. The toolkit defaults to restrained opaque or
 near-opaque materials, compact command menus, and readable status popovers —
 not a web approximation of Liquid Glass.
 
+### Review a Mac desktop from a phone
+
+The `/showcase` route demonstrates the opt-in fixed-desktop review mode. Its
+route-local layout imports `fixedDesktopReviewViewport` and exports it as
+Next.js `viewport` metadata, while its `DesktopShell` uses
+`mobileReviewMode="fixed-desktop"`. Together they keep the 1200x750 Mac canvas
+intact while the browser owns pan, pinch, and double-tap zoom. Other routes
+remain responsive.
+
+Windows keep their authored frame by default. A content workspace may pass
+`mobilePresentation="maximized"` to `WindowChrome`; utility and comparison
+windows should normally remain `authored`. Touch never starts simulated window
+dragging or resizing, and focus changes do not recenter the browser viewport.
+
+### Browser acceptance
+
+Run the real-browser acceptance lane after installing its official browser
+builds:
+
+```sh
+pnpm exec playwright install chromium webkit
+pnpm test:browser
+```
+
+The lane builds and serves the production prototype, then exercises both a
+desktop Chromium project and a phone-sized WebKit project. It protects the
+interactions that jsdom cannot faithfully cover: settled and reloaded Dock
+symbol geometry; menu/status separation and hit testing; split-view resizing
+and contained windows; visible error overlays and browser failures; and the
+fixed 1200x750 phone review mode, including hidden resize handles,
+touch-owned navigation, and focus that does not recenter the viewport.
+
+The optional unhydrated Tahoe wallpaper may return 404; the browser checks
+explicitly exempt that asset URL. Any other failed response, failed request,
+page error, or console error fails the run.
+
 ## Compose with mac-chrome
 
 Build a product surface from public primitives before adding local components:
@@ -109,8 +145,10 @@ Build a product surface from public primitives before adding local components:
   handoff with stable focus restoration.
 - Use typed `DockIcon` data with `MacDock` for app tiles; `MacDockAppIcon` is
   the shared runtime renderer. Asset icons preserve their own safe area;
-  generated symbol icons use the shared tile and glyph boxes. Do not create a
-  local full-size Dock icon tile or per-app scaling.
+  `{ kind: "systemSymbol", name }` lets it construct and size a typed system
+  glyph, while `{ kind: "artwork", artwork }` is the explicit custom-artwork
+  escape hatch. Generated icons use the shared tile and glyph boxes. Do not
+  create a local full-size Dock icon tile or per-app scaling.
 
 `FinderWindow`, `ChooserWindow`, `SetupAssistant`, and `ChatWindow` are
 complete recipes layered above the primitives. Use them when their flow fits;

@@ -11,7 +11,8 @@ test("the example shell boots from the same immutable app definition it register
   expect(exampleSource).toContain("satisfies MacAppDefinition");
   expect(exampleSource).toContain("<MacWindowManager initialApps={exampleAppManifest}>");
   expect(exampleSource).toContain("<MacApp {...exampleApp}>");
-  expect(exampleSource).toContain('<SystemSymbol name="face.smiling" />');
+  expect(exampleSource).toContain('kind: "systemSymbol"');
+  expect(exampleSource).toContain('name: "face.smiling"');
   expect(exampleSource).not.toContain("/mac-assets/dock/finder.png");
   expect(exampleSource.match(/id: \"finder\"/g)).toHaveLength(1);
 });

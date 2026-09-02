@@ -39,10 +39,15 @@ function renderFinder() {
 
 /* jsdom has no PointerEvent; hand-build a pointer-ish MouseEvent that carries
    the fields useWindowDrag reads (React copies them onto the synthetic event). */
-function firePointer(target: Element, type: string, init: { clientX: number; clientY: number }) {
+function firePointer(
+  target: Element,
+  type: string,
+  init: { readonly clientX: number; readonly clientY: number; readonly pointerType?: string },
+) {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...init });
   Object.defineProperty(event, "pointerId", { value: 7 });
   Object.defineProperty(event, "isPrimary", { value: true });
+  Object.defineProperty(event, "pointerType", { value: init.pointerType ?? "mouse" });
   act(() => {
     target.dispatchEvent(event);
   });
@@ -255,6 +260,58 @@ describe("WindowChrome geometry", () => {
 
     expect(windowElement.style.translate).toBe("230px 0px");
     expect(windowElement.style.transform).toBe("rotate(2deg)");
+  });
+
+  it("leaves touch gestures in the generic drag hook to the browser", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.classList.contains("desktop-canvas")) return new DOMRect(0, 0, 1_200, 750);
+      if (this.classList.contains("legacy-drag-window")) return new DOMRect(100, 80, 500, 400);
+      return new DOMRect();
+    });
+    const { container } = render(<DragHarness />);
+    const windowElement = container.querySelector<HTMLElement>(".legacy-drag-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    expect(windowElement).toBeTruthy();
+    expect(handle).toBeTruthy();
+    if (windowElement === null || handle === null) return;
+    mockPointerCapture(windowElement);
+
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100, pointerType: "touch" });
+    firePointer(windowElement, "pointermove", { clientX: 400, clientY: 300, pointerType: "touch" });
+    await flushAnimationFrame();
+
+    expect(windowElement.setPointerCapture).not.toHaveBeenCalled();
+    expect(windowElement.style.translate).toBe("0px 0px");
+  });
+
+  it("preserves authored mobile framing by default and exposes explicit maximization", () => {
+    render(
+      <>
+        <WindowChrome label="Authored window">Authored</WindowChrome>
+        <WindowChrome label="Maximized window" mobilePresentation="maximized">Maximized</WindowChrome>
+      </>,
+    );
+
+    expect(document.querySelector<HTMLElement>('[aria-label="Authored window"]')?.dataset.mobilePresentation).toBe("authored");
+    expect(document.querySelector<HTMLElement>('[aria-label="Maximized window"]')?.dataset.mobilePresentation).toBe("maximized");
+  });
+
+  it("does not capture touch gestures from WindowChrome drag or resize targets", () => {
+    mockLayout(standardLayout);
+    const { container } = renderCanvasWindow();
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const dragHandle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    const resizeHandle = container.querySelector<HTMLElement>('[data-window-resize-handle="se"]');
+    expect(windowElement).toBeTruthy();
+    expect(dragHandle).toBeTruthy();
+    expect(resizeHandle).toBeTruthy();
+    if (windowElement === null || dragHandle === null || resizeHandle === null) return;
+    mockPointerCapture(windowElement);
+
+    firePointer(dragHandle, "pointerdown", { clientX: 200, clientY: 100, pointerType: "touch" });
+    firePointer(resizeHandle, "pointerdown", { clientX: 600, clientY: 480, pointerType: "touch" });
+
+    expect(windowElement.setPointerCapture).not.toHaveBeenCalled();
   });
 
   it("discards a queued generic drag offset when its canvas is recontained", () => {

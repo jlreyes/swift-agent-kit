@@ -21,8 +21,8 @@ it("normalizes asset and generated app icons onto the same canvas", async () => 
         <MacDockAppIcon icon={{ kind: "asset", src: "/finder.png" }} label="Finder" />
         <MacDockAppIcon
           icon={{
-            kind: "symbol",
-            symbol: <svg data-testid="glyph" viewBox="0 0 24 24" />,
+            kind: "systemSymbol",
+            name: "person.2.fill",
             background: "#123456",
             foreground: "#fedcba",
           }}
@@ -50,6 +50,10 @@ it("normalizes asset and generated app icons onto the same canvas", async () => 
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.height).toBe("42px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.width).toBe("34px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-glyph")?.style.height).toBe("30px");
+  expect(tile!.querySelector(".p0-app-icon-glyph")?.classList.contains("p0-app-icon-glyph--system-symbol")).toBe(true);
+  const symbol = tile!.querySelector<HTMLElement>("[data-system-symbol='person.2.fill']");
+  expect(symbol).toBeTruthy();
+  expect(symbol?.style.getPropertyValue("--mc-system-symbol-size")).toBe("20px");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.backgroundColor).toBe("rgb(18, 52, 86)");
   expect(tile!.querySelector<HTMLElement>(".p0-app-icon-artwork")?.style.color).toBe("rgb(254, 220, 186)");
 
@@ -57,7 +61,7 @@ it("normalizes asset and generated app icons onto the same canvas", async () => 
   container.remove();
 });
 
-it("routes every Dock item through MacDockAppIcon without changing its canvas size", async () => {
+it("keeps custom artwork and deprecated icon shorthands inside the shared normalizer", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -71,12 +75,17 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
             id: "generated",
             label: "Generated",
             icon: {
-              kind: "symbol",
-              symbol: <svg viewBox="0 0 24 24" />,
+              kind: "artwork",
+              artwork: <svg viewBox="0 0 24 24" />,
               background: "#654321",
             },
           },
           { id: "legacy", label: "Legacy React node", icon: <svg viewBox="0 0 24 24" /> },
+          {
+            id: "legacy-symbol",
+            label: "Legacy symbol object",
+            icon: { kind: "symbol", symbol: <svg viewBox="0 0 24 24" /> },
+          },
         ]}
       />,
     );
@@ -88,14 +97,18 @@ it("routes every Dock item through MacDockAppIcon without changing its canvas si
   const iconCanvases = container.querySelectorAll<HTMLElement>(".p0-dock-item > .p0-app-icon");
   expect(dock?.children).toHaveLength(1);
   expect(scroller).toBeTruthy();
-  expect(scroller?.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(3);
-  expect(dockButtons).toHaveLength(3);
-  expect(iconCanvases).toHaveLength(3);
-  expect(Array.from(dockButtons, (button) => button.dataset.hoverEffect)).toEqual(["lift", "lift", "lift"]);
-  expect(Array.from(iconCanvases, (icon) => icon.style.width)).toEqual(["50px", "50px", "50px"]);
+  expect(scroller?.querySelectorAll(":scope > .p0-dock-item-wrap")).toHaveLength(4);
+  expect(dockButtons).toHaveLength(4);
+  expect(iconCanvases).toHaveLength(4);
+  expect(Array.from(dockButtons, (button) => button.dataset.hoverEffect)).toEqual(["lift", "lift", "lift", "lift"]);
+  expect(Array.from(iconCanvases, (icon) => icon.style.width)).toEqual(["50px", "50px", "50px", "50px"]);
   expect(iconCanvases[0]?.classList.contains("p0-app-icon--asset")).toBe(true);
   expect(iconCanvases[1]?.classList.contains("p0-app-icon--tile")).toBe(true);
   expect(iconCanvases[2]?.classList.contains("p0-app-icon--tile")).toBe(true);
+  expect(iconCanvases[3]?.classList.contains("p0-app-icon--tile")).toBe(true);
+  expect(iconCanvases[1]?.querySelector(".p0-app-icon-glyph--artwork > svg")).toBeTruthy();
+  expect(iconCanvases[2]?.querySelector(".p0-app-icon-glyph--artwork > svg")).toBeTruthy();
+  expect(iconCanvases[3]?.querySelector(".p0-app-icon-glyph--artwork > svg")).toBeTruthy();
 
   await act(async () => root.unmount());
   container.remove();

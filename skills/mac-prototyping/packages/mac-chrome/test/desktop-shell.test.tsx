@@ -41,6 +41,17 @@ async function flushFocus() {
 }
 
 describe("DesktopShell menu bar menus", () => {
+  it("keeps responsive layout as the default and marks fixed-desktop review explicitly", () => {
+    const responsive = render(<DesktopShell appName="Responsive"><p>Desktop</p></DesktopShell>);
+    expect(responsive.container.querySelector(".showcase-viewport")?.hasAttribute("data-mobile-review-mode")).toBe(false);
+    responsive.unmount();
+
+    const fixed = render(
+      <DesktopShell appName="Fixed" mobileReviewMode="fixed-desktop"><p>Desktop</p></DesktopShell>,
+    );
+    expect(fixed.container.querySelector(".showcase-viewport")?.getAttribute("data-mobile-review-mode")).toBe("fixed-desktop");
+  });
+
   it("renders the Apple, application, and every standard menu as real triggers", () => {
     const { container, getByRole } = renderShell();
     expect(getByRole("button", { name: "Apple" })).toBeTruthy();

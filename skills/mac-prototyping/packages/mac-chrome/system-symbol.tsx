@@ -10,6 +10,18 @@ type SystemSymbolStyle = CSSProperties & {
   readonly "--mc-system-symbol-size"?: string;
 };
 
+const warnedMissingSymbols = new Set<string>();
+
+function systemSymbolGlyph(name: SystemSymbolName): string {
+  const glyph = getSymbol(name);
+  if (glyph !== undefined) return glyph;
+  if (!warnedMissingSymbols.has(name)) {
+    warnedMissingSymbols.add(name);
+    console.warn(`[mac-chrome] Unknown SystemSymbol name: ${name}`);
+  }
+  return "";
+}
+
 /**
  * Renders an SF Symbols codepoint without distributing Apple font or image
  * assets. `size` is the standalone fallback; role-owned containers such as
@@ -31,7 +43,7 @@ export function SystemSymbol({ className = "", name, size }: {
       data-system-symbol={name}
       style={style}
     >
-      {getSymbol(name) ?? ""}
+      {systemSymbolGlyph(name)}
     </span>
   );
 }

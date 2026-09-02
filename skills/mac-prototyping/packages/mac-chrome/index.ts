@@ -1,4 +1,14 @@
-export { DesktopShell, type DesktopShellProps, type MenuBarMenu, type MenuCommand } from "./desktop-shell.tsx";
+export {
+  DesktopShell,
+  type DesktopShellProps,
+  type MenuBarMenu,
+  type MenuCommand,
+  type MobileReviewMode,
+} from "./desktop-shell.tsx";
+export {
+  fixedDesktopReviewViewport,
+  type FixedDesktopReviewViewport,
+} from "./viewport.ts";
 export {
   MacApp,
   MacAppDock,
@@ -11,7 +21,14 @@ export {
   type MacWindowManagerValue,
   type MacWindowState,
 } from "./app.tsx";
-export { TrafficLights, useWindowDrag, WindowChrome, type WindowFrame, type WindowSize } from "./window.tsx";
+export {
+  TrafficLights,
+  useWindowDrag,
+  WindowChrome,
+  type WindowFrame,
+  type WindowMobilePresentation,
+  type WindowSize,
+} from "./window.tsx";
 export {
   defaultDockItems,
   MacDock,

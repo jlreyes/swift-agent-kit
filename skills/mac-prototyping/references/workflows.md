@@ -99,8 +99,9 @@ Choose `MacApp presentation="windowed"` for an ordinary Dock app, or
 out of `MacWindowStatusBar`, which is window-local feedback only.
 
 Dock entries must use `DockIcon`/`MacDockAppIcon`'s shared normalizer. Supply
-an `asset` for hydrated app artwork or a `symbol` for generated app artwork;
-do not nest a custom full-size icon tile or write per-app scale overrides.
+an `asset` for hydrated app artwork, `systemSymbol` with a typed name for an SF
+glyph, or the explicit `artwork` escape hatch for other generated artwork. Do
+not nest a custom full-size icon tile or write per-app scale overrides.
 
 Use `SystemSymbol` for SF-style glyphs. It maps typed `symbolist` codepoints
 through the macOS system SF font; it deliberately ships neither font files nor

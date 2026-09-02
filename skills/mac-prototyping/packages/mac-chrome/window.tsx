@@ -18,6 +18,9 @@ export type WindowFrame = {
 
 export type WindowSize = { readonly width: number; readonly height: number };
 
+/** Window framing while a phone reviews an opted-in fixed Mac desktop. */
+export type WindowMobilePresentation = "authored" | "maximized";
+
 const genericDefaultSize: WindowSize = { width: 720, height: 480 };
 const genericMinimumSize: WindowSize = { width: 420, height: 280 };
 
@@ -263,7 +266,7 @@ export function useWindowDrag<T extends HTMLElement>(
   }, []);
 
   function onPointerDown(event: ReactPointerEvent<T>) {
-    if (!enabled || event.button !== 0 || !event.isPrimary) return;
+    if (!enabled || event.pointerType === "touch" || event.button !== 0 || !event.isPrimary) return;
     const target = event.target;
     if (!(target instanceof Element) || !target.closest(handleSelector)) return;
     if (target.closest("button, input, textarea, select, a, [role='button'], .traffic-lights, [data-no-window-drag]")) return;
@@ -848,7 +851,14 @@ function useWindowGeometry({
   useEffect(() => () => cancelInteraction(), []);
 
   function beginDrag(event: ReactPointerEvent<HTMLElement>) {
-    if (!enabled || !visible || !draggable || event.button !== 0 || !event.isPrimary) return;
+    if (
+      !enabled
+      || !visible
+      || !draggable
+      || event.pointerType === "touch"
+      || event.button !== 0
+      || !event.isPrimary
+    ) return;
     const target = event.target;
     if (!(target instanceof Element) || !target.closest(dragHandleSelector)) return;
     if (target.closest("button, input, textarea, select, a, [role='button'], .traffic-lights, [data-no-window-drag]")) return;
@@ -869,7 +879,14 @@ function useWindowGeometry({
   }
 
   function beginResize(edge: WindowResizeEdge, event: ReactPointerEvent<HTMLElement>) {
-    if (!enabled || !visible || !resizable || event.button !== 0 || !event.isPrimary) return;
+    if (
+      !enabled
+      || !visible
+      || !resizable
+      || event.pointerType === "touch"
+      || event.button !== 0
+      || !event.isPrimary
+    ) return;
     const element = windowRef.current;
     const origin = geometryRef.current ?? (element === null ? null : captureGeometry(element));
     if (element === null || origin === null) return;
@@ -991,6 +1008,7 @@ export function WindowChrome({
   frame,
   label,
   minSize = genericMinimumSize,
+  mobilePresentation = "authored",
   resizable = true,
   style,
   windowId,
@@ -1015,6 +1033,8 @@ export function WindowChrome({
   readonly label: string;
   /** Minimum interactive size in px, constrained by the available canvas. */
   readonly minSize?: WindowSize;
+  /** Preserve authored framing, or maximize this window in fixed-desktop phone review. */
+  readonly mobilePresentation?: WindowMobilePresentation;
   /** Whether the shared eight-edge resize affordance is available. */
   readonly resizable?: boolean;
   /** Merged over the frame placement and captured by interactive geometry. */
@@ -1124,6 +1144,7 @@ export function WindowChrome({
         inert={retained ? true : undefined}
         data-app-id={app?.id}
         data-key-window={managedWindow === null ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
+        data-mobile-presentation={mobilePresentation}
         data-window-id={retained ? undefined : resolvedWindowId ?? undefined}
         data-window-resizable={resizable ? "true" : "false"}
         data-window-state={managedWindow?.state}

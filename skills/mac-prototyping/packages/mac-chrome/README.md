@@ -32,8 +32,8 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
-Types: `DesktopShellProps`, `MenuBarMenu`, `MenuCommand`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Values: `DesktopShell`, `fixedDesktopReviewViewport`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
+Types: `DesktopShellProps`, `FixedDesktopReviewViewport`, `MenuBarMenu`, `MenuCommand`, `MobileReviewMode`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowMobilePresentation`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog for
 public building blocks and their main compositions against a working desktop
@@ -78,8 +78,8 @@ materials.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
-`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, date, clock, menuBarExtras, wallpaper, children }: DesktopShellProps)`
-`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly wallpaper?: string; readonly children: ReactNode }`
+`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, date, clock, menuBarExtras, mobileReviewMode, wallpaper, children }: DesktopShellProps)`
+`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly mobileReviewMode?: "fixed-desktop"; readonly wallpaper?: string; readonly children: ReactNode }`
 `type MenuBarMenu = { readonly title: string; readonly items: MenuSpec }`
 `type MenuCommand = { readonly menu: string; readonly id: string; readonly label: string }`
 - The shell always provides functional Apple and app menus; use
@@ -98,6 +98,12 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
+- The default desktop remains responsive. `mobileReviewMode="fixed-desktop"`
+  instead keeps its authored 1200x750 coordinate space on phone/coarse-pointer
+  browsers, which pan and zoom the page themselves. Pair that shell prop with
+  route-local viewport metadata compatible with `fixedDesktopReviewViewport`;
+  do not apply the metadata in a root layout unless every route is a Mac
+  desktop review surface.
 - Inside `MacWindowManager`, File › Close Window and the standard Window
   menu target the key managed window. Window lists the current app's open or
   minimized windows and can restore them. The standard application menu's
@@ -148,23 +154,29 @@ Inside a `WindowChrome`, the three controls are functional with no props: hoveri
 ### useWindowDrag
 maps to: `NSWindow.performDrag(with:)` / `isMovableByWindowBackground`.
 `useWindowDrag<T extends HTMLElement>(enabled: boolean, handleSelector: string = "[data-window-drag-handle]")`
-Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }` to spread onto the window element. Its `style` uses the individual CSS `translate` property, so a caller-owned `transform` remains independent in either spread order. Drag reachability uses the nearest `.desktop-canvas`, falling back to the viewport only when no canvas exists. Pointer-downs on `button/input/textarea/select/a/[role='button']/.traffic-lights/[data-no-window-drag]` never start a drag.
+Returns `{ windowRef, style, onPointerDown, onPointerMove, onPointerUp, onPointerCancel }` to spread onto the window element. Its `style` uses the individual CSS `translate` property, so a caller-owned `transform` remains independent in either spread order. Drag reachability uses the nearest `.desktop-canvas`, falling back to the viewport only when no canvas exists. Pointer-downs on `button/input/textarea/select/a/[role='button']/.traffic-lights/[data-no-window-drag]` never start a drag. Touch pointers also never start a simulated drag; the browser retains pan, pinch, and double-tap behavior.
 
 ### WindowChrome
 maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGroup` scene.
-`WindowChrome({ children, className = "", defaultOpen = true, defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, minSize = { width: 420, height: 280 }, resizable = true, style, windowId, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultOpen?: boolean; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly minSize?: WindowSize; readonly resizable?: boolean; readonly style?: CSSProperties; readonly windowId?: string; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
+`WindowChrome({ children, className = "", defaultOpen = true, defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, minSize = { width: 420, height: 280 }, mobilePresentation = "authored", resizable = true, style, windowId, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultOpen?: boolean; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly minSize?: WindowSize; readonly mobilePresentation?: "authored" | "maximized"; readonly resizable?: boolean; readonly style?: CSSProperties; readonly windowId?: string; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
 `type WindowFrame = { readonly top?: number | string; readonly left?: number | string; readonly width?: number | string; readonly height?: number | string }` — numbers are px; strings pass through as CSS.
 `type WindowSize = { readonly width: number; readonly height: number }`
 - **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`). The desktop contracts below its 1200px reference width and window CSS has a final canvas-containment guard. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
 - **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller canvas wins so a positive, reachable frame remains even when the canvas is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. An active gesture rebases when its canvas changes size. Set `resizable={false}` for intentionally fixed-size utility windows.
+- **Phone-review presentation** defaults to `authored`, preserving the
+  window's role and frame inside an opted-in fixed desktop. Use
+  `mobilePresentation="maximized"` only for a content workspace that should
+  occupy the available Mac canvas below the menu bar. Touch never starts
+  simulated window dragging or resizing. The toolkit does not auto-center a
+  window when focus changes, so the browser's current pan position survives.
 - **Nested split-view observation**: the shared ResizeObserver compatibility adapter defers and coalesces only observations whose target is a `react-resizable-panels` `[data-group]` to the following task. Ordinary ResizeObserver delivery remains synchronous. This prevents the feedback cycle at its source; it does not suppress browser error events or hide unrelated failures.
 - **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, managed minimize captures the window and transitions it to a separate Dock thumbnail (reduced motion skips the animation), and zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows retain the local ~220ms hide fallback. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock, thumbnail, or Window menu can restore them.
 
 ### MacDock
 maps to: the system Dock (`NSDockTile` per app); no SwiftUI counterpart — system UI.
 `MacDock({ items, label = "Dock" }: { readonly items?: readonly DockItem[]; readonly label?: string })`
-`type DockIcon = { readonly kind: "asset"; readonly src: string } | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string }`
+`type DockIcon = { readonly kind: "asset"; readonly src: string } | { readonly kind: "systemSymbol"; readonly name: SystemSymbolName; readonly background?: string; readonly foreground?: string } | { readonly kind: "artwork"; readonly artwork: ReactNode; readonly background?: string; readonly foreground?: string } | { readonly kind: "symbol"; readonly symbol: ReactNode; readonly background?: string; readonly foreground?: string }`
 `type DockIconSource = DockIcon | ReactNode | string`
 `type MacWindowThumbnail = { readonly src?: string; readonly width: number; readonly height: number }`
 `interface DockItem { readonly id: string; readonly label: string; readonly icon: DockIconSource; readonly running?: boolean; readonly group?: string; readonly windowThumbnail?: MacWindowThumbnail; readonly viewTransitionName?: string; readonly onActivate?: () => void; readonly draggablePayload?: Readonly<Record<string, string>> }`
@@ -183,11 +195,15 @@ maps to: an app's normalized `NSDockTile` artwork; no SwiftUI counterpart — sy
 `MacDockAppIcon({ icon, label }: MacDockAppIconProps)`
 `interface MacDockAppIconProps { readonly icon: DockIconSource; readonly label?: string }`
 This is the Dock's shared optical-size boundary. Prefer typed `DockIcon`:
-`asset` preserves a supplied app icon's intrinsic safe area; `symbol` draws a
-generated icon in its 50px canvas and 42px tile. A generated `SystemSymbol`
-uses size 20 in a centered 34×30px glyph frame; SVG artwork uses a separate
-selector and stays at most 26×26px. String and `ReactNode` inputs remain
-shorthand for assets and symbols. Do not wrap a local full-size tile in
+`asset` preserves a supplied app icon's intrinsic safe area, while
+`systemSymbol` accepts a typed `SystemSymbolName` and lets `MacDockAppIcon`
+construct and size the glyph. Use `artwork` only as the explicit escape hatch
+for custom generated React artwork. Both generated forms use the 50px canvas
+and 42px tile. A generated `SystemSymbol` uses size 20 in a centered 34×30px
+glyph frame; SVG artwork uses a separate selector and stays at most 26×26px.
+The old `symbol` object, bare `ReactNode`, and string shorthands remain
+supported for compatibility; `symbol` and bare `ReactNode` are deprecated for
+new code. Do not wrap a local full-size tile in
 `MacDock`, compensate for one icon with local scale or offset CSS, or let
 generated ink escape the boundary. `overflow: hidden` is only a safety
 boundary; all app icons must enter through this normalizer.
@@ -203,7 +219,9 @@ maps to: SwiftUI `Image(systemName:)` (SF Symbols).
 renders the corresponding private-use codepoint using the macOS system SF
 font; it ships no Apple font or exported symbol artwork. It is therefore
 faithful on a Mac client and should receive an explicit fallback only when a
-non-Mac client is in scope. It renders the glyph directly with intrinsic
+non-Mac client is in scope. If an invalid name reaches runtime despite the
+typed boundary, the component renders no glyph and warns once for that name.
+It renders the glyph directly with intrinsic
 variable-width font metrics. It does no runtime measurement, observation,
 scaling, translation, or per-symbol offset. Parent components provide fixed,
 stable icon slots and center glyphs with Grid or Flex. Size font glyphs and

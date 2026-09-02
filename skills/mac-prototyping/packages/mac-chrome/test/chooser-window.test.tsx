@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { waitFor } from "@testing-library/react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
@@ -106,7 +107,7 @@ it("routes secondary chooser commands through the shared Mac menu system", async
   expect(picked).toBe("file");
   expect(document.querySelector("[role='menu'][aria-label='More Options']")).toBeNull();
   expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-  expect(document.activeElement).toBe(trigger);
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
 
   await act(async () => root.unmount());
   container.remove();

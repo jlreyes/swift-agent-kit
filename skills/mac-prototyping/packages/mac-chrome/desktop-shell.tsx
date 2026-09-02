@@ -136,6 +136,9 @@ export type MenuCommand = {
   readonly label: string;
 };
 
+/** A phone reviews the authored Mac canvas through native browser pan/zoom. */
+export type MobileReviewMode = "fixed-desktop";
+
 export interface DesktopShellProps {
   readonly appName: string;
   /** Plain standard titles get native defaults; objects supply product commands. */
@@ -150,6 +153,8 @@ export interface DesktopShellProps {
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
   readonly menuBarExtras?: ReactNode;
+  /** Keep the 1200x750 Mac canvas fixed on phone/coarse-pointer viewports. */
+  readonly mobileReviewMode?: MobileReviewMode;
   /** CSS image value (url(...), gradient, var(...)) or a bare image URL. */
   readonly wallpaper?: string;
   readonly children: ReactNode;
@@ -384,6 +389,7 @@ export function DesktopShell({
   date,
   clock,
   menuBarExtras,
+  mobileReviewMode,
   wallpaper,
   children,
 }: DesktopShellProps) {
@@ -463,7 +469,7 @@ export function DesktopShell({
     return (index + offset + menus.length) % menus.length;
   }
   return (
-    <main className="showcase-viewport">
+    <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
           <div ref={menuBarRef} className="menu-left">

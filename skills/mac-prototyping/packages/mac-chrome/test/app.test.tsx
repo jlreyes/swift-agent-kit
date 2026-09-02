@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toPng } from "html-to-image";
-import { act, useState, type ReactNode } from "react";
+import { act, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { MacApp, MacAppDock, MacWindowManager, useMacWindowManager } from "../app.tsx";
 import { DesktopShell } from "../desktop-shell.tsx";
-import { SystemSymbol } from "../system-symbol.tsx";
 import { TrafficLights, WindowChrome } from "../window.tsx";
 
 vi.mock("html-to-image", () => ({
@@ -53,7 +52,7 @@ function ManagedDesktopContents() {
       <button type="button" onClick={() => manager.activateApp("activity")}>Activate Activity App</button>
       <button type="button" onClick={() => manager.bringAllToFront("notes")}>Bring Notes Front</button>
       <button type="button" onClick={() => manager.bringAllToFront("showcase")}>Bring Showcase Front</button>
-      <MacApp id="showcase" name="Showcase" icon={{ kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> }}>
+      <MacApp id="showcase" name="Showcase" icon={{ kind: "systemSymbol", name: "laptopcomputer" }}>
         <WindowChrome label="Showcase window">
           <div data-window-drag-handle="">
             <TrafficLights />
@@ -61,12 +60,12 @@ function ManagedDesktopContents() {
           </div>
         </WindowChrome>
       </MacApp>
-      <MacApp id="notes" name="Notes" defaultRunning={false} icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}>
+      <MacApp id="notes" name="Notes" defaultRunning={false} icon={{ kind: "systemSymbol", name: "doc.text.fill" }}>
         <WindowChrome label="Notes window">
           <div data-window-drag-handle=""><TrafficLights /><button type="button">Notes action</button></div>
         </WindowChrome>
       </MacApp>
-      <MacApp id="activity" name="Activity" presentation="menuBar" icon={{ kind: "symbol", symbol: <SystemSymbol name="sparkles" /> }}>
+      <MacApp id="activity" name="Activity" presentation="menuBar" icon={{ kind: "systemSymbol", name: "sparkles" }}>
         <span data-testid="menu-bar-app-content" />
       </MacApp>
       <MacAppDock
@@ -91,7 +90,7 @@ function RegistrationOwnershipHarness() {
   const manifestApp = {
     id: "manifest",
     name: "Manifest",
-    icon: { kind: "symbol" as const, symbol: <SystemSymbol name="laptopcomputer" /> },
+    icon: { kind: "systemSymbol" as const, name: "laptopcomputer" as const },
   };
   return (
     <MacWindowManager initialApps={[manifestApp]}>
@@ -112,7 +111,7 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
   readonly manifestApp: {
     readonly id: string;
     readonly name: string;
-    readonly icon: { readonly kind: "symbol"; readonly symbol: ReactNode };
+    readonly icon: { readonly kind: "systemSymbol"; readonly name: "laptopcomputer" };
   };
   readonly onHideDuplicate: () => void;
   readonly onHideEphemeral: () => void;
@@ -139,7 +138,7 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
         <MacApp
           id={manifestApp.id}
           name="Duplicate Manifest"
-          icon={{ kind: "symbol", symbol: <SystemSymbol name="person.2.fill" /> }}
+          icon={{ kind: "systemSymbol", name: "person.2.fill" }}
           dockGroup="places"
         >
           <WindowChrome label="Manifest duplicate" windowId="manifest:main"><span /></WindowChrome>
@@ -149,7 +148,7 @@ function RegistrationOwnershipContents({ duplicateVisible, ephemeralVisible, man
         <MacApp
           id="ephemeral"
           name="Ephemeral"
-          icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+          icon={{ kind: "systemSymbol", name: "doc.text.fill" }}
         >
           <WindowChrome label="Ephemeral window" windowId="ephemeral:main"><span /></WindowChrome>
         </MacApp>
@@ -193,7 +192,7 @@ function DynamicWindowMetadataContents({ defaultOpen, label, onChangeDefaults, o
       <MacApp
         id="metadata"
         name="Metadata"
-        icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+        icon={{ kind: "systemSymbol", name: "doc.text.fill" }}
       >
         <WindowChrome defaultOpen={defaultOpen} label={label} windowId="metadata:main"><span /></WindowChrome>
       </MacApp>
@@ -225,7 +224,7 @@ function DuplicateWindowCaptureContents() {
       <MacApp
         id="duplicate"
         name="Duplicate"
-        icon={{ kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> }}
+        icon={{ kind: "systemSymbol", name: "doc.text.fill" }}
       >
         {replacementVisible ? (
           <WindowChrome key="replacement" label="Replacement window" windowId="duplicate:shared"><span /></WindowChrome>
@@ -246,9 +245,9 @@ describe("Mac app and window management", () => {
     const html = renderToStaticMarkup(
       <MacWindowManager
         initialApps={[
-          { id: "showcase", name: "Showcase", icon: { kind: "symbol", symbol: <SystemSymbol name="laptopcomputer" /> } },
-          { id: "notes", name: "Notes", defaultRunning: false, icon: { kind: "symbol", symbol: <SystemSymbol name="doc.text.fill" /> } },
-          { id: "activity", name: "Activity", presentation: "menuBar", icon: { kind: "symbol", symbol: <SystemSymbol name="sparkles" /> } },
+          { id: "showcase", name: "Showcase", icon: { kind: "systemSymbol", name: "laptopcomputer" } },
+          { id: "notes", name: "Notes", defaultRunning: false, icon: { kind: "systemSymbol", name: "doc.text.fill" } },
+          { id: "activity", name: "Activity", presentation: "menuBar", icon: { kind: "systemSymbol", name: "sparkles" } },
         ]}
       >
         <MacAppDock label="Boot Dock" />

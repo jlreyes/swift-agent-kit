@@ -58,10 +58,11 @@ not a web approximation of Liquid Glass.
 ### Review a Mac desktop from a phone
 
 The `/showcase` route demonstrates the opt-in fixed-desktop review mode. Its
-route-local layout exports `fixedDesktopReviewViewport`, and its
-`DesktopShell` uses `mobileReviewMode="fixed-desktop"`. Together they keep the
-1200x750 Mac canvas intact while the browser owns pan, pinch, and double-tap
-zoom. Other routes remain responsive.
+route-local layout imports `fixedDesktopReviewViewport` and exports it as
+Next.js `viewport` metadata, while its `DesktopShell` uses
+`mobileReviewMode="fixed-desktop"`. Together they keep the 1200x750 Mac canvas
+intact while the browser owns pan, pinch, and double-tap zoom. Other routes
+remain responsive.
 
 Windows keep their authored frame by default. A content workspace may pass
 `mobilePresentation="maximized"` to `WindowChrome`; utility and comparison

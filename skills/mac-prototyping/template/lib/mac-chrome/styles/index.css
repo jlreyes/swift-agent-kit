@@ -5,8 +5,10 @@
   /* Semantic chrome tokens used by the public stub. Keep these names aligned
      with the real package so exact vendoring changes implementation, not the
      Dock's material contract. */
+  --accent: #0a7aff;
   --capsule-border: rgba(0, 0, 0, 0.11);
   --dock-glass: #e1e5ea;
+  --focus-ring: rgba(10, 122, 255, 0.55);
 }
 
 .showcase-viewport {

@@ -253,15 +253,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    post-render measurement, `ResizeObserver`, transform correction, or
    icon-specific translate/scale hacks.
 2. Deploy/serve first and share the URL; reviews run after, not before.
-3. For direction decisions, new surfaces, or a final pass, convene the
-   `mac-design-audit` agent with exactly: the pattern rubric, the diff or
-   surface, the live URL, and current screenshots. The agent ships with this
-   plugin; if it isn't installed, give a general-purpose agent
-   `references/mac-pattern-rubric.md` plus those same inputs. One audit + one
-   re-verify round; findings it can't prove live are hypotheses, not blocks.
-   With no owner to send a URL to and no audit agent (CI, cold-start
-   sessions), the loop degrades to: serve → DOM/content checks against the
-   served pages → a rubric self-pass; screenshots optional. The showcase must
+3. For direction decisions, new surfaces, or a final pass, create one fresh,
+   independent reviewer in a context that does not inherit the builder's or
+   author's conversation, then use [the full audit definition](agents/mac-design-audit.md).
+   A general-purpose agent may perform the role only by loading that full
+   definition and receiving its required inputs; do not substitute a rubric
+   self-pass. The showcase must
    dogfood public primitives, demonstrate both windowed and menu-bar apps, and
    cover window containment/focus/resize plus attached and desktop modal
    scopes. Exercise both traffic-light and Window-menu minimization: each must

@@ -207,6 +207,7 @@
    column clipped preserves the split-view geometry while long trees remain
    reachable inside their assigned panel. */
 .mc-navigation-column {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -216,6 +217,11 @@
   display: flex;
   min-height: 0;
   overflow: hidden;
+}
+
+.mc-navigation-sidebar > * {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .mc-navigation-separator {
@@ -251,6 +257,16 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.mc-sidebar-item {
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.mc-sidebar-section-header {
+  height: 22px;
+  flex-shrink: 0;
 }
 
 .p0-mac-dock {

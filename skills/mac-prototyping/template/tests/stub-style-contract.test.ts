@@ -1,20 +1,9 @@
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-const localImportPattern = /@import\s+(?:url\(\s*)?["']([^"']+)["']\s*\)?[^;]*;/g;
-
-function publicStyleClosure(path: string, visited = new Set<string>()): string {
-  const absolutePath = resolve(path);
-  if (visited.has(absolutePath)) return "";
-  visited.add(absolutePath);
-  const entry = readFileSync(absolutePath, "utf8");
-  return entry.replace(localImportPattern, (statement, specifier: string) =>
-    specifier.startsWith(".")
-      ? publicStyleClosure(resolve(dirname(absolutePath), specifier), visited)
-      : statement);
-}
+import { publicStyleClosure } from "./public-styles.ts";
 
 const publicStyleEntry = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -30,14 +19,15 @@ const source = publicStyleClosure(publicStyleEntry);
 
 function rule(selector: string): string {
   const escaped = selector.replaceAll(/[.*+?^$()|[\]{}\\]/g, "\\$&");
-  const match = source.match(new RegExp(escaped + "\\s*\\{[^}]*\\}", "s"));
+  const match = source.match(new RegExp(escaped + "\\s*\\{[^}]*\\}", "s"))
+    ?? source.match(new RegExp(escaped + "\\s*(?:,[^{]+)?\\{[^}]*\\}", "s"));
   expect(match, selector + " rule").not.toBeNull();
   return match?.[0] ?? "";
 }
 
 function rules(selector: string): string {
   const escaped = selector.replaceAll(/[.*+?^$()|[\]{}\\]/g, "\\$&");
-  return Array.from(source.matchAll(new RegExp(escaped + "\\s*\\{[^}]*\\}", "gs")), (match) => match[0]).join("\n");
+  return Array.from(source.matchAll(new RegExp(escaped + "\\s*(?:,[^{]+)?\\{[^}]*\\}", "gs")), (match) => match[0]).join("\n");
 }
 
 function ownsBorderBox(selector: string): boolean {

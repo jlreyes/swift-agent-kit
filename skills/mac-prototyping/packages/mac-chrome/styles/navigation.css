@@ -23,6 +23,11 @@
   background: var(--sidebar-glass);
 }
 
+.mc-navigation-sidebar > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .mc-navigation-content,
 .mc-navigation-detail {
   background: var(--content-surface);
@@ -82,6 +87,7 @@
 }
 
 .mc-sidebar-section-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -167,6 +173,7 @@
 .mc-sidebar-item {
   width: 100%;
   height: 28px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 7px;

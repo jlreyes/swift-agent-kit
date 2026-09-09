@@ -51,6 +51,9 @@ export function CommandBehavior() {
             { id: "apply", label: "Apply", isDefault: true, onPress: () => setAppliedCount((count) => count + 1) },
           ]} />
       </WindowChrome>
+      <WindowChrome label="Other command window" frame={{ left: 24, top: 40, width: 200, height: 160 }} minSize={{ width: 200, height: 120 }}>
+        <label>Other window field<input /></label>
+      </WindowChrome>
     </DesktopShell>
   );
 }

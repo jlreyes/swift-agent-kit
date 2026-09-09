@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
+import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -404,6 +405,9 @@ export function DesktopShell({
   const windowManager = useOptionalMacWindowManager();
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
+  const modalFocusReturnRef = useRef(modalFocusReturn);
+  modalFocusReturnRef.current = modalFocusReturn;
   const openMenuIndexRef = useRef(openMenuIndex);
   openMenuIndexRef.current = openMenuIndex;
   const [now, setNow] = useState(() => new Date());
@@ -427,7 +431,10 @@ export function DesktopShell({
     if (openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
-      if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) setOpenMenuIndex(null);
+      if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) {
+        modalFocusReturnRef.current.dismissFromPointer(event.target);
+        setOpenMenuIndex(null);
+      }
     }
     document.addEventListener("pointerdown", dismissFromOutside);
     return () => document.removeEventListener("pointerdown", dismissFromOutside);
@@ -453,7 +460,7 @@ export function DesktopShell({
       // so stopping the native event here prevents that later handler from
       // restoring the title that originally opened the switched menu.
       event.stopImmediatePropagation();
-      titles.item(targetIndex).focus({ preventScroll: true });
+      if (!modalFocusReturnRef.current.hasModalReturnTarget()) titles.item(targetIndex).focus({ preventScroll: true });
       openMenuIndexRef.current = null;
       setOpenMenuIndex(null);
     }
@@ -480,7 +487,7 @@ export function DesktopShell({
     <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
-          <div ref={menuBarRef} className="menu-left">
+          <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((item, index) => (
               <MacMenu
                 key={`${index}:${item.title}`}

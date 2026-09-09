@@ -6,6 +6,7 @@
 // vendoring. Advanced window dragging, visual transitions, and screenshot-
 // thumbnail machinery remain exclusive to the real package.
 import { Fragment, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import {
   Button,
   Dialog,
@@ -600,6 +601,11 @@ export function DesktopShell({
   const windowManager = useContext(StubManagerContext);
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
+  const modalFocusReturnRef = useRef(modalFocusReturn);
+  modalFocusReturnRef.current = modalFocusReturn;
+  const openMenuIndexRef = useRef(openMenuIndex);
+  openMenuIndexRef.current = openMenuIndex;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     let interval: number | null = null;
@@ -612,6 +618,46 @@ export function DesktopShell({
       window.clearTimeout(timeout);
       if (interval !== null) window.clearInterval(interval);
     };
+  }, []);
+  useEffect(() => {
+    if (openMenuIndex === null) return;
+    function dismissFromOutside(event: PointerEvent) {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) {
+        modalFocusReturnRef.current.dismissFromPointer(event.target);
+        setOpenMenuIndex(null);
+      }
+    }
+    document.addEventListener("pointerdown", dismissFromOutside);
+    return () => document.removeEventListener("pointerdown", dismissFromOutside);
+  }, [openMenuIndex]);
+  useEffect(() => {
+    function moveFocusOutOfMenu(event: KeyboardEvent) {
+      if (
+        event.key !== "Tab"
+        || event.altKey
+        || event.ctrlKey
+        || event.metaKey
+        || event.isComposing
+        || !(event.target instanceof Element)
+        || event.target.closest(".mc-menubar-menu-popover") === null
+      ) return;
+      const currentIndex = openMenuIndexRef.current;
+      const titles = menuBarRef.current?.querySelectorAll<HTMLButtonElement>(".mc-menubar-menu-title");
+      if (currentIndex === null || titles === undefined || titles.length === 0) return;
+      const targetIndex = (currentIndex + (event.shiftKey ? -1 : 1) + titles.length) % titles.length;
+      event.preventDefault();
+      // React Aria's FocusScope installs its own document-level Tab handler
+      // when a portal opens. This listener is mounted before any menu opens,
+      // so stopping the native event here prevents that later handler from
+      // restoring the title that originally opened the switched menu.
+      event.stopImmediatePropagation();
+      if (!modalFocusReturnRef.current.hasModalReturnTarget()) titles.item(targetIndex).focus({ preventScroll: true });
+      openMenuIndexRef.current = null;
+      setOpenMenuIndex(null);
+    }
+    document.addEventListener("keydown", moveFocusOutOfMenu, true);
+    return () => document.removeEventListener("keydown", moveFocusOutOfMenu, true);
   }, []);
   const menus: readonly MenuBarMenu[] = [
     { title: "Apple", items: appleMenuItems ?? stubAppleMenu() },
@@ -629,7 +675,7 @@ export function DesktopShell({
     <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
-          <div ref={menuBarRef} className="menu-left">
+          <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((menu, index) => (
               <MacMenu
                 key={`${index}:${menu.title}`}

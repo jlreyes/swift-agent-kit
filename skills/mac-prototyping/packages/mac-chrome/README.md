@@ -98,8 +98,11 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
   resolver.
 - An active menu switches when its title is hovered. Left/Right moves between
   menu titles; Tab/Shift-Tab dismisses it and advances focus; Escape and an
-  outside press dismiss it. The Apple mark and the Battery, Wi-Fi, and Control
-  Center glyphs use the shared typed `SystemSymbol`/SF Symbols pipeline.
+  outside press dismiss it. When a menu was opened from an active sheet or
+  alert, dismissal returns focus to a valid control in that modal unless focus
+  intentionally moved to another window. The Apple mark and the Battery, Wi-Fi,
+  and Control Center glyphs use the shared typed `SystemSymbol`/SF Symbols
+  pipeline.
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).

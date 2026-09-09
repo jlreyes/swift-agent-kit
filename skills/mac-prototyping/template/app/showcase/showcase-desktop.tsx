@@ -1142,6 +1142,7 @@ function ManagedShowcaseDesktop() {
       menuItems={menuItems}
       mobileReviewMode="fixed-desktop"
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
+      canPerformMenuAction={() => false}
       menuBarExtras={(
         <MacApp {...showcaseApps.activity}>
           <MenuBarExtra

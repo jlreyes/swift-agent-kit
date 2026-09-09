@@ -63,6 +63,35 @@ function overlaps(first: Rect, second: Rect): boolean {
 test.describe("desktop chrome acceptance", () => {
   test.skip(({ isMobile }) => isMobile, "Desktop geometry is covered by the desktop browser project.");
 
+  test("keeps unsupported showcase defaults disabled while direct and managed commands work", async ({ page }) => {
+    const problems = collectBrowserProblems(page);
+    await page.goto("/showcase", { waitUntil: "domcontentloaded" });
+    const menuBar = page.locator(".menu-left");
+    await menuBar.getByRole("button", { name: "Mac Chrome", exact: true }).click();
+    await expect(page.getByRole("menuitem", { name: "About Mac Chrome" })).toBeDisabled();
+    await expect(page.getByRole("menuitem", { name: /Settings/ })).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await menuBar.getByRole("button", { name: "Help", exact: true }).click();
+    await expect(page.getByRole("menuitem", { name: /App Help/ })).toBeDisabled();
+    await expect(page.getByRole("menuitem", { name: "Search", exact: true })).toBeDisabled();
+    await page.keyboard.press("Escape");
+
+    const catalog = page.locator('.mac-window[aria-label="Mac Chrome component showcase"]');
+    const inspector = page.getByRole("complementary", { name: "Component inspector" });
+    await expect(inspector).toBeVisible();
+    await menuBar.getByRole("button", { name: "View", exact: true }).click();
+    await page.getByRole("menuitem", { name: /Hide Inspector/ }).click();
+    await expect(inspector).toBeHidden();
+    await expect(catalog.getByRole("status")).toContainText("Inspector hidden.");
+
+    await expect(catalog).not.toHaveClass(/mc-zoomed/);
+    await menuBar.getByRole("button", { name: "Window", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Zoom", exact: true }).click();
+    await expect(catalog).toHaveClass(/mc-zoomed/);
+    await expect(catalog.getByRole("status")).toContainText("Window › Zoom");
+    expect(problems).toEqual([]);
+  });
+
   test("keeps symbols stable, status items separated, and windows reachable through resize", async ({ page }) => {
     const problems = collectBrowserProblems(page);
     await page.goto("/showcase", { waitUntil: "domcontentloaded" });

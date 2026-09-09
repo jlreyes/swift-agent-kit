@@ -224,6 +224,12 @@
   min-width: 0;
 }
 
+.mc-inspector {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .mc-navigation-separator {
   position: relative;
   z-index: 2;

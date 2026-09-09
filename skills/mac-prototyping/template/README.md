@@ -177,8 +177,9 @@ are intentionally not starter-library promises.
    `DesktopShell` + `MacApp` + `WindowChrome` + `MacToolbar` + `MacAppDock`
    and the relevant shared layout, collection, and control primitives from `lib/mac-chrome` — follow
    `app/example/`. Its `example-desktop.tsx` supplies `DesktopShell` a
-   client-side `onMenuAction` target and shows temporary visible feedback for
-   each command; replace that feedback with the product behavior.
+   client-side `onMenuAction` target plus `canPerformMenuAction` for its three
+   File feedback commands, then shows temporary visible feedback; replace both
+   with the product's supported commands and behavior.
 2. List it in `app/page.tsx` (the launcher).
 3. Add the route to `tests/rendered-html.test.mjs` (title + content marker).
 

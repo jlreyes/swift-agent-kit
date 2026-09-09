@@ -57,6 +57,7 @@ function ManagedExampleDesktop({ children }: { readonly children: ReactNode }) {
       appName="Finder"
       menuItems={[fileMenu, "Edit", "View", "Window", "Help"]}
       onMenuAction={setLastCommand}
+      canPerformMenuAction={({ menu, id }) => menu === "File" && ["new-window", "new-folder", "get-info"].includes(id)}
     >
       <MacApp {...exampleApp}>
         {children}

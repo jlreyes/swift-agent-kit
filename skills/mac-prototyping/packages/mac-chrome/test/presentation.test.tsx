@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MacAlert, MacSheet, MacWindowStatusBar, Sheet } from "../presentation.tsx";
 import { MacWindowModalHost } from "../window-modal-host.tsx";
@@ -735,6 +735,47 @@ describe("native presentation primitives", () => {
       expect(portalHost.getAttribute("aria-hidden")).toBe("false");
     } finally {
       portalHost.remove();
+    }
+  });
+});
+
+
+describe("modal keyboard containment", () => {
+  it.each(["sheet", "alert"] as const)("contains %s events after children handle them without cancelling browser editing", async (kind) => {
+    const background = vi.fn();
+    const child = vi.fn();
+    const onDefault = vi.fn();
+    const onCancel = vi.fn();
+    window.addEventListener("keydown", background);
+    window.addEventListener("keyup", background);
+    try {
+      render(
+        <MacWindowModalHost allowDesktopFallback className="test-modal" kind={kind} role={kind === "sheet" ? "dialog" : "alertdialog"}
+          ariaLabel="Keyboard test" open onDefault={onDefault} onCancel={onCancel}>
+          <input aria-label="Name" onKeyDown={child} onKeyUp={child} />
+          <textarea aria-label="Notes" />
+          <input aria-label="Child-owned key" onKeyDown={(event) => event.preventDefault()} />
+        </MacWindowModalHost>,
+      );
+      const input = await screen.findByRole("textbox", { name: "Name" });
+      for (const event of [{ key: "n", metaKey: true }, { key: "a", metaKey: true }, { key: "c", metaKey: true }, { key: "v", metaKey: true }, { key: "x", metaKey: true }, { key: "z", metaKey: true }, { key: "a" }]) {
+        expect(fireEvent.keyDown(input, event)).toBe(true);
+        expect(fireEvent.keyUp(input, event)).toBe(true);
+      }
+      expect(child).toHaveBeenCalledTimes(14);
+      expect(background).not.toHaveBeenCalled();
+      expect(fireEvent.keyDown(screen.getByRole("textbox", { name: "Notes" }), { key: "Enter" })).toBe(true);
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Child-owned key" }), { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+      expect(onDefault).not.toHaveBeenCalled();
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onDefault).toHaveBeenCalledOnce();
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(onCancel).toHaveBeenCalledOnce();
+      expect(background).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", background);
+      window.removeEventListener("keyup", background);
     }
   });
 });

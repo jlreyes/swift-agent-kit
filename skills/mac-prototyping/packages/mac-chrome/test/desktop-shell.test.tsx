@@ -28,7 +28,7 @@ function renderShell(onPick?: () => void) {
     ? { ...fileMenu, items: [{ kind: "action", id: "new", label: "New Window", onSelect: onPick }] }
     : fileMenu;
   return render(
-    <DesktopShell appName="Test" menuItems={[items, "Edit", "View", "Window"]} onMenuAction={vi.fn()}>
+    <DesktopShell appName="Test" menuItems={[items, "Edit", "View", "Window"]} onMenuAction={vi.fn()} canPerformMenuAction={() => true}>
       <p>Desktop</p>
     </DesktopShell>,
   );
@@ -76,7 +76,7 @@ describe("DesktopShell menu bar menus", () => {
   it("routes Apple menu commands through the same explicit command target", async () => {
     const onMenuAction = vi.fn();
     const { getByRole } = render(
-      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+      <DesktopShell appName="Test" onMenuAction={onMenuAction} canPerformMenuAction={() => true}>
         <p>Desktop</p>
       </DesktopShell>,
     );
@@ -206,7 +206,7 @@ describe("DesktopShell menu bar menus", () => {
   it("routes built-in actions to an explicit target and disables them without one", async () => {
     const onMenuAction = vi.fn();
     const targeted = render(
-      <DesktopShell appName="Test" onMenuAction={onMenuAction}>
+      <DesktopShell appName="Test" onMenuAction={onMenuAction} canPerformMenuAction={() => true}>
         <p>Desktop</p>
       </DesktopShell>,
     );
@@ -224,6 +224,59 @@ describe("DesktopShell menu bar menus", () => {
     fireEvent.click(untargeted.getByRole("button", { name: "Edit" }));
     await flushFocus();
     expect(untargeted.getByRole("menuitem", { name: /Undo/ }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("requires per-command support even with a partial dispatcher and recomputes availability", async () => {
+    const dispatched = vi.fn();
+    const direct = vi.fn();
+    const menu: MenuBarMenu = { title: "File", items: [
+      { kind: "action", id: "new-window", label: "New Window" },
+      { kind: "action", id: "direct", label: "Direct", onSelect: direct },
+      { kind: "action", id: "link", label: "Guide", href: "#guide" },
+      { kind: "action", id: "blocked", label: "Blocked", disabled: true },
+      { kind: "action", id: "unsupported", label: "Unsupported", disabled: false },
+    ] };
+    const shell = (supported: boolean) => (
+      <DesktopShell appName="Test" menuItems={[menu, "Help"]} onMenuAction={dispatched}
+        canPerformMenuAction={({ menu: title, id }) => supported && title === "File" && (id === "new-window" || id === "blocked")}>
+        <p>Desktop</p>
+      </DesktopShell>
+    );
+    const view = render(shell(true));
+    fireEvent.click(view.getByRole("button", { name: "Test" }));
+    await flushFocus();
+    expect(view.getByRole("menuitem", { name: "About Test" }).getAttribute("aria-disabled")).toBe("true");
+    expect(view.getByRole("menuitem", { name: /Settings/ }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(view.getByRole("button", { name: "Help" }));
+    await flushFocus();
+    expect(view.getByRole("menuitem", { name: /App Help/ }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(view.getByRole("button", { name: "File" }));
+    await flushFocus();
+    for (const name of ["New Window", "Direct", "Guide"]) {
+      expect(view.getByRole("menuitem", { name }).getAttribute("aria-disabled")).not.toBe("true");
+    }
+    for (const name of ["Blocked", "Unsupported"]) {
+      expect(view.getByRole("menuitem", { name }).getAttribute("aria-disabled")).toBe("true");
+    }
+    fireEvent.click(view.getByRole("menuitem", { name: "New Window" }));
+    expect(dispatched).toHaveBeenCalledWith({ menu: "File", id: "new-window", label: "New Window" });
+    view.rerender(shell(false));
+    fireEvent.click(view.getByRole("button", { name: "File" }));
+    await flushFocus();
+    expect(view.getByRole("menuitem", { name: "New Window" }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(view.getByRole("menuitem", { name: "Direct" }));
+    expect(direct).toHaveBeenCalledOnce();
+    expect(dispatched).toHaveBeenCalledOnce();
+  });
+
+  it("does not treat a callback alone or a resolver alone as a command implementation", async () => {
+    for (const props of [{ onMenuAction: vi.fn() }, { canPerformMenuAction: () => true }]) {
+      const view = render(<DesktopShell appName="Test" {...props}><p>Desktop</p></DesktopShell>);
+      fireEvent.click(view.getByRole("button", { name: "File" }));
+      await flushFocus();
+      expect(view.getByRole("menuitem", { name: /New Window/ }).getAttribute("aria-disabled")).toBe("true");
+      view.unmount();
+    }
   });
 
   it("shows native-style shortcut columns in the standard menus", async () => {

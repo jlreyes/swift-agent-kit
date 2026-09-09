@@ -457,6 +457,8 @@ export interface DesktopShellProps {
   readonly appleMenuItems?: MenuSpec;
   readonly appMenuItems?: MenuSpec;
   readonly onMenuAction?: (command: MenuCommand) => void;
+  /** Returns whether this app supports a handler-less menu command. */
+  readonly canPerformMenuAction?: (command: MenuCommand) => boolean;
   readonly date?: string;
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items. */
@@ -565,13 +567,18 @@ function stubWithManagedWindowCommands(
   };
 }
 
-function stubWithCommandTarget(menu: MenuBarMenu, onMenuAction: DesktopShellProps["onMenuAction"]): MenuBarMenu {
+function stubWithCommandTarget(
+  menu: MenuBarMenu,
+  onMenuAction: DesktopShellProps["onMenuAction"],
+  canPerformMenuAction: DesktopShellProps["canPerformMenuAction"],
+): MenuBarMenu {
   return {
     ...menu,
     items: menu.items.map((entry) => {
       if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) return entry;
-      if (onMenuAction === undefined) return { ...entry, disabled: true };
-      return { ...entry, onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }) };
+      const command = { menu: menu.title, id: entry.id, label: entry.label };
+      if (onMenuAction === undefined || canPerformMenuAction?.(command) !== true) return { ...entry, disabled: true };
+      return { ...entry, onSelect: () => onMenuAction(command) };
     }),
   };
 }
@@ -582,6 +589,7 @@ export function DesktopShell({
   appleMenuItems,
   appMenuItems,
   onMenuAction,
+  canPerformMenuAction,
   date,
   clock,
   menuBarExtras,
@@ -613,7 +621,7 @@ export function DesktopShell({
       : item),
   ]
     .map((menu, index) => windowManager === null ? menu : stubWithManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
-    .map((menu) => stubWithCommandTarget(menu, onMenuAction));
+    .map((menu) => stubWithCommandTarget(menu, onMenuAction, canPerformMenuAction));
   const canvasStyle = wallpaper
     ? ({ "--mc-wallpaper": stubWallpaperSource(wallpaper) } as CSSProperties)
     : undefined;
@@ -3062,6 +3070,8 @@ function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, 
     return stubRegisterModalLayer(owner, layer);
   }, [owner]);
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    event.stopPropagation();
+    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
     const target = event.target instanceof Element ? event.target : null;
     const consumesReturn = target !== null && (
       target.closest("button, select, textarea, a[href]") instanceof HTMLElement
@@ -3093,6 +3103,7 @@ function StubModalLayer({ ariaDescribedBy, ariaLabel, ariaLabelledBy, children, 
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
         onKeyDown={handleKeyDown}
+        onKeyUp={(event) => event.stopPropagation()}
       >
         {children}
       </section>

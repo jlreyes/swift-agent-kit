@@ -149,6 +149,8 @@ export interface DesktopShellProps {
   readonly appMenuItems?: MenuSpec;
   /** Command target for built-in or otherwise handler-less menu actions. */
   readonly onMenuAction?: (command: MenuCommand) => void;
+  /** Returns whether this app supports a handler-less menu command. */
+  readonly canPerformMenuAction?: (command: MenuCommand) => boolean;
   readonly date?: string;
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
@@ -354,17 +356,22 @@ function withManagedWindowCommands(
   return { ...menu, items };
 }
 
-function withCommandTarget(menu: MenuBarMenu, onMenuAction: DesktopShellProps["onMenuAction"]): MenuBarMenu {
+function withCommandTarget(
+  menu: MenuBarMenu,
+  onMenuAction: DesktopShellProps["onMenuAction"],
+  canPerformMenuAction: DesktopShellProps["canPerformMenuAction"],
+): MenuBarMenu {
   return {
     ...menu,
     items: menu.items.map((entry) => {
       if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) {
         return entry;
       }
-      if (onMenuAction === undefined) return { ...entry, disabled: true };
+      const command = { menu: menu.title, id: entry.id, label: entry.label };
+      if (onMenuAction === undefined || canPerformMenuAction?.(command) !== true) return { ...entry, disabled: true };
       return {
         ...entry,
-        onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }),
+        onSelect: () => onMenuAction(command),
       };
     }),
   };
@@ -386,6 +393,7 @@ export function DesktopShell({
   appleMenuItems,
   appMenuItems,
   onMenuAction,
+  canPerformMenuAction,
   date,
   clock,
   menuBarExtras,
@@ -464,7 +472,7 @@ export function DesktopShell({
     .map((menu, index) => windowManager === null
       ? menu
       : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
-    .map((menu) => withCommandTarget(menu, onMenuAction));
+    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction));
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }

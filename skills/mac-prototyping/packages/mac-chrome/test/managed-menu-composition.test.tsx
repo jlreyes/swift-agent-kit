@@ -24,6 +24,7 @@ function ManagedMenuHarness({
   appMenuItems,
   menuItems,
   onMenuAction,
+  canPerformMenuAction,
   secondaryWindow = false,
   windowId,
 }: {
@@ -31,6 +32,7 @@ function ManagedMenuHarness({
   readonly appMenuItems?: MenuBarMenu["items"];
   readonly menuItems: readonly MenuBarMenu[];
   readonly onMenuAction?: (command: { readonly menu: string; readonly id: string; readonly label: string }) => void;
+  readonly canPerformMenuAction?: (command: { readonly menu: string; readonly id: string; readonly label: string }) => boolean;
   readonly secondaryWindow?: boolean;
   readonly windowId?: string;
 }) {
@@ -42,6 +44,7 @@ function ManagedMenuHarness({
         appMenuItems={appMenuItems}
         menuItems={menuItems}
         onMenuAction={onMenuAction}
+        canPerformMenuAction={canPerformMenuAction}
       >
         <MacApp {...managedApp}>
           <WindowChrome label="Managed window" windowId={windowId}><p>Managed content</p></WindowChrome>
@@ -180,6 +183,7 @@ describe("managed menu command composition", () => {
           ],
         }]}
         onMenuAction={vi.fn()}
+        canPerformMenuAction={({ menu, id }) => menu === "Window" && id === "minimize"}
       />,
     );
     await waitFor(() => expect(document.querySelector("[data-window-id='managed:main']")).toBeTruthy());

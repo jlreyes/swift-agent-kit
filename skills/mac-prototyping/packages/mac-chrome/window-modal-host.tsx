@@ -275,6 +275,8 @@ function ModalLayer({
   }, [owner]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    event.stopPropagation();
+    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
     const target = event.target instanceof Element ? event.target : null;
     const consumesReturn = target !== null && (
       target.closest("a[href], button, select, textarea") instanceof HTMLElement
@@ -307,6 +309,7 @@ function ModalLayer({
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
         onKeyDown={handleKeyDown}
+        onKeyUp={(event) => event.stopPropagation()}
       >
         {children}
       </section>

@@ -61,7 +61,7 @@ describe("template stub public behavior", () => {
   test("DesktopShell exposes functional Apple and app menus and switches open menus", async () => {
     const onMenuAction = vi.fn();
     const user = userEvent.setup();
-    render(<DesktopShell appName="Prototype" onMenuAction={onMenuAction}><div /></DesktopShell>);
+    render(<DesktopShell appName="Prototype" onMenuAction={onMenuAction} canPerformMenuAction={() => true}><div /></DesktopShell>);
 
     await user.click(screen.getByRole("button", { name: "Apple" }));
     expect(await screen.findByRole("menuitem", { name: /About This Mac/ })).toBeDefined();
@@ -286,7 +286,7 @@ describe("template stub public behavior", () => {
   test("DesktopShell standard menus expose the complete built-in command groups", async () => {
     const onMenuAction = vi.fn();
     const user = userEvent.setup();
-    render(<DesktopShell appName="Prototype" onMenuAction={onMenuAction}><div /></DesktopShell>);
+    render(<DesktopShell appName="Prototype" onMenuAction={onMenuAction} canPerformMenuAction={() => true}><div /></DesktopShell>);
 
     await user.click(screen.getByRole("button", { name: "File" }));
     const fileMenu = await screen.findByRole("menu", { name: "File menu" });

@@ -78,8 +78,8 @@ materials.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
-`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, date, clock, menuBarExtras, mobileReviewMode, wallpaper, children }: DesktopShellProps)`
-`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly mobileReviewMode?: "fixed-desktop"; readonly wallpaper?: string; readonly children: ReactNode }`
+`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, canPerformMenuAction, date, clock, menuBarExtras, mobileReviewMode, wallpaper, children }: DesktopShellProps)`
+`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly canPerformMenuAction?: (command: MenuCommand) => boolean; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly mobileReviewMode?: "fixed-desktop"; readonly wallpaper?: string; readonly children: ReactNode }`
 `type MenuBarMenu = { readonly title: string; readonly items: MenuSpec }`
 `type MenuCommand = { readonly menu: string; readonly id: string; readonly label: string }`
 - The shell always provides functional Apple and app menus; use
@@ -88,13 +88,21 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
   When provided, its array is the exact post-app-menu list: standard string
   names resolve to their built-in menus, while `MenuBarMenu` objects customize
   or replace menus with product commands.
-- An action with `onSelect` or `href` owns its behavior. Otherwise,
-  `onMenuAction` receives its `{ menu, id, label }` command; without either a
-  per-action target or `onMenuAction`, the shell disables the action.
+- An action with `onSelect` or `href` owns its behavior. A handler-less action
+  is enabled only when `onMenuAction` is present **and**
+  `canPerformMenuAction` returns `true` for its `{ menu, id, label }` command.
+  Use the resolver to name the commands this app supports; a dispatcher alone
+  does not enable every menu row. `disabled: true` remains disabled, and
+  `disabled: false` cannot enable an otherwise unsupported action. Managed
+  window and lifecycle commands keep their own handlers and do not need the
+  resolver.
 - An active menu switches when its title is hovered. Left/Right moves between
   menu titles; Tab/Shift-Tab dismisses it and advances focus; Escape and an
-  outside press dismiss it. The Apple mark and the Battery, Wi-Fi, and Control
-  Center glyphs use the shared typed `SystemSymbol`/SF Symbols pipeline.
+  outside press dismiss it. When a menu was opened from an active sheet or
+  alert, dismissal returns focus to a valid control in that modal unless focus
+  intentionally moved to another window. The Apple mark and the Battery, Wi-Fi,
+  and Control Center glyphs use the shared typed `SystemSymbol`/SF Symbols
+  pipeline.
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).

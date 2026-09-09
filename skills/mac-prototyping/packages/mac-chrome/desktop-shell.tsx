@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
+import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -149,6 +150,8 @@ export interface DesktopShellProps {
   readonly appMenuItems?: MenuSpec;
   /** Command target for built-in or otherwise handler-less menu actions. */
   readonly onMenuAction?: (command: MenuCommand) => void;
+  /** Returns whether this app supports a handler-less menu command. */
+  readonly canPerformMenuAction?: (command: MenuCommand) => boolean;
   readonly date?: string;
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
@@ -354,17 +357,22 @@ function withManagedWindowCommands(
   return { ...menu, items };
 }
 
-function withCommandTarget(menu: MenuBarMenu, onMenuAction: DesktopShellProps["onMenuAction"]): MenuBarMenu {
+function withCommandTarget(
+  menu: MenuBarMenu,
+  onMenuAction: DesktopShellProps["onMenuAction"],
+  canPerformMenuAction: DesktopShellProps["canPerformMenuAction"],
+): MenuBarMenu {
   return {
     ...menu,
     items: menu.items.map((entry) => {
       if (entry.kind !== "action" || entry.onSelect !== undefined || entry.href !== undefined || entry.disabled === true) {
         return entry;
       }
-      if (onMenuAction === undefined) return { ...entry, disabled: true };
+      const command = { menu: menu.title, id: entry.id, label: entry.label };
+      if (onMenuAction === undefined || canPerformMenuAction?.(command) !== true) return { ...entry, disabled: true };
       return {
         ...entry,
-        onSelect: () => onMenuAction({ menu: menu.title, id: entry.id, label: entry.label }),
+        onSelect: () => onMenuAction(command),
       };
     }),
   };
@@ -386,6 +394,7 @@ export function DesktopShell({
   appleMenuItems,
   appMenuItems,
   onMenuAction,
+  canPerformMenuAction,
   date,
   clock,
   menuBarExtras,
@@ -396,6 +405,9 @@ export function DesktopShell({
   const windowManager = useOptionalMacWindowManager();
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
+  const modalFocusReturnRef = useRef(modalFocusReturn);
+  modalFocusReturnRef.current = modalFocusReturn;
   const openMenuIndexRef = useRef(openMenuIndex);
   openMenuIndexRef.current = openMenuIndex;
   const [now, setNow] = useState(() => new Date());
@@ -419,7 +431,10 @@ export function DesktopShell({
     if (openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
-      if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) setOpenMenuIndex(null);
+      if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) {
+        modalFocusReturnRef.current.dismissFromPointer(event.target);
+        setOpenMenuIndex(null);
+      }
     }
     document.addEventListener("pointerdown", dismissFromOutside);
     return () => document.removeEventListener("pointerdown", dismissFromOutside);
@@ -445,7 +460,7 @@ export function DesktopShell({
       // so stopping the native event here prevents that later handler from
       // restoring the title that originally opened the switched menu.
       event.stopImmediatePropagation();
-      titles.item(targetIndex).focus({ preventScroll: true });
+      if (!modalFocusReturnRef.current.hasModalReturnTarget()) titles.item(targetIndex).focus({ preventScroll: true });
       openMenuIndexRef.current = null;
       setOpenMenuIndex(null);
     }
@@ -464,7 +479,7 @@ export function DesktopShell({
     .map((menu, index) => windowManager === null
       ? menu
       : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
-    .map((menu) => withCommandTarget(menu, onMenuAction));
+    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction));
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }
@@ -472,7 +487,7 @@ export function DesktopShell({
     <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
       <div className="desktop-canvas" style={canvasStyle}>
         <header className="mac-menu-bar">
-          <div ref={menuBarRef} className="menu-left">
+          <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((item, index) => (
               <MacMenu
                 key={`${index}:${item.title}`}

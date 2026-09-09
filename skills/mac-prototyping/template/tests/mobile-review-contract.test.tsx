@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { publicStyleClosure } from "./public-styles.ts";
 
 import {
   DesktopShell,
@@ -13,7 +14,7 @@ import {
 
 const rootLayoutSource = readFileSync("app/layout.tsx", "utf8");
 const showcaseLayoutSource = readFileSync("app/showcase/layout.tsx", "utf8");
-const stubStyles = readFileSync("lib/mac-chrome/styles/index.css", "utf8");
+const publicStyles = publicStyleClosure("lib/mac-chrome/styles/index.css");
 
 afterEach(() => {
   cleanup();
@@ -74,8 +75,8 @@ describe("template fixed-desktop mobile review", () => {
   });
 
   it("scopes fixed canvas and maximized presentation styles to opted-in shells", () => {
-    expect(stubStyles).toMatch(/\.showcase-viewport\[data-mobile-review-mode="fixed-desktop"\]\s*\{[\s\S]*?width:\s*1200px;/);
-    expect(stubStyles).toMatch(/\.mac-window\[data-mobile-presentation="maximized"\]\s*\{[\s\S]*?width:\s*100%\s*!important;/);
-    expect(stubStyles).toMatch(/\.mc-window-resize-handle\s*\{[\s\S]*?display:\s*none;/);
+    expect(publicStyles).toMatch(/\.showcase-viewport\[data-mobile-review-mode="fixed-desktop"\]\s*\{[\s\S]*?width:\s*1200px;/);
+    expect(publicStyles).toMatch(/\.mac-window\[data-mobile-presentation="maximized"\]\s*\{[\s\S]*?width:\s*100%\s*!important;/);
+    expect(publicStyles).toMatch(/\.mc-window-resize-handle\s*\{[\s\S]*?display:\s*none;/);
   });
 });

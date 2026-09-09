@@ -1,0 +1,65 @@
+.navigation-layout-fixture {
+  min-height: 100vh;
+  padding: 24px;
+  color: var(--text);
+  background: var(--content-surface);
+}
+
+.navigation-layout-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.navigation-layout-stage {
+  overflow-x: auto;
+}
+
+.navigation-layout-window {
+  display: flex;
+  height: 520px;
+  max-width: 1200px;
+  border: 1px solid var(--line);
+}
+
+.navigation-layout-compound {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.navigation-layout-compound > header,
+.navigation-layout-compound > footer {
+  flex: 0 0 auto;
+  padding: 12px;
+}
+
+.navigation-layout-search {
+  flex: 0 0 auto;
+  padding: 0 8px 8px;
+}
+
+.navigation-layout-search .navigation-layout-search-field {
+  width: 100%;
+}
+
+.navigation-layout-window .mc-sidebar-tree {
+  padding: 8px;
+}
+
+.navigation-layout-content {
+  padding: 16px;
+}
+
+.navigation-layout-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.navigation-layout-detail-scroll {
+  min-height: 0;
+  overflow: auto;
+}

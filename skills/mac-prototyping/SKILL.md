@@ -23,6 +23,11 @@ lives in this skill directory:
 - The `mac-design-audit` agent (bundled with this plugin) — pattern-based
   design review; convene it as described below.
 
+Edit against a persistent `vinext dev` service and use HMR as the default
+prototype workflow. Keep its private shared URL open while changing source;
+ordinary edits do not need a build, restart, or manual refresh. The workflows
+also define the built-preview and service-worker boundaries.
+
 ## Start or fork a prototype
 
 New = copy `template/` to a stable path (`~/Prototypes/<name>`), rename,
@@ -38,6 +43,11 @@ service, and strip what the experiment doesn't need — forking is the
 intended way to try directions. Never park a prototype in a per-session
 scratch directory; a stable path is what lets services and later sessions
 find it.
+
+Each prototype owns its vendored `lib/mac-chrome/`: edits there refresh in its
+development service. Changes to the canonical toolkit require a deliberate
+re-vendor into the intended prototype; do not broadly auto-sync library edits
+across prototypes.
 
 A surface is two files: a small server `app/<surface>/page.tsx` that exports
 `metadata` and only delegates, plus a `"use client"` component beside it that
@@ -242,8 +252,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 
 ## Verify like a user, then audit
 
-1. After a change: run the prototype's tests, then look at the real thing —
-   screenshot or click the changed flow at the served URL. Automate
+1. Develop against the persistent `vinext dev` service and look at the real
+   thing after a meaningful batch — screenshot or click the changed flow at
+   the shared URL. Do not rebuild, restart, or manually refresh for ordinary
+   edits: rely on HMR. Run targeted checks for the changed behavior, and run
+   the prototype's complete checks at a completion or checkpoint. Automate
    multi-path checks (Playwright/console) instead of hand-stepping. For
    component discovery or a broad chrome audit, begin at `/showcase` before
    checking the product surface. Audit symbol geometry immediately on first
@@ -252,8 +265,16 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    First-render HTML/CSS must already contain the final sizing; do not use
    post-render measurement, `ResizeObserver`, transform correction, or
    icon-specific translate/scale hacks.
-2. Deploy/serve first and share the URL; reviews run after, not before.
-3. For direction decisions, new surfaces, or a final pass, create one fresh,
+2. Prove the development loop once for a new or repaired service: through the
+   actual shared URL, make and restore a reversible CSS edit and a reversible,
+   compatible component edit; confirm existing React state remains, with no
+   document reload or console error. React Refresh can reset state for
+   structural edits. A successful HTTP response alone does not prove HMR.
+3. Serve first and share the URL; reviews run after, not before. Build a
+   snapshot only when the task calls for one, such as a public demo, a
+   deliberately stable review, or performance, poor-network, or offline
+   acceptance.
+4. For direction decisions, new surfaces, or a final pass, create one fresh,
    independent reviewer in a context that does not inherit the builder's or
    author's conversation, then use [the full audit definition](agents/mac-design-audit.md).
    A general-purpose agent may perform the role only by loading that full
@@ -267,7 +288,7 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
    split-view window and shrink/reset the viewport; no error overlay or console
    error is acceptable. Do not fix a catalog defect with story-local geometry,
    padding, or icon code.
-4. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md`, not in
+5. Keep found-issue continuity in the prototype's `REVIEW-LEDGER.md`, not in
    long-lived reviewer conversations — one line per finding
    (date · finder · [Pn] finding — file:line → resolution):
 

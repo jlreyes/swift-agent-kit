@@ -152,14 +152,23 @@ and below is a placeholder — substitute the port you picked from the scan:
 pnpm dev --port 86xx
 ```
 
-Gotcha: the vinext dev server binds IPv6 loopback only (`[::1]`) and ignores
-`--host`. Always health-check via `http://localhost:<port>`, never
-`http://127.0.0.1:<port>` (connection refused).
+`vinext dev` accepts `--hostname` (not `--host`) and defaults to localhost;
+the observed default listener is IPv6 loopback (`[::1]`). Always health-check
+via `http://localhost:<port>` for that default. Use
+`http://127.0.0.1:<port>` only when the service explicitly binds to
+`127.0.0.1` with `--hostname`. Inspect the actual listener and proxy target if
+a service does not respond; `strictPort: true` prevents a silent fallback to
+another port. Adjust only a mapping that conflicts with the authorized
+prototype service.
 
 ## Serve durably (macOS)
 
-A launchd LaunchAgent keeps the dev server alive (KeepAlive + restart at
-login). Fill `references/com.macproto.TEMPLATE.plist` — note `PNPM_DIR` must
+A launchd LaunchAgent keeps the `vinext dev` server alive (KeepAlive + restart
+at login). It is the normal editing loop: run it from the stable prototype
+source or worktree, keep its private Tailscale full-origin proxy, edit source,
+and observe the browser update through HMR. Do not run `build`/`start`, restart
+the agent, or manually refresh for an ordinary edit. Fill
+`references/com.macproto.TEMPLATE.plist` — note `PNPM_DIR` must
 be substituted before `PNPM`:
 
 ```sh
@@ -173,11 +182,10 @@ plutil -lint "$plist"
 launchctl bootstrap gui/$(id -u) "$plist"
 ```
 
-Start or restart this Vite LaunchAgent before enabling or re-enabling
-Tailscale Serve on the same port. Leaving the proxy listener active while
-Vite restarts can make Vite fall forward to the next port. The template keeps
-Vite's rebinding guard and allows only `.ts.net` remote hostnames through
-`server.allowedHosts`, which is sufficient for Tailscale Serve.
+The template keeps Vite's rebinding guard and allows only `.ts.net` remote
+hostnames through `server.allowedHosts`, which is sufficient for Tailscale
+Serve. Do not disable and recreate the proxy on each restart: inspect the
+actual listener and target instead.
 
 Done when this returns 200 — typically 5–20s (first boot optimizes
 dependencies); logs at `/tmp/com.macproto.<name>.{out,err}.log` if it never
@@ -190,12 +198,42 @@ for i in $(seq 1 30); do
 done
 ```
 
-Optional — share over the tailnet. Use the full-URL target: the bare-port
-form proxies to 127.0.0.1, which vinext does not bind:
+Optional — share over the tailnet. With the default listener, use the
+full-URL target; the bare-port form assumes `127.0.0.1`. If the service
+explicitly binds to `127.0.0.1`, use a target that matches that binding:
 
 ```sh
 tailscale serve --bg --https=$port http://localhost:$port
 ```
+
+## Development versus built previews
+
+`pnpm test` includes a build as a verification step; it does not mean the
+prototype should serve built output while editing. Use the persistent dev
+service for development. Create and serve a built snapshot only when a task
+needs a public demo, deliberate stable review snapshot, or performance,
+poor-network, or offline acceptance. A disconnected browser cannot receive
+new edits through HMR, so assess offline behavior on that built snapshot.
+
+Do not automatically replace an existing public or Funnel preview with a dev
+server. Keep its current service unless the owner authorizes a change.
+
+## HMR, service workers, and diagnosis
+
+Service workers can coexist with HMR. Keep development HTML, code, and RSC
+responses network-fresh, and do not route the HMR transport through a cache.
+Follow the product's cache policy for stable assets and its service-worker
+scope. If a controlled document is stale, unregister only that prototype's
+worker and clear only its caches as a migration or diagnosis step; do not
+clear unrelated browser caches or disable workers wholesale.
+
+When an edit does not appear, diagnose in this order: confirm that the served
+source and strict port are the intended ones; confirm the dev server detected
+the file update; inspect the browser WebSocket through the actual shared
+origin, including the proxy's upgrade path; then check for a stale controlled
+document. Do not preemptively set HMR host or client-port options: the verified
+Vite 8 default uses the browser origin. If those checks do not identify the
+break, report their results and stop rather than guessing a topology.
 
 ## Status / stop / cleanup
 

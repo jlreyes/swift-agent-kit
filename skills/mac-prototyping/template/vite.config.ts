@@ -45,6 +45,7 @@ export default defineConfig(async () => {
 
   return {
     server: {
+      strictPort: true,
       // Tailscale Serve terminates HTTPS and forwards the tailnet hostname in
       // Host. Limit remote prototype access to Tailscale's owned DNS suffix;
       // `allowedHosts: true` would unnecessarily disable Vite's rebinding guard.

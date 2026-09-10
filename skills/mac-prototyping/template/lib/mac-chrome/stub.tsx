@@ -3297,6 +3297,7 @@ export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSele
   readonly initialFocusSelector?: string;
   readonly onClose: () => void;
   readonly open: boolean;
+  readonly presentationKey?: string;
   readonly title: string;
 }) {
   const titleId = useId();

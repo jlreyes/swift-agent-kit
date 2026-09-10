@@ -421,7 +421,7 @@ compact bottom status area. Use it for feedback owned by that window; do not
 send Dock-launch descriptions into an unrelated window's status bar.
 
 `MacAlert({ open, onClose, title, message, icon, actions, fallbackFocusRef, applicationName, presentationScope = "automatic" }: { readonly actions: readonly MacDialogAction[]; readonly applicationName?: string; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly icon?: ReactNode; readonly message: ReactNode; readonly onClose: () => void; readonly open: boolean; readonly presentationScope?: MacAlertPresentationScope; readonly title: string })`
-`MacSheet({ open, onClose, title, children, actions, fallbackFocusRef, initialFocusSelector }: { readonly actions: readonly MacDialogAction[]; readonly children: ReactNode; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly initialFocusSelector?: string; readonly onClose: () => void; readonly open: boolean; readonly title: string })`
+`MacSheet({ open, onClose, title, children, actions, fallbackFocusRef, initialFocusSelector, presentationKey }: { readonly actions: readonly MacDialogAction[]; readonly children: ReactNode; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly initialFocusSelector?: string; readonly onClose: () => void; readonly open: boolean; readonly presentationKey?: string; readonly title: string })`
 `type MacDialogAction = { readonly id: string; readonly label: string; readonly role?: "cancel" | "destructive"; readonly isDefault?: boolean; readonly disabled?: boolean; readonly onPress?: () => void }`
 `type MacAlertPresentationScope = "automatic" | "desktop"`
 
@@ -432,6 +432,49 @@ pass `presentationScope="desktop"` for a menu-bar app. `isDefault` is
 independent of `cancel`/`destructive` semantics. Escape invokes the enabled
 cancel action, dismissal restores focus, and the default action receives
 initial focus. `Sheet` remains a freeform compatibility surface only.
+
+For motion, keep one `MacSheet` and every ancestor through its calling tree
+mounted; drive it with `open`. Setting `open={false}` retains the last open
+props for its exit. A new `presentationKey` requests a replacement: the
+outgoing sheet completes its exit, then the latest request enters. With the
+same key, props update the active sheet in place. Do not conditionally unmount
+or key `MacSheet`, or wrap it in a product callback tree that remounts, while
+asking the host to animate.
+
+Inactive keyed content remains hidden and inert for the open session, retaining
+React-local state; closing discards that session. For a new canceled or
+reopened visit, callers choose a fresh key or reset their own draft state.
+Business state remains caller-owned. When action handlers own request changes,
+use a no-op `onClose`; let `onClose` clear the request only when dismissal owns
+closing. During an exit or replacement, parent isolation remains in place, one
+dialog is active, and input is locked. Escape cancels the latest requested
+sheet once. When a key returns, the host restores its cached focused control
+when it is still connected and tabbable; after motion, Enter invokes the
+default action and Space activates the focused button. Reduced Motion skips
+transforms. Do not add product delays or CSS animations around `MacSheet`.
+
+```tsx
+// Keep this component and its ancestors mounted for the whole transition.
+// These action handlers own request changes, including closing.
+<MacSheet
+  open={request !== null}
+  presentationKey={request?.id}
+  title={request?.title ?? ""}
+  actions={request?.actions ?? []}
+  onClose={() => {}}
+>
+  {request?.content}
+</MacSheet>
+```
+
+The attached top-edge treatment is a historical prototype pattern, not a claim
+about the current universal macOS default: the current [Apple HIG sheet
+guidance](https://developer.apple.com/design/human-interface-guidelines/sheets)
+shows rounded, floating, centered cards. Apple’s archived [sheet](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Sheets/Tasks/UsingCascadingSheets.html)
+guidance closes a sheet before showing the next; this host’s replacement
+continuity and its 180ms enter / 140ms exit are prototype choices, not Apple
+specifications. Attached sheets slide down from the top edge and exit upward,
+without spring or scale; see Apple’s [motion guidance](https://developer.apple.com/design/human-interface-guidelines/motion).
 
 ### FinderWindow
 maps to: `NavigationSplitView` + `List` with `.listStyle(.sidebar)` + `.inspector` — the three-pane split is react-resizable-panels (`Group`/`Panel`/`Separator`, the ARIA window-splitter pattern), and the sidebar genuinely maps to `List(.sidebar)` via a react-aria `Tree` (an ARIA tree: treegrid rows with arrow-key navigation, typeahead, expand/collapse, and selection).

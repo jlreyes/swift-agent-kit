@@ -564,6 +564,7 @@ function PresentationStory() {
   return (
     <div className="showcase-story-pane">
       <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, MacSheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
+      <a href="/showcase/sheet-motion">Try sequential sheet motion…</a>
       <MacContentUnavailable
         icon={<SystemSymbol name="folder" />}
         title="No projects"

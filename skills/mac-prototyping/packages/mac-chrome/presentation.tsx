@@ -98,6 +98,7 @@ export function MacSheet({
   initialFocusSelector,
   onClose,
   open,
+  presentationKey,
   title,
 }: {
   readonly actions: readonly MacDialogAction[];
@@ -106,10 +107,12 @@ export function MacSheet({
   readonly initialFocusSelector?: string;
   readonly onClose: () => void;
   readonly open: boolean;
+  readonly presentationKey?: string;
   readonly title: string;
 }) {
-  const titleId = useId();
-  const bodyId = useId();
+  const identity = useId();
+  const titleId = `${identity}-${encodeURIComponent(presentationKey ?? "default")}-title`;
+  const bodyId = `${identity}-${encodeURIComponent(presentationKey ?? "default")}-body`;
   const cancelAction = enabledAction(actions, (action) => action.role === "cancel");
   const defaultAction = enabledAction(actions, actionIsDefault);
   const resolvedInitialFocus = initialFocusSelector
@@ -126,6 +129,7 @@ export function MacSheet({
       onCancel={cancelAction === undefined ? undefined : () => performAndClose(cancelAction, onClose)}
       onDefault={defaultAction === undefined ? undefined : () => performAndClose(defaultAction, onClose)}
       open={open}
+      presentationKey={presentationKey}
       role="dialog"
     >
       <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>

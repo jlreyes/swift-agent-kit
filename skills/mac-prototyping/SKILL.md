@@ -66,7 +66,7 @@ discovering components or auditing mac-chrome: it is the interactive coverage
 surface for public building blocks and their main compositions. Helpers and
 recipe-specific or legacy APIs are exercised indirectly through those stories
 or through tests. Keep `/example` as the small, coherent starter surface for
-product work. The template launcher links both routes.
+product work. The template launcher links both routes. The current MacSheet transition example is `/showcase/sheet-motion`.
 
 ## Compose from the standard library
 
@@ -215,7 +215,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `MacDialogAction` data (semantic `cancel`/`destructive` role plus independent
   `isDefault`) rather than authoring a button row inside a sheet. The legacy
   `Sheet` is compatibility-only; `SetupHeading` is recipe artwork, not a
-  general dialog API.
+  general dialog API. Keep `MacSheet` and its calling ancestors mounted for
+  presentation motion; control `open` and use `presentationKey` to request a
+  replacement.
 - **One disclosure contract.** Use `MacDisclosureGroup` for grouped detail and
   `MacSourceList` for navigable sidebar sections. The shared indicator is a
   `SystemSymbol`; source-list section headers are structural by default. A

@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useEffect, useRef } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, type RefObject, useLayoutEffect, useRef } from "react";
 
 const focusableSelector = "button, input, select, textarea, a[href], summary, [contenteditable='true'], [tabindex]";
 const modalOwnerSelector = ".mac-window, .desktop-canvas";
@@ -65,6 +65,7 @@ export function useModalFocusTrap({
   fallbackFocusRef,
   focusVersion,
   initialFocusSelector = focusableSelector,
+  initialFocusRef,
   ownerElement,
   onCancel,
 }: {
@@ -72,13 +73,14 @@ export function useModalFocusTrap({
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly focusVersion?: string;
   readonly initialFocusSelector?: string;
+  readonly initialFocusRef?: RefObject<HTMLElement | null>;
   /** Limits stacked-modal focus ownership to one window or desktop canvas. */
   readonly ownerElement?: HTMLElement;
   readonly onCancel: () => void;
 }) {
   const openerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const resolvedOwner = ownerElement ?? (dialogRef.current === null ? null : containingModalOwner(dialogRef.current));
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return () => {
@@ -94,14 +96,13 @@ export function useModalFocusTrap({
     };
   }, [fallbackFocusRef, ownerElement]);
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const dialog = dialogRef.current;
-      if (dialog === null) return;
-      focusInitialElement(dialog, initialFocusSelector);
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [dialogRef, focusVersion, initialFocusSelector]);
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog === null) return;
+    const resume = initialFocusRef?.current;
+    if (resume && isTabbable(resume, dialog)) resume.focus();
+    else focusInitialElement(dialog, initialFocusSelector);
+  }, [dialogRef, focusVersion, initialFocusRef, initialFocusSelector]);
 
   return function handleModalKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {

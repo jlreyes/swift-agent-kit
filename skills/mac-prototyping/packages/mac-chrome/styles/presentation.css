@@ -245,3 +245,15 @@ body > .mc-window-modal-layer-desktop {
   max-width: 50%;
   flex: 0 1 auto;
 }
+
+.mc-window-modal-layer-sheet {
+  overflow: clip;
+}
+
+.mc-modal-content {
+  display: contents;
+}
+
+.mc-window-modal-layer > section[hidden] {
+  display: none;
+}

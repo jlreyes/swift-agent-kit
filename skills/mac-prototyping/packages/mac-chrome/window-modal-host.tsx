@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -186,7 +186,7 @@ function managedKeyWindow(windowId: string | null): HTMLElement | null {
     .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
 }
 
-function isContentEditableTarget(target: Element) {
+export function isContentEditableTarget(target: Element) {
   const editingBoundary = target.closest<HTMLElement>("[contenteditable]");
   if (editingBoundary === null) {
     return target instanceof HTMLElement && target.isContentEditable;
@@ -230,89 +230,197 @@ function resolveModalOwner({
   };
 }
 
-function ModalLayer({
-  ariaDescribedBy,
-  ariaLabel,
-  ariaLabelledBy,
-  children,
-  className,
-  dialogRef,
-  fallbackFocusRef,
-  initialFocusSelector,
-  kind,
-  onCancel,
-  onDefault,
-  owner,
-  role,
-}: {
+type ModalPresentation = {
   readonly ariaDescribedBy?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
   readonly children: ReactNode;
   readonly className: string;
-  readonly dialogRef: RefObject<HTMLElement | null>;
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly initialFocusSelector?: string;
   readonly kind: MacWindowModalKind;
   readonly onCancel?: () => void;
   readonly onDefault?: () => void;
-  readonly owner: ModalOwner;
+  readonly presentationKey?: string;
   readonly role: "alertdialog" | "dialog";
+};
+
+type MotionPhase = "entering" | "open" | "exiting";
+
+function ModalLayer(props: ModalPresentation & {
+  readonly open: boolean;
+  readonly owner: ModalOwner;
+  readonly onExited: () => void;
 }) {
+  const { owner, kind } = props;
+  const requestedKey = props.presentationKey ?? "default";
+  const latest = useRef(props);
+  const retained = useRef(new Map<string, ModalPresentation>());
+  const [activeKey, setActiveKey] = useState(requestedKey);
+  const [visibilityVersion, setVisibilityVersion] = useState(0);
+  const [phase, setPhase] = useState<MotionPhase>(kind === "sheet" ? "entering" : "open");
   const layerRef = useRef<HTMLDivElement>(null);
-  const handleFocusTrapKeyDown = useModalFocusTrap({
-    dialogRef,
-    fallbackFocusRef,
-    ...(initialFocusSelector === undefined ? {} : { initialFocusSelector }),
-    ownerElement: owner.element,
-    onCancel: onCancel ?? (() => {}),
+  const dialogRef = useRef<HTMLElement>(null);
+  const cancelRequested = useRef(false);
+  const interruptedTransform = useRef<string | null>(null);
+  const focusedControls = useRef(new Map<string, HTMLElement>());
+  const resumeFocus = useRef<HTMLElement | null>(null);
+  const lastOpenFallback = useRef(props.fallbackFocusRef);
+  const returnFocusRef = useRef({ get current() { return lastOpenFallback.current?.current ?? null; } });
+  const busy = kind === "sheet" && (phase !== "open" || !props.open || requestedKey !== activeKey);
+  const activeProps = props.open && requestedKey === activeKey && phase !== "exiting"
+    ? props : retained.current.get(activeKey) ?? props;
+  const entries = new Map(retained.current);
+  entries.set(activeKey, activeProps);
+
+  useLayoutEffect(() => {
+    latest.current = props;
+    if (props.open) lastOpenFallback.current = props.fallbackFocusRef;
+    retained.current.set(activeKey, activeProps);
   });
 
-  useEffect(() => {
+  function cancel() {
+    if (!latest.current.open || cancelRequested.current) return;
+    cancelRequested.current = true;
+    latest.current.onCancel?.();
+  }
+
+  const handleFocusTrapKeyDown = useModalFocusTrap({
+    dialogRef,
+    fallbackFocusRef: returnFocusRef.current,
+    focusVersion: `${activeKey}:${phase}:${visibilityVersion}`,
+    initialFocusRef: busy ? undefined : resumeFocus,
+    initialFocusSelector: busy ? ":not(*)" : activeProps.initialFocusSelector,
+    ownerElement: owner.element,
+    onCancel: cancel,
+  });
+
+  useLayoutEffect(() => {
     const layer = layerRef.current;
     if (layer === null) return;
     return registerModalLayer(owner, layer);
   }, [owner]);
 
+  useLayoutEffect(() => {
+    const hidden = () => owner.element.closest("[hidden]") !== null || getComputedStyle(owner.element).display === "none";
+    let wasHidden = hidden();
+    const observer = new MutationObserver(() => {
+      const isHidden = hidden();
+      if (wasHidden && !isHidden && layerRef.current?.closest('[inert], [aria-hidden="true"]') === null) {
+        resumeFocus.current = focusedControls.current.get(activeKey) ?? null;
+        setVisibilityVersion((version) => version + 1);
+      }
+      wasHidden = isHidden;
+    });
+    observer.observe(owner.element, { attributes: true, attributeFilter: ["hidden", "style"] });
+    return () => observer.disconnect();
+  }, [activeKey, owner]);
+
+  useLayoutEffect(() => {
+    if (kind !== "sheet") {
+      if (!props.open) props.onExited();
+      return;
+    }
+    if ((!props.open || requestedKey !== activeKey) && phase !== "exiting") setPhase("exiting");
+  }, [activeKey, kind, phase, props.open, props.onExited, requestedKey]);
+
+  useLayoutEffect(() => {
+    if (kind !== "sheet" || phase === "open") return;
+    const dialog = dialogRef.current;
+    if (dialog === null) return;
+    let disposed = false;
+    const finish = () => {
+      if (disposed) return;
+      disposed = true;
+      if (phase === "entering") {
+        cancelRequested.current = false;
+        setPhase("open");
+      } else if (!latest.current.open) {
+        latest.current.onExited();
+      } else {
+        const nextKey = latest.current.presentationKey ?? "default";
+        retained.current.set(nextKey, latest.current);
+        resumeFocus.current = focusedControls.current.get(nextKey) ?? null;
+        setActiveKey(nextKey);
+        cancelRequested.current = false;
+        setPhase("entering");
+      }
+    };
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const ownerHidden = () => !owner.element.isConnected || owner.element.closest("[hidden]") !== null
+      || getComputedStyle(owner.element).display === "none";
+    if (reducedMotion?.matches || ownerHidden() || typeof dialog.animate !== "function") {
+      finish();
+      return;
+    }
+    const animation = dialog.animate(
+      phase === "entering"
+        ? [{ transform: "translateY(calc(-100% - 12px))" }, { transform: "translateY(0)" }]
+        : [{ transform: interruptedTransform.current ?? getComputedStyle(dialog).transform }, { transform: "translateY(calc(-100% - 12px))" }],
+      { duration: phase === "entering" ? 180 : 140, easing: "cubic-bezier(0.2, 0, 0.2, 1)", fill: "both" },
+    );
+    interruptedTransform.current = null;
+    animation.onfinish = finish;
+    animation.oncancel = finish;
+    const skip = () => { if (reducedMotion?.matches || ownerHidden()) { finish(); animation.cancel(); } };
+    reducedMotion?.addEventListener("change", skip);
+    const observer = new MutationObserver(skip);
+    observer.observe(owner.element, { attributes: true, attributeFilter: ["hidden", "style"] });
+    return () => {
+      if (!disposed) interruptedTransform.current = getComputedStyle(dialog).transform;
+      disposed = true;
+      animation.onfinish = null;
+      animation.oncancel = null;
+      animation.cancel();
+      observer.disconnect();
+      reducedMotion?.removeEventListener("change", skip);
+    };
+  }, [activeKey, kind, owner, phase]);
+
   function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('[aria-modal="true"]') !== dialogRef.current) return;
     event.stopPropagation();
     if (event.defaultPrevented || event.nativeEvent.isComposing) return;
-    const target = event.target instanceof Element ? event.target : null;
     const consumesReturn = target !== null && (
       target.closest("a[href], button, select, textarea") instanceof HTMLElement
       || isContentEditableTarget(target)
     );
-    if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && onDefault !== undefined) {
+    if (event.key === "Enter" && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !consumesReturn && activeProps.onDefault !== undefined) {
       event.preventDefault();
       event.stopPropagation();
-      onDefault();
+      activeProps.onDefault();
       return;
     }
     handleFocusTrapKeyDown(event);
   }
 
   return (
-    <div
-      ref={layerRef}
+    <div ref={layerRef}
       className={`mc-window-modal-layer mc-window-modal-layer-${kind} mc-window-modal-layer-${owner.scope}`}
-      data-modal-kind={kind}
-      data-modal-scope={owner.scope}
-    >
+      data-modal-kind={kind} data-modal-scope={owner.scope} data-motion-phase={phase}>
       <div className="mc-window-modal-scrim" role="presentation" />
-      <section
-        ref={dialogRef}
-        className={className}
-        tabIndex={-1}
-        role={role}
-        aria-modal="true"
-        aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
-        aria-describedby={ariaDescribedBy}
-        onKeyDown={handleKeyDown}
-        onKeyUp={(event) => event.stopPropagation()}
-      >
-        {children}
-      </section>
+      {[...entries].map(([key, entry]) => {
+        const active = key === activeKey;
+        return <section key={key} ref={active ? dialogRef : undefined}
+          className={entry.className} hidden={!active} inert={!active || undefined}
+          data-presentation-key={key} tabIndex={-1} role={entry.role}
+          aria-modal={active ? true : undefined} aria-hidden={!active || undefined}
+          aria-label={entry.ariaLabel} aria-labelledby={entry.ariaLabelledBy} aria-describedby={entry.ariaDescribedBy}
+          onFocusCapture={(event) => {
+            if (active && !busy && event.target instanceof HTMLElement && event.target !== dialogRef.current) focusedControls.current.set(key, event.target);
+          }}
+          onPointerDownCapture={(event) => { if (busy) { event.preventDefault(); event.stopPropagation(); } }}
+          onClickCapture={(event) => { if (busy) { event.preventDefault(); event.stopPropagation(); } }}
+          onKeyDownCapture={(event) => {
+            if (!busy || event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== dialogRef.current) return;
+            event.preventDefault(); event.stopPropagation();
+            if (event.key === "Escape" && !event.nativeEvent.isComposing && !event.repeat) cancel();
+          }}
+          onKeyDown={handleKeyDown} onKeyUp={(event) => event.stopPropagation()}>
+          <div className="mc-modal-content" inert={active && busy || undefined}>{entry.children}</div>
+        </section>;
+      })}
     </div>
   );
 }
@@ -320,76 +428,34 @@ function ModalLayer({
 /** Internal presentation substrate shared by MacSheet and MacAlert. */
 export function MacWindowModalHost({
   allowDesktopFallback = false,
-  ariaDescribedBy,
-  ariaLabel,
-  ariaLabelledBy,
-  children,
-  className,
-  fallbackFocusRef,
-  initialFocusSelector,
-  kind,
-  onCancel,
-  onDefault,
   open,
   presentationScope = "automatic",
-  role,
-}: {
+  ...presentation
+}: ModalPresentation & {
   readonly allowDesktopFallback?: boolean;
-  readonly ariaDescribedBy?: string;
-  readonly ariaLabel?: string;
-  readonly ariaLabelledBy?: string;
-  readonly children: ReactNode;
-  readonly className: string;
-  readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
-  readonly initialFocusSelector?: string;
-  readonly kind: MacWindowModalKind;
-  readonly onCancel?: () => void;
-  readonly onDefault?: () => void;
   readonly open: boolean;
   readonly presentationScope?: "automatic" | "desktop";
-  readonly role: "alertdialog" | "dialog";
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
   const manager = useOptionalMacWindowManager();
   const [owner, setOwner] = useState<ModalOwner | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      setOwner(null);
-      return;
-    }
+  useLayoutEffect(() => {
+    if (!open || owner !== null) return;
     setOwner(resolveModalOwner({
       allowDesktopFallback,
       anchor: anchorRef.current,
-      fallbackFocus: fallbackFocusRef?.current ?? null,
+      fallbackFocus: presentation.fallbackFocusRef?.current ?? null,
       keyWindowId: manager?.keyWindowId ?? null,
       presentationScope,
     }));
-  }, [allowDesktopFallback, fallbackFocusRef, manager?.keyWindowId, open, presentationScope]);
+  }, [allowDesktopFallback, manager?.keyWindowId, open, owner, presentation.fallbackFocusRef, presentationScope]);
 
-  return (
-    <>
-      <span ref={anchorRef} className="mc-window-modal-anchor" aria-hidden="true" />
-      {!open || owner === null ? null : createPortal(
-        <ModalLayer
-          ariaDescribedBy={ariaDescribedBy}
-          ariaLabel={ariaLabel}
-          ariaLabelledBy={ariaLabelledBy}
-          className={className}
-          dialogRef={dialogRef}
-          fallbackFocusRef={fallbackFocusRef}
-          initialFocusSelector={initialFocusSelector}
-          kind={kind}
-          onCancel={onCancel}
-          onDefault={onDefault}
-          owner={owner}
-          role={role}
-        >
-          {children}
-        </ModalLayer>,
-        owner.element,
-      )}
-    </>
-  );
+  return <>
+    <span ref={anchorRef} className="mc-window-modal-anchor" aria-hidden="true" />
+    {owner === null ? null : createPortal(
+      <ModalLayer {...presentation} open={open} owner={owner} onExited={() => setOwner(null)} />,
+      owner.element,
+    )}
+  </>;
 }

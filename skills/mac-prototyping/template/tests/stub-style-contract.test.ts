@@ -237,9 +237,9 @@ test("source lists own scrolling within their clipped navigation sidebar", () =>
 test("menu-bar popovers preserve their native cap without exceeding the viewport", () => {
   const popover = rule(".mc-menu-popover.mc-menubar-menu-popover");
 
-  expect(popover).toMatch(importedPackageStyles ? /min-width:\s*min\(224px, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)/ : /min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
+  expect(popover).toMatch(importedPackageStyles ? /min-width:\s*min\(224px, var\(--mc-popover-available-width, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)\)/ : /min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
   expect(popover).not.toMatch(/min-width:\s*224px/);
-  expect(popover).toMatch(importedPackageStyles ? /max-width:\s*min\(340px, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)/ : /max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
+  expect(popover).toMatch(importedPackageStyles ? /max-width:\s*min\(340px, var\(--mc-popover-available-width, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)\)/ : /max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
   expect(popover).not.toMatch(/max-width:\s*340px/);
 });
 

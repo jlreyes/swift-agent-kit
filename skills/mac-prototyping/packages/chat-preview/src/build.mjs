@@ -3,7 +3,6 @@ import { createRequire } from 'node:module';
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { loadToolchain } from './toolchain.mjs';
-import { prepareCss, scopeCss } from './css.mjs';
 import { inspectSource, collectSymbols, symbolModule, diagnoseRuntimeCode } from './source.mjs';
 import { formatPreview, validateRoot } from './format.mjs';
 import { buildSymbolFont } from './font.mjs';
@@ -18,6 +17,10 @@ async function ensurePrivateOutput(output) {
   while (true) {
     try { await stat(resolve(current, '.git')); throw new Error('A preview containing a private local font must be written outside every Git repository. Choose a private output directory.'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
+    try {
+      const [head, objects, refs] = await Promise.all(['HEAD', 'objects', 'refs'].map(name => stat(resolve(current, name))));
+      if (head.isFile() && objects.isDirectory() && refs.isDirectory()) throw new Error('A preview containing a private local font must be written outside every Git repository, including bare repositories. Choose a private output directory.');
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const parent = dirname(current); if (parent === current) break; current = parent;
   }
 }
@@ -38,15 +41,13 @@ export async function buildPreview(options) {
   const projectRequire = createRequire(resolve(dependencies, '__preview_resolver__.cjs'));
   const modules = loadToolchain(options.toolchain);
   const { build, transform } = modules.esbuild;
-  const postcss = modules.postcss;
-  const cssTree = modules['css-tree'];
   const acorn = modules.acorn;
-  const cssOptions = { postcss, cssTree, windowOnly: options.windowOnly ?? true };
   const assetRoot = options.assetRoot ? await realpath(resolve(options.assetRoot)) : null;
   let importsSymbols = false;
   let packagedSymbols = null;
   const sourceCache = new Map();
   const navigationUrls = new Set();
+  const authoredDiagnostics = [];
   const plugin = { name: 'self-contained-mac-preview', setup(builder) {
     if (options.macChromeDirectory) builder.onResolve({ filter: /(?:^mac-chrome(?:\/|$)|(?:^|\/)(?:lib|packages)\/mac-chrome(?:\/|$))/ }, async args => {
       const match = args.path.match(/(?:^mac-chrome|(?:^|\/)(?:lib|packages)\/mac-chrome)(?:\/(.*))?$/);
@@ -74,19 +75,22 @@ export async function buildPreview(options) {
     builder.onResolve({ filter: /^\// }, async args => {
       if (args.kind !== 'url-token') return;
       if (assetRoot === null) throw new Error(`Root-relative CSS asset needs assetRoot: ${args.path}`);
-      const path = await realpath(resolve(assetRoot, '.' + args.path));
+      const assetUrl = new URL(args.path, 'https://preview.invalid');
+      const pathname = decodeURIComponent(assetUrl.pathname);
+      const path = await realpath(resolve(assetRoot, '.' + pathname));
       const within = relative(assetRoot, path);
       if (within === '..' || within.startsWith('..' + sep) || isAbsolute(within)) throw new Error(`Asset escapes assetRoot: ${args.path}`);
-      return { path };
+      return { path, suffix: assetUrl.hash };
     });
-    builder.onLoad({ filter: /\.css$/ }, async args => ({ contents: prepareCss(await readFile(args.path, 'utf8'), args.path, cssOptions), loader: 'css', resolveDir: dirname(args.path) }));
     builder.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async args => {
       if (args.path.includes(`${sep}node_modules${sep}`)) return;
       if (sourceCache.has(args.path)) return sourceCache.get(args.path);
       const contents = await readFile(args.path, 'utf8');
       const suffix = extname(args.path).slice(1);
       const loader = ['tsx', 'jsx', 'ts'].includes(suffix) ? suffix : 'js';
-      for (const url of inspectSource((await transform(contents, { loader, jsx: 'automatic', target: 'es2022' })).code, args.path, acorn)) navigationUrls.add(url);
+      const inspection = inspectSource((await transform(contents, { loader, jsx: 'automatic', target: 'es2022' })).code, args.path, acorn);
+      for (const url of inspection.navigationUrls) navigationUrls.add(url);
+      authoredDiagnostics.push(...inspection.diagnostics);
       const result = { contents, loader, resolveDir: dirname(args.path) };
       sourceCache.set(args.path, result);
       return result;
@@ -118,12 +122,12 @@ export async function buildPreview(options) {
   if (reactRoots.size > 1) throw new Error('Multiple React installations remain in the bundle. Resolve all React imports from one dependencies project.');
   const external = Object.values(result.metafile.outputs).flatMap(item => item.imports).filter(item => item.external && !item.path.startsWith('data:'));
   if (external.length) throw new Error(`External imports remain: ${external.map(item => item.path).join(', ')}`);
-  let css = scopeCss(result.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '', root, { postcss, cssTree });
+  let css = result.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '';
   let font = null;
   if (options.fontPath && symbolReport.symbols.length) {
     await ensurePrivateOutput(output);
     font = await buildSymbolFont({ fontPath: options.fontPath, symbols: symbolReport.symbols, family: `${root}-symbols`, python: options.python ?? 'python3' });
-    css += '\n' + font.css.replace(/:root\b/g, '#' + root);
+    css += '\n' + font.css;
   }
   const minified = await modules.terser.minify(javascript, { compress: { passes: 2 }, mangle: true, format: { comments: 'some' }, ecma: 2022 });
   if (!minified.code) throw new Error('Terser did not produce JavaScript.');
@@ -132,10 +136,10 @@ export async function buildPreview(options) {
   await atomicWrite(output, formatted.fragment);
   const contributors = Object.values(result.metafile.outputs).flatMap(item => Object.entries(item.inputs)).map(([path, item]) => ({ path, bytes: item.bytesInOutput })).sort((a, b) => b.bytes - a.bytes).slice(0, 20);
   return {
-    output, root, runtimeDiagnostics, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
+    output, root, authoredDiagnostics, runtimeDiagnostics, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
     symbols: symbolReport.symbols.map(({ name }) => name), automaticSymbols: symbolReport.automatic,
     dynamicSymbolExpressions: symbolReport.dynamic, fontBytes: font?.bytes ?? 0,
     localSymbols: Boolean(options.localSymbols && !font && symbolReport.symbols.length), reactInstallations: [...reactRoots], contributors,
-    limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'Authored checks reject direct common network calls and literal resource props. Emitted-code diagnostics also inspect dependencies, but computed aliases, HTML strings, and arbitrary runtime behavior are not exhaustively analyzed. Exercise every relevant state in an isolated iframe with network blocked.', 'Use an isolated iframe permitting inline scripts/styles and data images/fonts. Keep portals inside the preview root.'],
+    limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'JavaScript resource and API-call heuristics are advisory hints, not an isolation boundary. They can miss aliases and flag harmless application data. The delivery host owns runtime restrictions.', 'Deliver one preview per isolated document permitting inline scripts/styles and data images/fonts. CSS retains its document-level semantics. Use the host runtime policy; the fragment does not create a sandbox or enforce a network policy.'],
   };
 }

@@ -39,10 +39,10 @@ either to Git or extract Apple-owned assets into a repository.
 
 The private-font output restriction applies only when the build embeds a
 subset. A symbol-free preview may write inside Git even when given an unused
-font path. For `srcSet`/`srcset` props, assignments, or `setAttribute`, use
-only one base64 image data URL with an optional width or density descriptor;
-candidate lists and other literal forms fail. Computed values remain browser
-verification work.
+font path. For `srcSet`/`srcset` props, assignments, or `setAttribute`, one
+base64 image data URL with an optional width or density descriptor is the
+recognized form. Other literals and computed values are advisory diagnostics
+for browser verification, not build failures.
 
 ## Build the three showcase modes
 
@@ -135,6 +135,15 @@ cd skills/mac-prototyping/template
 pnpm exec playwright install chromium webkit
 ```
 
+Both verifiers also require `--visualize-skill` pointing to the installed
+visualization skill directory. Their Python 3 loader reads `render.py` and
+checks the installed renderer assets before reconstructing the requested
+profile:
+
+```sh
+export CHAT_PREVIEW_VISUALIZE_SKILL='/path/to/installed/visualize-skill'
+```
+
 From the repository root, verify the managed artifact and write private
 screenshots and results outside Git:
 
@@ -143,6 +152,7 @@ node skills/mac-prototyping/examples/chat-preview/verify.mjs \
   --input /private/tmp/mac-chat-preview/showcase.html \
   --dependencies skills/mac-prototyping/template \
   --output-directory /private/tmp/mac-chat-preview/verify-menu \
+  --visualize-skill "$CHAT_PREVIEW_VISUALIZE_SKILL" \
   --width 1024
 ```
 
@@ -154,6 +164,7 @@ node skills/mac-prototyping/examples/chat-preview/verify.mjs \
   --input /private/tmp/mac-chat-preview/showcase-window.html \
   --dependencies skills/mac-prototyping/template \
   --output-directory /private/tmp/mac-chat-preview/verify-window \
+  --visualize-skill "$CHAT_PREVIEW_VISUALIZE_SKILL" \
   --width 1024 \
   --menu-hidden \
   --window-static
@@ -166,18 +177,49 @@ node skills/mac-prototyping/examples/chat-preview/verify.mjs \
   --input /private/tmp/mac-chat-preview/showcase-window-menu.html \
   --dependencies skills/mac-prototyping/template \
   --output-directory /private/tmp/mac-chat-preview/verify-window-menu \
+  --visualize-skill "$CHAT_PREVIEW_VISUALIZE_SKILL" \
   --width 1024 \
   --window-static
 ```
 
-`--input`, `--dependencies`, and `--output-directory` are required.
+`--input`, `--dependencies`, `--output-directory`, and `--visualize-skill`
+are required.
 `--width`, `--menu-hidden`, and `--window-static` are optional in general.
 Chromium and WebKit run in parallel, and the verifier refuses an output
 directory inside a Git repository.
-Static checks catch common direct resource calls and literals, but dynamic or
-aliased resources and dependencies can evade them. Treat the inline/data-only
-CSP and network-blocked sandbox browser verification as the enforcement
-boundary.
+`authoredDiagnostics` and `runtimeDiagnostics` are advisory hints for common
+direct resource and API patterns; dynamic or aliased resources and dependencies
+can evade them. The fragment does not add an iframe or CSP. The delivery host
+owns runtime restrictions. The installed renderer code requests a profile with
+`blob:`/`data:` connections and those schemes plus approved CDNs for resources,
+but the remotely loaded Skybridge inner document has not been inspected. Treat
+that as a requested profile, not proof of the effective runtime policy.
+
+Inspect the preview in its intended host for fidelity. Separately, use the
+requested-profile reconstruction, extracted host styles, and network-blocked
+browser verification to expose missing prototype dependencies; that test does
+not change the real host policy. Do not treat this recipe as proof of universal
+zero-network behavior or as a substitute for actual host acceptance.
+
+## Verify a second consumer
+
+Build the independent document-settings example with the same builder inputs,
+substituting `../../examples/chat-preview/second-consumer.tsx` as `--entry`
+and `/private/tmp/mac-chat-preview/second-consumer.html` as `--output`. Then
+run:
+
+```sh
+node skills/mac-prototyping/examples/chat-preview/verify-second-consumer.mjs \
+  --input /private/tmp/mac-chat-preview/second-consumer.html \
+  --dependencies skills/mac-prototyping/template \
+  --output-directory /private/tmp/mac-chat-preview/verify-second-consumer \
+  --visualize-skill "$CHAT_PREVIEW_VISUALIZE_SKILL" \
+  --width 1024
+```
+
+This consumer checks reconstructed-profile connection failures and an
+approved-CDN positive control. It is evidence for the reconstruction, not
+inspection of the live remote host.
 
 The skill's independent design review remains required for a final
 presentation.

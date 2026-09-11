@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildPreview } from '../src/build.mjs';
 import { formatPreview } from '../src/format.mjs';
-import { scopeCss } from '../src/css.mjs';
 import { loadToolchain } from '../src/toolchain.mjs';
 
 const tools = loadToolchain(process.env.MAC_PREVIEW_TOOLCHAIN);
-const scope = css => scopeCss(css, 'preview', { postcss: tools.postcss, cssTree: tools['css-tree'] });
 
 test('raw payload preserves executable tagged-template raw text and exact CSS text', () => {
   const css = '.x::after{content:"</StYlE>\\\\text"}';
@@ -36,33 +39,56 @@ test('raw budget and gzip comparison include semantics-preserving JSON and insta
   assert.throws(() => formatPreview({ ...input, format: 'raw', maxBytes: raw.sizes.bytes - 1 }), /maximum/);
 });
 
-test('unsupported view-transition selectors do not remove ordinary selector siblings', () => {
-  assert.equal(scope('.button,::view-transition-old(root),.other{color:red}'), '#preview .button,#preview .other{color:red}');
-  assert.equal(scope('::view-transition-old(root),::view-transition-new(root){opacity:0}'), '');
+function fragmentCss(fragment) {
+  let css;
+  const document = { createElement: tag => ({ tag }), head: { append: node => { css = node.textContent; } }, body: { append() {} } };
+  vm.runInNewContext(fragment.match(/<script>([\s\S]*)<\/script>/)[1], { document });
+  return css;
+}
+
+test('normal CSS document selectors and animation semantics survive packaging', async context => {
+  const directory = await mkdtemp(join(tmpdir(), 'chat-preview-css-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, 'preview.js'), 'import "./preview.css";document.body.dataset.ready="yes";');
+  await writeFile(join(directory, 'preview.css'), ':ROOT,HTML,Body{min-height:100vh;background:red}*::before,*.active,*:hover,*[dir]{color:blue}button,::view-transition-old(root){opacity:.5}@keyframes linear{0%,50%{width:50px}100%{width:100px}}.motion{animation:1s linear linear;animation-name:var(--animation-name)}');
+  const output = join(directory, 'preview.html');
+  await buildPreview({ entry: join(directory, 'preview.js'), output, format: 'raw' });
+  const css = fragmentCss(await readFile(output, 'utf8'));
+  assert.match(css, /:ROOT,HTML,Body\{min-height:100vh;background:red\}/);
+  assert.match(css, /\*:{1,2}before,\*\.active,\*:hover,\*\[dir\]/);
+  assert.match(css, /button,::view-transition-old\(root\)/);
+  assert.match(css, /@keyframes linear\{0%,50%\{width:50px\}/);
+  assert.match(css, /animation:1s linear linear;animation-name:var\(--animation-name\)/);
+  assert.doesNotMatch(css, /#mac-chat-preview|mac-chat-preview-linear/);
 });
 
-test('animation grammar renames name slots without changing timing and other keywords', () => {
-  const css = '@keyframes linear{to{opacity:1}}@keyframes reverse{to{opacity:0}}.x{animation:1s linear linear,2s reverse reverse;animation-name:linear,reverse}';
-  const output = scope(css);
-  assert.match(output, /animation:1s linear preview-linear,2s reverse preview-reverse/);
-  assert.match(output, /animation-name:preview-linear,preview-reverse/);
-  assert.match(output, /@keyframes preview-linear/);
+test('ordinary global at-rules and nested root selectors need no packager adaptation', async context => {
+  const directory = await mkdtemp(join(tmpdir(), 'chat-preview-global-css-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, 'preview.js'), 'import "./preview.css";document.body.dataset.ready="yes";');
+  await writeFile(join(directory, 'preview.css'), '@layer product{:where(:root){--color:red}body+.outside{color:var(--color)}}@font-face{font-family:fixture;src:url(data:font/woff2;base64,YQ==)}');
+  const output = join(directory, 'preview.html');
+  await buildPreview({ entry: join(directory, 'preview.js'), output, format: 'raw' });
+  const css = fragmentCss(await readFile(output, 'utf8'));
+  assert.match(css, /@layer product/);
+  assert.match(css, /:where\(:root\)/);
+  assert.match(css, /body\+\.outside/);
+  assert.match(css, /@font-face/);
 });
 
-test('prefixed animations and quoted keyframe names retain their references', () => {
-  const output = scope('@-webkit-keyframes fade{to{opacity:1}}@keyframes "linear"{to{opacity:0}}.x{-webkit-animation:fade 1s linear;-webkit-animation-name:fade;animation:"linear" 2s linear}');
-  assert.match(output, /@-webkit-keyframes preview-fade/);
-  assert.match(output, /-webkit-animation:preview-fade 1s linear/);
-  assert.match(output, /-webkit-animation-name:preview-fade/);
-  assert.match(output, /animation:"preview-linear"\s*2s linear/);
-});
-
-test('escaped keyframe names match animation references by decoded identifier', () => {
-  assert.match(scope('@keyframes f\\61 de{to{opacity:1}}.x{animation:fade 1s}'), /animation:preview-fade 1s/);
-});
-
-test('ambiguous variable animation names fail rather than producing broken scoped CSS', () => {
-  for (const property of ['animation', 'animation-name', '-webkit-animation', '-webkit-animation-name']) {
-    assert.throws(() => scope(`@keyframes fade{to{opacity:1}}.x{${property}:var(--motion)}`), /Cannot safely scope CSS/);
-  }
+test('embedded style entry loads the same component CSS without wallpaper assets', async () => {
+  const directory = fileURLToPath(new URL('../../mac-chrome/styles/', import.meta.url));
+  const build = entry => tools.esbuild.build({ entryPoints: [join(directory, entry)], bundle: true, write: false, metafile: true, loader: { '.svg': 'dataurl' }, external: ['/mac-assets/*'], logLevel: 'silent' });
+  const [embedded, desktop] = await Promise.all([build('embedded.css'), build('index.css')]);
+  const embeddedCss = embedded.outputFiles[0].text;
+  const desktopCss = desktop.outputFiles[0].text;
+  const componentInputs = Object.keys(embedded.metafile.inputs).filter(path => path.endsWith('.css') && !path.endsWith('/embedded.css'));
+  assert.ok(componentInputs.every(path => Object.hasOwn(desktop.metafile.inputs, path)));
+  assert.match(embeddedCss, /--mc-wallpaper-default: none/);
+  assert.doesNotMatch(embeddedCss, /wallpaper\.svg|tahoe\.jpg|data:image\/svg/);
+  assert.match(desktopCss, /--mc-wallpaper-default: url\(/);
+  assert.match(desktopCss, /tahoe\.jpg/);
+  assert.ok(Object.keys(desktop.metafile.inputs).some(path => path.endsWith('/desktop-wallpaper.css')));
+  assert.ok(!Object.keys(embedded.metafile.inputs).some(path => path.endsWith('/desktop-wallpaper.css')));
+  assert.match(embeddedCss, /html,\s*body\s*\{\s*min-width: 0;\s*min-height: 0;\s*margin: 0;\s*background: transparent;/);
 });

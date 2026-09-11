@@ -617,7 +617,7 @@ function CompositionStory({ story, onOpen, singleWindow }: { readonly singleWind
         <ul>{parts[recipe].map((part) => <li key={part}>{part}</li>)}</ul>
         <MacButton ref={triggerRef} variant="primary" onPress={() => onOpen(recipe, triggerRef.current)}>Open Example Window</MacButton>
       </section>
-      <p className="showcase-note">{singleWindow ? "The complete recipe fills this window. Use Back to Catalog to return." : "The complete recipe opens as its own window over the desktop. It is not squeezed into or visually nested inside the component catalog."}</p>
+      <p className="showcase-note">{singleWindow ? "The complete recipe fills this window. Use the Catalog action to return." : "The complete recipe opens as its own window over the desktop. It is not squeezed into or visually nested inside the component catalog."}</p>
     </div>
   );
 }
@@ -796,7 +796,7 @@ function FinderRecipe({ mode, previewVisible, sidebarVisible, onReturnCatalog, o
       onOpen={(entry) => setStatus(`Opened ${entry.name}`)}
       preview={(entry) => entry === null ? <p className="showcase-empty-preview">Select an item to preview it.</p> : <StoryPreview symbol={entry.kind === "folder" ? "folder" : "doc.text.fill"} title={entry.name} detail={[entry.modified, entry.size].filter(Boolean).join(" · ")} />}
       statusBar={<span>{shownEntries.length} items · {status}</span>}
-      toolbarExtras={<>{onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : null}<ToolbarButton label="Create folder" onClick={() => setStatus("Created a folder")}><SystemSymbol name="folder.badge.plus" /></ToolbarButton></>}
+      toolbarExtras={<>{onReturnCatalog ? <MacButton ariaLabel="Back to Catalog" onPress={onReturnCatalog}>Catalog</MacButton> : null}<ToolbarButton label="Create folder" onClick={() => setStatus("Created a folder")}><SystemSymbol name="folder.badge.plus" /></ToolbarButton></>}
       iconColumns={4}
       onClose={onClose}
     />
@@ -810,7 +810,7 @@ function ChooserRecipe({ onClose, onReturnCatalog }: { readonly onClose: () => v
   function select(id: string) { setSelectedId(id); recentChoiceIds.add(id); }
   return (
     <ChooserWindow
-      toolbarExtras={onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : undefined}
+      toolbarExtras={onReturnCatalog ? <MacButton ariaLabel="Back to Catalog" onPress={onReturnCatalog}>Catalog</MacButton> : undefined}
       title="Choose a workspace"
       subtitle="Start with a shape that matches how you work."
       finePrint={recentIds.length > 0 ? `Recently viewed: ${recentIds.length}` : "You can change this later."}
@@ -957,7 +957,7 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange, onReturnC
       search={{ value: query, onChange: setQuery }}
       sidebarVisible={sidebarVisible}
       onSidebarVisibleChange={onSidebarVisibleChange}
-      toolbarExtras={<>{onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : null}<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu></>}
+      toolbarExtras={<>{onReturnCatalog ? <MacButton ariaLabel="Back to Catalog" onPress={onReturnCatalog}>Catalog</MacButton> : null}<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu></>}
       emptyTranscript={<MacContentUnavailable title="No matching conversations" description="Try a different search." />}
       composer={chatComposer}
       onClose={onClose}

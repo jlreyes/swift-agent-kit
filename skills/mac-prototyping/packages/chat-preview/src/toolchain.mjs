@@ -8,7 +8,7 @@ export function loadToolchain(project) {
     try { resolvers.push(createRequire(primary.resolve(name))); } catch {}
   }
   const dependencies = {};
-  for (const name of ['esbuild', 'postcss', 'css-tree', 'acorn', 'terser']) {
+  for (const name of ['esbuild', 'acorn', 'terser']) {
     for (const resolver of resolvers) {
       try { dependencies[name] = resolver(name); break; }
       catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

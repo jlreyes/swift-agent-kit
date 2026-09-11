@@ -72,32 +72,32 @@ const pixel = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
 
 test('packaging fixtures', { concurrency: true }, async context => {
   await Promise.all([
-    context.test('scopes resets, document roots, and animation names', async current => {
+    context.test('preserves resets, document roots, and animation names', async current => {
       const item = await fixture(current, { 'preview.js': script, 'preview.css': ':root{--color:red}body{margin:0}*{box-sizing:border-box}@keyframes fade{from{opacity:0}to{opacity:1}}.x{animation:fade 1s}' });
       await item.build();
       const html = await item.read();
-      assert.match(html, /#mac-chat-preview\{--color:red\}/);
-      assert.match(html, /#mac-chat-preview,#mac-chat-preview \*\{box-sizing:border-box\}/);
-      assert.match(html, /@keyframes mac-chat-preview-fade/);
-      assert.match(html, /animation:mac-chat-preview-fade 1s/);
+      assert.match(html, /:root\{--color:red\}/);
+      assert.match(html, /\*\{box-sizing:border-box\}/);
+      assert.match(html, /@keyframes fade/);
+      assert.match(html, /animation:fade 1s/);
     }),
-    context.test('window mode removes wallpaper and document geometry, keeps typography', async current => {
-      const item = await fixture(current, { 'preview.js': script, 'preview.css': ':root{--mc-wallpaper-default:url("/missing.jpg")}html,body{min-width:100%;min-height:100%;margin:0}body{background:black;color:red;font-family:system-ui}' });
-      await item.build(); const html = await item.read();
-      assert.doesNotMatch(html, /(?:min-width|min-height|background):/); assert.match(html, /color:red/); assert.match(html, /--mc-wallpaper-default:none/);
+    context.test('preserves authored document geometry and embeds explicitly imported wallpaper', async current => {
+      const item = await fixture(current, { 'preview.js': script, 'preview.css': ':root{--mc-wallpaper-default:url("/pixel.svg")}html,body{min-width:100%;min-height:100%;margin:0}body{background:black;color:red;font-family:system-ui}', 'pixel.svg': pixel });
+      await item.build({ assetRoot: item.directory }); const html = await item.read();
+      assert.match(html, /min-width:100%;min-height:100%/); assert.match(html, /color:red/); assert.match(html, /--mc-wallpaper-default:url/); assert.match(html, /data:image\/svg\+xml/);
     }),
     context.test('embeds imported image and root-relative CSS image', async current => {
       const item = await fixture(current, { 'preview.js': 'import image from "./pixel.svg";import "./preview.css";document.body.dataset.image=image;', 'preview.css': '.x{background:url("/pixel.svg")}', 'pixel.svg': pixel });
       await item.build({ assetRoot: item.directory }); assert.match(await item.read(), /data:image\/svg\+xml/);
     }),
-    context.test('rejects authored resource URLs and network calls', async current => {
+    context.test('reports authored resource URLs and network calls without blocking packaging', async current => {
       for (const content of ['document.body.append(Object.assign(document.createElement("img"),{src:"./file.png"}));', 'window.fetch("https://example.com")']) {
-        const item = await fixture(current, { 'preview.js': content }); await assert.rejects(item.build(), /not self-contained|must be embedded/);
+        const item = await fixture(current, { 'preview.js': content }); const report=await item.build(); assert.ok(report.authoredDiagnostics.length>0); assert.ok(report.authoredDiagnostics.every(item=>item.severity==='advisory')); assert.ok((await item.read()).length>0);
       }
     }),
-    context.test('rejects external CSS, unsupported at-rules and nested document roots', async current => {
-      for (const css of ['.x{background:url("https://example.com/x.png")}', '@font-face{font-family:foo;src:url(data:font/woff2;base64,YQ==)}', ':where(:root){color:red}', 'body+.outside{color:red}', '.x body{color:red}']) {
-        const item = await fixture(current, { 'preview.js': script, 'preview.css': css }); await assert.rejects(item.build(), /External import|Unsupported global CSS|Nested document-root|preview boundary/);
+    context.test('rejects external CSS resource imports that cannot be embedded', async current => {
+      for (const css of ['.x{background:url("https://example.com/x.png")}', '@import "https://example.com/styles.css";']) {
+        const item = await fixture(current, { 'preview.js': script, 'preview.css': css }); await assert.rejects(item.build(), /External import/);
       }
     }),
     context.test('budget failure preserves previous artifact', async current => {

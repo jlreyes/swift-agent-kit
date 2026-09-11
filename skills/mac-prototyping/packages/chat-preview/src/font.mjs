@@ -54,6 +54,10 @@ async function outsideRepository(directory) {
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
+    try {
+      const [head, objects, refs] = await Promise.all(['HEAD', 'objects', 'refs'].map(name => stat(join(current, name))));
+      if (head.isFile() && objects.isDirectory() && refs.isDirectory()) throw new Error('Font outputDirectory must be outside every Git repository, including bare repositories.');
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const parent = dirname(current);
     if (parent === current) return;
     current = parent;

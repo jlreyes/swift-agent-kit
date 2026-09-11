@@ -127,3 +127,16 @@ test('optional real fontTools integration', { skip: !process.env.CHAT_PREVIEW_TE
   assert.ok(result.bytes > 100);
   assert.match(result.css, /data:font\/woff2;base64,/);
 });
+
+
+test('rejects bare repository output through a symlink before invoking font tools', async t => {
+  const f=await fixture(t);
+  const repository=join(f.directory,'bare');
+  await mkdir(join(repository,'objects'),{recursive:true});
+  await mkdir(join(repository,'refs'),{recursive:true});
+  await writeFile(join(repository,'HEAD'),'ref: refs/heads/main\n');
+  const alias=join(f.directory,'bare-alias');
+  await symlink(repository,alias);
+  await assert.rejects(buildSymbolFont({...f,symbols,outputDirectory:join(alias,'private','nested')}),/including bare repositories/);
+  await assert.rejects(access(f.log),{code:'ENOENT'});
+});

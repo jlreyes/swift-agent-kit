@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import vm from 'node:vm';
 import { buildPreview } from '../src/build.mjs';
 import { inspectSource, diagnoseRuntimeCode } from '../src/source.mjs';
 import { loadToolchain } from '../src/toolchain.mjs';
@@ -38,18 +39,54 @@ test('a remapped symlink cannot escape the real toolkit root', async context => 
   await assert.rejects(item.build({macChromeDirectory:join(item.directory,'canonical')}),/outside macChromeDirectory through a symlink/);
   assert.equal(await item.read(),'preserve previous artifact');
 });
-test('literal srcset candidate lists cannot hide external URLs behind an embedded prefix', () => {
+test('literal srcset candidate lists produce advisory hints even behind embedded prefixes', () => {
   for (const name of ['srcset','srcSet']) for (const value of ['#placeholder 1x, https://example.com/tracker.png 2x','data:image/png;base64,AAAA 1x, https://example.com/tracker.png 2x','data:image/png;base64,AAAA 1x, data:image/png;base64,BBBB 2x']) {
     const encoded=JSON.stringify(value);
-    for (const source of [`const props={${name}:${encoded}};`,`image.${name}=${encoded};`,`image.setAttribute("${name}",${encoded});`]) assert.throws(()=>inspectSource(source,'fixture.js',acorn),/exactly one base64 image data URL/);
+    for (const source of [`const props={${name}:${encoded}};`,`image.${name}=${encoded};`,`image.setAttribute("${name}",${encoded});`]) { const {diagnostics}=inspectSource(source,'fixture.js',acorn); assert.equal(diagnostics.length,1); assert.equal(diagnostics[0].kind,'resource-url'); assert.equal(diagnostics[0].severity,'advisory'); }
   }
 });
-test('one base64 image srcset candidate and optional descriptor are supported', () => {
+test('one base64 image srcset candidate and optional descriptor need no helper hint', () => {
   for (const name of ['srcset','srcSet']) for (const value of ['data:image/png;base64,AAAA','data:image/png;base64,AAAA 2x','data:image/png;base64,AAAA 800w']) {
-    assert.doesNotThrow(()=>inspectSource(`const props={${name}:${JSON.stringify(value)}}`,'fixture.js',acorn));
+    assert.deepEqual(inspectSource(`const props={${name}:${JSON.stringify(value)}}`,'fixture.js',acorn).diagnostics,[]);
   }
 });
 test('final dependency diagnostics flag unsupported literal srcset lists', () => {
   const diagnostics=diagnoseRuntimeCode('const props={srcSet:"#placeholder 1x, https://example.com/tracker.png 2x"}',acorn);
   assert.equal(diagnostics.length,1); assert.equal(diagnostics[0].kind,'resource-url');
+});
+
+function stylesFromRawFragment(fragment) {
+  const appended=[];
+  const document={createElement:tag=>({tag}),head:{append:node=>appended.push(node)},body:{append:node=>appended.push(node)}};
+  const script=fragment.match(/<script>([\s\S]*)<\/script>/)[1];
+  vm.runInNewContext(script,{document});
+  return appended.find(node=>node.tag==='style').textContent;
+}
+test('root CSS asset suffixes retain fragments while query keys cannot corrupt embedded bytes', async context => {
+  const svg='<svg xmlns="http://www.w3.org/2000/svg"><symbol id="check"><path d="M0 0h1v1z"/></symbol></svg>';
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6pS2sAAAAASUVORK5CYII=','base64');
+  const item=await fixture(context,{'preview.js':'import "./preview.css";document.body.dataset.ready="yes";','preview.css':'.svg{background:url("/icons.svg?v=1#check")}.png{background:url("/image.png?v=1")}.space{background:url("/space%20image.png?v=2")}','icons.svg':svg,'image.png':png,'space image.png':png});
+  await item.build({assetRoot:item.directory});
+  const css=stylesFromRawFragment(await item.read());
+  const urls=[...css.matchAll(/url\((["']?)(data:image\/.+?)\1\)/g)].map(match=>match[2]);
+  assert.equal(urls.length,3);
+  const svgUrl=urls.find(value=>value.startsWith('data:image/svg+xml'));
+  assert.equal(new URL(svgUrl).hash,'#check');
+  assert.equal(await (await fetch(svgUrl)).text(),svg);
+  for (const url of urls.filter(value=>value.startsWith('data:image/png'))) {
+    assert.equal(new URL(url).search,'');
+    assert.doesNotMatch(url,/\?v=/);
+    assert.deepEqual(Buffer.from(await (await fetch(url)).arrayBuffer()),png);
+  }
+});
+test('private-font artifacts are rejected inside bare repositories before font extraction', async context => {
+  const item=await fixture(context,{
+    'preview.js':'import {getSymbol} from "symbolist";document.body.textContent=getSymbol("folder");',
+    'node_modules/symbolist/package.json':'{"name":"symbolist","main":"index.cjs"}',
+    'node_modules/symbolist/index.cjs':'exports.getSymbol=name=>name==="folder"?"\\u{100215}":undefined;',
+    'bare/HEAD':'ref: refs/heads/main\n',
+    'bare/objects/keep':'',
+    'bare/refs/keep':'',
+  });
+  await assert.rejects(item.build({output:join(item.directory,'bare','private','preview.html'),fontPath:join(item.directory,'missing-font.otf')}),/including bare repositories/);
 });

@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { MacEmbeddedPresentation } from "../../packages/mac-chrome/index.ts";
-import "../../packages/mac-chrome/styles/index.css";
+import "../../packages/mac-chrome/styles/embedded.css";
 import { ShowcaseDesktop } from "../../template/app/showcase/showcase-desktop.tsx";
 import "../../template/app/showcase/showcase.css";
 import { SheetMotion } from "../../template/app/showcase/sheet-motion/sheet-motion.tsx";

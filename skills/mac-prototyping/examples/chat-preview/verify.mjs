@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { installHostPreview, readHostProfile } from './host-profile.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -7,20 +8,22 @@ import { dirname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 const { values } = parseArgs({ options: {
-  input: { type: 'string' }, dependencies: { type: 'string' }, 'output-directory': { type: 'string' },
+  input: { type: 'string' }, 'visualize-skill': { type: 'string' }, dependencies: { type: 'string' }, 'output-directory': { type: 'string' },
   width: { type: 'string', default: '1024' }, 'menu-hidden': { type: 'boolean', default: false }, 'window-static': { type: 'boolean', default: false },
 } });
-if (!values.input || !values.dependencies || !values['output-directory']) throw new Error('Usage: node verify.mjs --input /path/preview.html --dependencies /path/to/test-project --output-directory /private/output [--width 1024] [--menu-hidden] [--window-static]');
+if (!values.input || !values.dependencies || !values['output-directory'] || !values['visualize-skill']) throw new Error('Usage: node verify.mjs --input /path/preview.html --dependencies /path/to/test-project --output-directory /private/output --visualize-skill /path/to/visualize-skill [--width 1024] [--menu-hidden] [--window-static]');
 const width = Number(values.width);
 if (!Number.isInteger(width) || width < 320 || width > 2000) throw new Error('Width must be 320–2000');
 const inputPath = resolve(values.input);
 const source = await readFile(inputPath, 'utf8');
+const hostProfile = await readHostProfile(values['visualize-skill']);
 const requestedOutput = resolve(values['output-directory']);
 let existingParent = requestedOutput;
 while (!existsSync(existingParent)) existingParent = dirname(existingParent);
 const outputRoot = resolve(realpathSync(existingParent), relative(existingParent, requestedOutput));
 for (let ancestor = outputRoot; ; ancestor = dirname(ancestor)) {
-  if (existsSync(resolve(ancestor, '.git'))) {
+  const isBareRepository = ['HEAD', 'objects', 'refs'].every(name => existsSync(resolve(ancestor, name)));
+  if (existsSync(resolve(ancestor, '.git')) || isBareRepository) {
     throw new Error('--output-directory must be outside every Git repository so private screenshots and generated artifacts cannot be committed.');
   }
   if (dirname(ancestor) === ancestor) break;
@@ -36,14 +39,11 @@ const { chromium, webkit } = dependencyRequire(playwrightPath);
 await mkdir(outputRoot, { recursive: true });
 const storyNames = ['App Anatomy', 'Window & Toolbar', 'Navigation & Split View', 'Lists & Collections', 'Controls & Forms', 'Menus & Popovers', 'Presentation & Feedback', 'Finder', 'Chooser', 'Setup Assistant', 'Chat'];
 const observations = await Promise.all(Object.entries({ chromium, webkit }).map(async ([engineName, engine]) => {
-  const browser = await engine.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
-  page.setDefaultTimeout(10_000);
-  const result = { engineName, browserVersion: browser.version(), width, checks: [], errors: [], requests: [], console: [], screenshots: [] };
-  page.on('pageerror', error => result.errors.push(error.message));
-  page.on('console', message => { if (['error', 'warning'].includes(message.type())) result.console.push({ type: message.type(), text: message.text() }); });
-  await page.route('**/*', route => { result.requests.push(route.request().url()); return route.abort(); });
+  let browser;
+  let page;
+  const result = { engineName, browserVersion: null, width, checks: [], errors: [], requests: [], hostRequests: [], console: [], screenshots: [] };
   async function screenshot(name) {
+    if (!page) return;
     const path = resolve(outputRoot, `${engineName}-${name}.png`);
     const bytes = await page.screenshot({ path, fullPage: true });
     result.screenshots.push({ name, path, sha256: createHash('sha256').update(bytes).digest('hex') });
@@ -55,16 +55,19 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       result.checks.push({ name, passed: false, error: error.message });
       console.log(`${engineName}: FAIL ${name}: ${error.message}`);
       await screenshot(`failure-${result.checks.length}`);
-      if (!recover || name === 'opaque iframe and initial window') throw error;
+      if (!recover || name === 'independent document and initial window') throw error;
       await recover();
     }
   }
   try {
-    await page.setContent('<style>html,body{margin:0}</style><iframe sandbox="allow-scripts" style="display:block;border:0;width:100%;height:880px"></iframe>');
-    const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'unsafe-inline';style-src 'unsafe-inline';img-src data:;font-src data:;connect-src 'none'">`;
-    async function loadPreview() {
-      await page.locator('iframe').evaluate((iframe, html) => new Promise(resolve => { iframe.addEventListener('load', resolve, { once: true }); iframe.srcdoc = html; }), `<!doctype html><meta charset="utf-8">${csp}<style>html,body{margin:0}</style>${source}`);
-    }
+    browser = await engine.launch({ headless: true });
+    result.browserVersion = browser.version();
+    page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+    page.setDefaultTimeout(10_000);
+    page.on('pageerror', error => result.errors.push(error.message));
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) result.console.push({ type: message.type(), text: message.text() }); });
+    const host = await installHostPreview(page, hostProfile, { authoredRequests: result.requests, hostRequests: result.hostRequests });
+    const loadPreview = () => host.load(source);
     await loadPreview();
     const frame = page.frames()[1];
     const catalog = frame.getByRole('region', { name: 'Mac Chrome component showcase', exact: true });
@@ -83,10 +86,10 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       await catalogSource.getByText(name, { exact: true }).click();
       await catalog.getByRole('main', { name: `${name} story`, exact: true }).waitFor();
     }
-    await check('opaque iframe and initial window', async () => {
+    await check('independent document and initial window', async () => {
       await catalog.waitFor();
       const origin = await frame.evaluate(() => location.origin);
-      assert.equal(origin, 'null');
+      assert.equal(origin, host.documentOrigin);
       assert.equal(await catalog.getAttribute('data-embedded-window'), 'true');
       await screenshot('initial');
       return { origin };
@@ -172,6 +175,19 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
         const recipe = frame.getByRole('region', { name: windowName, exact: true });
         await recipe.waitFor();
         assert.equal(await recipe.getAttribute('data-key-window'), 'true');
+        if (values['window-static'] && story !== 'Setup Assistant') {
+          const returnGeometry = await recipe.getByRole('button', { name: 'Back to Catalog', exact: true }).evaluate(button => {
+            const range = document.createRange();
+            range.selectNodeContents(button);
+            const lines = new Set([...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).map(rect => Math.round(rect.top)));
+            const bounds = button.getBoundingClientRect();
+            const style = getComputedStyle(button);
+            return { label: button.textContent, lines: lines.size, height: bounds.height, minimumHeight: Number.parseFloat(style.minHeight) };
+          });
+          assert.equal(returnGeometry.label, 'Catalog');
+          assert.equal(returnGeometry.lines, 1, 'Catalog toolbar action must stay on one text line');
+          assert.ok(returnGeometry.height <= returnGeometry.minimumHeight + 1, 'Catalog toolbar action must retain its compact control height');
+        }
         if (story === 'Chat') {
           await recipe.getByRole('textbox', { name: 'Message', exact: true }).fill('Offline showcase message');
           await recipe.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -337,14 +353,16 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     }
   } catch (error) {
     result.failure = error.message;
-    await screenshot('failure');
+    try { await screenshot('failure'); }
+    catch (screenshotError) { result.errors.push(`Failure screenshot could not be captured: ${screenshotError.message}`); }
   } finally {
+    try { await browser?.close(); }
+    catch (closeError) { result.errors.push(`Browser could not be closed: ${closeError.message}`); }
     result.passed = !result.failure && result.checks.every(check => check.passed) && result.errors.length === 0 && result.requests.length === 0 && !result.console.some(message => message.type === 'error');
-    await browser.close();
   }
   return result;
 }));
-const result = { inputPath, inputBytes: Buffer.byteLength(source), inputSha256: createHash('sha256').update(source).digest('hex'), menuBarExpected: !values['menu-hidden'], windowManagementExpected: !values['window-static'], observations };
+const result = { inputPath, inputBytes: Buffer.byteLength(source), inputSha256: createHash('sha256').update(source).digest('hex'), menuBarExpected: !values['menu-hidden'], windowManagementExpected: !values['window-static'], hostProfile: hostProfile.evidence, observations };
 await writeFile(resolve(outputRoot, 'results.json'), JSON.stringify(result, null, 2));
 console.log(JSON.stringify({ inputPath, inputBytes: result.inputBytes, resultsPath: resolve(outputRoot, 'results.json'), observations: observations.map(({ engineName, passed, checks, errors, requests, console: consoleMessages, failure }) => ({ engineName, passed, completedChecks: checks.length, errors, requests, console: consoleMessages, failedChecks: checks.filter(check => !check.passed).map(check => check.name), failure })) }, null, 2));
 if (observations.some(result => !result.passed)) process.exitCode = 1;

@@ -409,11 +409,14 @@ export function DesktopShell({
   const windowManagement = embeddedPresentation?.windowManagement ?? true;
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
-  const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
+  const modalFocusReturn = useMenuModalFocusReturn(showMenuBar && openMenuIndex !== null);
   const modalFocusReturnRef = useRef(modalFocusReturn);
   modalFocusReturnRef.current = modalFocusReturn;
   const openMenuIndexRef = useRef(openMenuIndex);
-  openMenuIndexRef.current = openMenuIndex;
+  openMenuIndexRef.current = showMenuBar ? openMenuIndex : null;
+  useEffect(() => {
+    if (!showMenuBar) setOpenMenuIndex(null);
+  }, [showMenuBar]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     if (!showMenuBar || date !== undefined && clock !== undefined) return;
@@ -433,7 +436,7 @@ export function DesktopShell({
     };
   }, [clock, date, showMenuBar]);
   useEffect(() => {
-    if (openMenuIndex === null) return;
+    if (!showMenuBar || openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) {
@@ -443,8 +446,9 @@ export function DesktopShell({
     }
     document.addEventListener("pointerdown", dismissFromOutside);
     return () => document.removeEventListener("pointerdown", dismissFromOutside);
-  }, [openMenuIndex]);
+  }, [openMenuIndex, showMenuBar]);
   useEffect(() => {
+    if (!showMenuBar) return;
     function moveFocusOutOfMenu(event: KeyboardEvent) {
       if (
         event.key !== "Tab"
@@ -471,7 +475,7 @@ export function DesktopShell({
     }
     document.addEventListener("keydown", moveFocusOutOfMenu, true);
     return () => document.removeEventListener("keydown", moveFocusOutOfMenu, true);
-  }, []);
+  }, [showMenuBar]);
   const canvasStyle: DesktopCanvasStyle | undefined = wallpaper
     ? { "--mc-wallpaper": wallpaperImageValue(wallpaper) }
     : undefined;

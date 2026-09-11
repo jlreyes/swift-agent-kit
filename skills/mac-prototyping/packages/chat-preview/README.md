@@ -43,9 +43,16 @@ different location for the pinned build tools.
 
 When the entry uses `SystemSymbol`, provide `fontPath` to embed a private
 minimal subset, or explicitly choose `localSymbols: true` for a local-only
-preview. The private-font path requires an output directory outside every Git
-repository. The supplied Python must already have fontTools and Brotli; no
-font tooling is downloaded automatically.
+preview. The private-font output guard applies only when a subset is actually
+embedded, so a symbol-free entry may write inside Git even if it receives an
+unused `fontPath`. `localSymbols` reports true only when symbols actually use
+that local-only path. The supplied Python must already have fontTools and
+Brotli; no font tooling is downloaded automatically.
+
+For `srcSet`/`srcset` resource props, assignments, or `setAttribute`, the
+only accepted literal form is one base64 image data URL with an optional width
+or density descriptor. Literal candidate lists and other forms fail explicitly;
+computed values remain diagnostics that need browser verification.
 
 ## Symbols and runtime diagnostics
 

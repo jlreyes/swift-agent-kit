@@ -639,3 +639,47 @@ test("the coverage map includes the runtime surface apart from the separately te
     expect(coveredExports).toContain(exportName);
   }
 });
+
+
+test.each(["Finder", "Chooser", "Setup Assistant", "Chat"] as const)("single-window %s returns to its catalog trigger and retains the recipe", async (story) => {
+  const user = userEvent.setup();
+  render(<MacChrome.MacEmbeddedPresentation><ShowcaseDesktop singleWindow /></MacChrome.MacEmbeddedPresentation>);
+  await user.click(sourceItem(story));
+  const trigger = screen.getByRole("button", { name: "Open Example Window" });
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const recipe = screen.getByRole("region", { name: `${story} showcase` });
+  if (story === "Chat") {
+    fireEvent.change(within(recipe).getByRole("textbox", { name: "Message" }), { target: { value: "Retained draft" } });
+    expect((within(recipe).getByRole("textbox", { name: "Message" }) as HTMLTextAreaElement).value).toBe("Retained draft");
+  }
+  expect(screen.queryByRole("navigation", { name: "Showcase Dock" })).toBeNull();
+  expect(within(recipe).queryByRole("button", { name: "Close window" })).toBeNull();
+  await user.click(within(recipe).getByRole("button", { name: "Back to Catalog" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: `${story} showcase` })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+  expect(screen.getByRole("main", { name: `${story} story` })).toBeDefined();
+  expect(sourceItem(story).getAttribute("aria-selected")).toBe("true");
+  await user.keyboard("{Enter}");
+  const reopened = screen.getByRole("region", { name: `${story} showcase` });
+  expect(reopened).toBe(recipe);
+  if (story === "Chat") expect((within(reopened).getByRole("textbox", { name: "Message" }) as HTMLTextAreaElement).value).toBe("Retained draft");
+});
+
+test("single-window Setup keeps step Back and returns focus after finishing", async () => {
+  const user = userEvent.setup();
+  render(<MacChrome.MacEmbeddedPresentation><ShowcaseDesktop singleWindow /></MacChrome.MacEmbeddedPresentation>);
+  await user.click(sourceItem("Setup Assistant"));
+  const trigger = screen.getByRole("button", { name: "Open Example Window" });
+  await user.click(trigger);
+  const setup = screen.getByRole("region", { name: "Setup Assistant showcase" });
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  expect(within(setup).queryByRole("button", { name: "Back to Catalog" })).toBeNull();
+  await user.click(within(setup).getByRole("button", { name: "Back" }));
+  expect(within(setup).getByRole("button", { name: "Back to Catalog" })).toBeDefined();
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Finish" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Setup Assistant showcase" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+});

@@ -72,8 +72,10 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     const catalogDock = dock.getByRole('button', { name: 'Mac Chrome', exact: true });
     recover = async () => {
       if (await frame.getByRole('dialog').count() || await frame.getByRole('alertdialog').count()) await page.keyboard.press('Escape');
-      if (values['window-static']) await loadPreview();
-      else await catalogDock.click();
+      if (values['window-static']) {
+        const back = frame.getByRole('button', { name: 'Back to Catalog', exact: true });
+        if (await back.isVisible()) await back.click();
+      } else await catalogDock.click();
       await catalog.waitFor();
     };
     const catalogSource = catalog.locator('[aria-label="Component catalog"].mc-sidebar-tree');
@@ -165,7 +167,8 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     for (const [story, windowName] of [['Finder', 'Finder showcase'], ['Chooser', 'Chooser showcase'], ['Setup Assistant', 'Setup Assistant showcase'], ['Chat', 'Chat showcase']]) {
       await check(`recipe ${story}`, async () => {
         await selectStory(story);
-        await catalog.getByRole('button', { name: 'Open Example Window' }).click();
+        const launch = catalog.getByRole('button', { name: 'Open Example Window' });
+        await launch.press('Enter');
         const recipe = frame.getByRole('region', { name: windowName, exact: true });
         await recipe.waitFor();
         assert.equal(await recipe.getAttribute('data-key-window'), 'true');
@@ -173,10 +176,31 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
           await recipe.getByRole('textbox', { name: 'Message', exact: true }).fill('Offline showcase message');
           await recipe.getByRole('button', { name: 'Send message', exact: true }).click();
           await recipe.getByRole('log', { name: 'Conversation' }).getByText('Offline showcase message', { exact: false }).waitFor();
+          if (values['window-static']) await recipe.getByRole('textbox', { name: 'Message', exact: true }).fill('Retained recipe draft');
         }
         await screenshot(`recipe-${story.toLowerCase().replaceAll(' ', '-')}`);
-        if (values['window-static']) await loadPreview();
-        else {
+        if (values['window-static']) {
+          if (story === 'Setup Assistant') {
+            await recipe.getByRole('button', { name: 'Continue', exact: true }).click();
+            await recipe.getByRole('button', { name: 'Back', exact: true }).click();
+          }
+          const windowId = await recipe.getAttribute('data-window-id');
+          await recipe.getByRole('button', { name: 'Back to Catalog', exact: true }).press('Enter');
+          await recipe.waitFor({ state: 'hidden' });
+          await catalog.getByRole('main', { name: `${story} story`, exact: true }).waitFor();
+          assert.equal(await catalog.getAttribute('data-key-window'), 'true');
+          await frame.waitForFunction(() => document.activeElement?.textContent === 'Open Example Window');
+          await launch.press('Enter');
+          await recipe.waitFor();
+          assert.equal(await recipe.getAttribute('data-window-id'), windowId);
+          if (story === 'Chat') {
+            assert.equal(await recipe.getByRole('textbox', { name: 'Message', exact: true }).inputValue(), 'Retained recipe draft');
+            await recipe.getByRole('log', { name: 'Conversation' }).getByText('Offline showcase message', { exact: false }).waitFor();
+          }
+          await recipe.getByRole('button', { name: 'Back to Catalog', exact: true }).press('Enter');
+          await recipe.waitFor({ state: 'hidden' });
+          await frame.waitForFunction(() => document.activeElement?.textContent === 'Open Example Window');
+        } else {
           await recipe.getByRole('button', { name: 'Close window', exact: true }).click();
           await recipe.waitFor({ state: 'hidden' });
           await catalogDock.click();

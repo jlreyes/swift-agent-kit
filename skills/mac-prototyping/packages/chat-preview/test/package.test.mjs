@@ -115,7 +115,7 @@ test('packaging fixtures', { concurrency: true }, async context => {
       await assert.rejects(item.build({ fontPath: join(item.directory, 'missing.otf') }), /Cannot read local source font/);
     }),
     context.test('font-backed output cannot be written inside a repository', async current => {
-      const item = await fixture(current, { 'preview.js': 'document.body.textContent="test";', '.git': 'gitdir: elsewhere', 'preview.html': 'unchanged' });
+      const item = await fixture(current, { 'preview.js': 'import {getSymbol} from "symbolist";document.body.textContent=getSymbol("folder");', 'node_modules/symbolist/package.json': '{"name":"symbolist","main":"index.cjs"}', 'node_modules/symbolist/index.cjs': 'exports.getSymbol=name=>name==="folder"?"\\u{100215}":undefined;', '.git': 'gitdir: elsewhere', 'preview.html': 'unchanged' });
       await assert.rejects(item.build({ fontPath: '/missing/font.otf' }), /outside every Git repository/);
       assert.equal(await item.read(), 'unchanged');
     }),

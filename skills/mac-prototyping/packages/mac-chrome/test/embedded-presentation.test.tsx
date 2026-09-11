@@ -82,6 +82,20 @@ describe("embedded presentation", () => {
     expect(screen.queryByRole("navigation", { name: "Dock" })).toBeNull();
   });
 
+  it("closes an open menu when hidden and restores the menu bar with every menu closed", async () => {
+    const { rerender } = render(<EmbeddedDesktop menuBar />);
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    await screen.findByRole("menu", { name: "Window menu" });
+    rerender(<EmbeddedDesktop menuBar={false} />);
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Window menu" })).toBeNull());
+    expect(screen.queryByRole("button", { name: "Window" })).toBeNull();
+    rerender(<EmbeddedDesktop menuBar />);
+    expect(screen.getByRole("button", { name: "Window" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    expect(await screen.findByRole("menu", { name: "Window menu" })).toBeTruthy();
+  });
+
   it("refreshes the clock immediately when a hidden menu bar becomes visible", () => {
     vi.useFakeTimers();
     try {

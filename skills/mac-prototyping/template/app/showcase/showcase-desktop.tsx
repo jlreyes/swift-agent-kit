@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ChatWindow,
@@ -599,8 +599,9 @@ function PresentationStory({ sheetMotionHref }: { readonly sheetMotionHref: stri
   );
 }
 
-function CompositionStory({ story, onOpen }: { readonly story: StoryDefinition; readonly onOpen: (id: RecipeId) => void }) {
+function CompositionStory({ story, onOpen, singleWindow }: { readonly singleWindow: boolean; readonly story: StoryDefinition; readonly onOpen: (id: RecipeId, trigger: HTMLButtonElement | null) => void }) {
   const recipe = story.id as RecipeId;
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const parts: Record<RecipeId, readonly string[]> = {
     finder: ["MacNavigationSplitView", "MacSourceList", "MacToolbar", "collection + preview", "Quick Look"],
     chooser: ["WindowChrome", "selection collection", "MacMenu", "preview", "action footer"],
@@ -614,14 +615,14 @@ function CompositionStory({ story, onOpen }: { readonly story: StoryDefinition; 
         <SystemSymbol name={story.symbol} />
         <h3>Composed from</h3>
         <ul>{parts[recipe].map((part) => <li key={part}>{part}</li>)}</ul>
-        <MacButton variant="primary" onPress={() => onOpen(recipe)}>Open Example Window</MacButton>
+        <MacButton ref={triggerRef} variant="primary" onPress={() => onOpen(recipe, triggerRef.current)}>Open Example Window</MacButton>
       </section>
-      <p className="showcase-note">The complete recipe opens as its own window over the desktop. It is not squeezed into or visually nested inside the component catalog.</p>
+      <p className="showcase-note">{singleWindow ? "The complete recipe fills this window. Use Back to Catalog to return." : "The complete recipe opens as its own window over the desktop. It is not squeezed into or visually nested inside the component catalog."}</p>
     </div>
   );
 }
 
-function StoryContent({ story, onOpenRecipe, sheetMotionHref }: { readonly story: StoryDefinition; readonly onOpenRecipe: (id: RecipeId) => void; readonly sheetMotionHref: string }) {
+function StoryContent({ story, onOpenRecipe, sheetMotionHref, singleWindow }: { readonly singleWindow: boolean; readonly story: StoryDefinition; readonly onOpenRecipe: (id: RecipeId, trigger: HTMLButtonElement | null) => void; readonly sheetMotionHref: string }) {
   if (story.id === "anatomy") return <AppAnatomyStory />;
   if (story.id === "window-toolbar") return <WindowToolbarStory />;
   if (story.id === "navigation") return <NavigationStory />;
@@ -629,11 +630,12 @@ function StoryContent({ story, onOpenRecipe, sheetMotionHref }: { readonly story
   if (story.id === "controls") return <ControlsStory />;
   if (story.id === "menus") return <MenusStory />;
   if (story.id === "presentation") return <PresentationStory sheetMotionHref={sheetMotionHref} />;
-  return <CompositionStory story={story} onOpen={onOpenRecipe} />;
+  return <CompositionStory singleWindow={singleWindow} story={story} onOpen={onOpenRecipe} />;
 }
 
-function CatalogWindow({ sheetMotionHref, activeStory, canGoBack, canGoForward, inspectorVisible, query, sidebarVisible, status, onBack, onForward, onInspectorVisibleChange, onOpenRecipe, onQueryChange, onSelectStory, onSidebarVisibleChange }: {
+function CatalogWindow({ sheetMotionHref, singleWindow, activeStory, canGoBack, canGoForward, inspectorVisible, query, sidebarVisible, status, onBack, onForward, onInspectorVisibleChange, onOpenRecipe, onQueryChange, onSelectStory, onSidebarVisibleChange }: {
   readonly sheetMotionHref: string;
+  readonly singleWindow: boolean;
   readonly activeStory: StoryDefinition;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;
@@ -644,7 +646,7 @@ function CatalogWindow({ sheetMotionHref, activeStory, canGoBack, canGoForward, 
   readonly onBack: () => void;
   readonly onForward: () => void;
   readonly onInspectorVisibleChange: (visible: boolean) => void;
-  readonly onOpenRecipe: (id: RecipeId) => void;
+  readonly onOpenRecipe: (id: RecipeId, trigger: HTMLButtonElement | null) => void;
   readonly onQueryChange: (value: string) => void;
   readonly onSelectStory: (id: StoryId) => void;
   readonly onSidebarVisibleChange: (visible: boolean) => void;
@@ -724,7 +726,7 @@ function CatalogWindow({ sheetMotionHref, activeStory, canGoBack, canGoForward, 
                   }
                 />
                 <main className="showcase-story-content" data-showcase-story={activeStory.id} aria-label={`${activeStory.label} story`}>
-                  <StoryContent sheetMotionHref={sheetMotionHref} story={activeStory} onOpenRecipe={onOpenRecipe} />
+                  <StoryContent singleWindow={singleWindow} sheetMotionHref={sheetMotionHref} story={activeStory} onOpenRecipe={onOpenRecipe} />
                 </main>
                 <MacWindowStatusBar live="polite" trailing={`${stories.length} examples`}>{status}</MacWindowStatusBar>
               </div>
@@ -745,7 +747,8 @@ function CatalogWindow({ sheetMotionHref, activeStory, canGoBack, canGoForward, 
   );
 }
 
-function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeChange, onPreviewVisibleChange, onSidebarVisibleChange }: {
+function FinderRecipe({ mode, previewVisible, sidebarVisible, onReturnCatalog, onClose, onModeChange, onPreviewVisibleChange, onSidebarVisibleChange }: {
+  readonly onReturnCatalog?: () => void;
   readonly mode: FinderViewMode;
   readonly previewVisible: boolean;
   readonly sidebarVisible: boolean;
@@ -793,20 +796,21 @@ function FinderRecipe({ mode, previewVisible, sidebarVisible, onClose, onModeCha
       onOpen={(entry) => setStatus(`Opened ${entry.name}`)}
       preview={(entry) => entry === null ? <p className="showcase-empty-preview">Select an item to preview it.</p> : <StoryPreview symbol={entry.kind === "folder" ? "folder" : "doc.text.fill"} title={entry.name} detail={[entry.modified, entry.size].filter(Boolean).join(" · ")} />}
       statusBar={<span>{shownEntries.length} items · {status}</span>}
-      toolbarExtras={<ToolbarButton label="Create folder" onClick={() => setStatus("Created a folder")}><SystemSymbol name="folder.badge.plus" /></ToolbarButton>}
+      toolbarExtras={<>{onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : null}<ToolbarButton label="Create folder" onClick={() => setStatus("Created a folder")}><SystemSymbol name="folder.badge.plus" /></ToolbarButton></>}
       iconColumns={4}
       onClose={onClose}
     />
   );
 }
 
-function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
+function ChooserRecipe({ onClose, onReturnCatalog }: { readonly onClose: () => void; readonly onReturnCatalog?: () => void }) {
   const recentIds = recentChoiceIds.useStoredIds();
   const [selectedId, setSelectedId] = useState<string | null>("personal");
   const [status, setStatus] = useState("Choose a workspace type.");
   function select(id: string) { setSelectedId(id); recentChoiceIds.add(id); }
   return (
     <ChooserWindow
+      toolbarExtras={onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : undefined}
       title="Choose a workspace"
       subtitle="Start with a shape that matches how you work."
       finePrint={recentIds.length > 0 ? `Recently viewed: ${recentIds.length}` : "You can change this later."}
@@ -827,7 +831,8 @@ function ChooserRecipe({ onClose }: { readonly onClose: () => void }) {
   );
 }
 
-function SetupRecipe({ onCancel, onClose, onComplete }: {
+function SetupRecipe({ onCancel, onClose, onComplete, singleWindow = false }: {
+  readonly singleWindow?: boolean;
   readonly onCancel: () => void;
   readonly onClose: () => void;
   readonly onComplete: () => void;
@@ -864,7 +869,7 @@ function SetupRecipe({ onCancel, onClose, onComplete }: {
         setFurthestIndex((current) => Math.max(current, next));
         setStepIndex(next);
       }}
-      backLabel={stepIndex === 0 ? "Not Now" : "Back"}
+      backLabel={stepIndex === 0 ? singleWindow ? "Back to Catalog" : "Not Now" : "Back"}
       continueLabel={stepIndex === setupSteps.length - 1 ? "Finish" : "Continue"}
       onClose={onClose}
     >
@@ -883,7 +888,8 @@ function SetupRecipe({ onCancel, onClose, onComplete }: {
   );
 }
 
-function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
+function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange, onReturnCatalog }: {
+  readonly onReturnCatalog?: () => void;
   readonly sidebarVisible: boolean;
   readonly onClose: () => void;
   readonly onSidebarVisibleChange: (visible: boolean) => void;
@@ -951,7 +957,7 @@ function ChatRecipe({ sidebarVisible, onClose, onSidebarVisibleChange }: {
       search={{ value: query, onChange: setQuery }}
       sidebarVisible={sidebarVisible}
       onSidebarVisibleChange={onSidebarVisibleChange}
-      toolbarExtras={<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu>}
+      toolbarExtras={<>{onReturnCatalog ? <MacButton onPress={onReturnCatalog}>Back to Catalog</MacButton> : null}<MacDetailsMenu className="showcase-toolbar-details" label="Conversation details" summary={<SystemSymbol name="person.2.fill" />}><div className="showcase-conversation-details"><strong>Participants</strong><span>You · Owner</span><span>Assistant · Agent</span></div></MacDetailsMenu></>}
       emptyTranscript={<MacContentUnavailable title="No matching conversations" description="Try a different search." />}
       composer={chatComposer}
       onClose={onClose}
@@ -1020,6 +1026,7 @@ const showcaseApps = {
 const showcaseAppManifest: readonly MacAppDefinition[] = Object.values(showcaseApps);
 
 type ShowcaseDesktopProps = {
+  readonly singleWindow?: boolean;
   readonly sheetMotionHref?: string;
   readonly initialSidebarVisible?: boolean;
   readonly initialInspectorVisible?: boolean;
@@ -1033,7 +1040,7 @@ export function ShowcaseDesktop(props: ShowcaseDesktopProps = {}) {
   );
 }
 
-function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", initialSidebarVisible = true, initialInspectorVisible = true }: ShowcaseDesktopProps) {
+function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/showcase/sheet-motion", initialSidebarVisible = true, initialInspectorVisible = true }: ShowcaseDesktopProps) {
   const windowManager = useMacWindowManager();
   const [storyHistory, setStoryHistory] = useState<readonly StoryId[]>(["anatomy"]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -1049,6 +1056,13 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
   const [activityAlertOpen, setActivityAlertOpen] = useState(false);
   const [status, setStatus] = useState("Mac Chrome standard library is ready.");
   const activityTriggerRef = useRef<HTMLButtonElement>(null);
+  const recipeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [restoreRecipeFocus, setRestoreRecipeFocus] = useState(false);
+  useEffect(() => {
+    if (!restoreRecipeFocus || windowManager.keyAppId !== "catalog") return;
+    recipeTriggerRef.current?.focus();
+    setRestoreRecipeFocus(false);
+  }, [restoreRecipeFocus, windowManager.keyAppId]);
   const activeStoryId = storyHistory[historyIndex] ?? "anatomy";
   const activeStory = stories.find((story) => story.id === activeStoryId) ?? stories[0];
   const viewTarget: RecipeId | "catalog" | "system" = windowManager.keyAppId === "finder"
@@ -1096,10 +1110,19 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
     setStatus(visible ? "Chat sidebar shown." : "Chat sidebar hidden.");
   }
 
-  function activateRecipe(recipe: RecipeId) {
+  function activateRecipe(recipe: RecipeId, trigger: HTMLButtonElement | null) {
+    recipeTriggerRef.current = trigger;
     const app = windowManager.apps.find((candidate) => candidate.id === recipe);
     windowManager.activateApp(recipe);
     setStatus(`${app?.name ?? recipe} ${app?.running ? "activated" : "launched"}.`);
+  }
+
+  function returnToCatalog(recipe: RecipeId) {
+    for (const window of windowManager.windows) {
+      if (window.appId === recipe && window.state === "open") windowManager.closeWindow(window.id);
+    }
+    windowManager.activateApp("catalog");
+    setRestoreRecipeFocus(true);
   }
 
   function closeSetup(statusMessage: string) {
@@ -1107,6 +1130,10 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
       window.appId === showcaseApps.setup.id && window.state === "open",
     );
     if (setupWindow !== undefined) windowManager.closeWindow(setupWindow.id);
+    if (singleWindow) {
+      windowManager.activateApp("catalog");
+      setRestoreRecipeFocus(true);
+    }
     setStatus(statusMessage);
   }
 
@@ -1215,6 +1242,7 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
     >
       <MacApp {...showcaseApps.catalog}>
         <CatalogWindow
+          singleWindow={singleWindow}
           sheetMotionHref={sheetMotionHref}
           activeStory={activeStory}
           canGoBack={historyIndex > 0}
@@ -1234,6 +1262,7 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
       </MacApp>
       <MacApp {...showcaseApps.finder}>
         <FinderRecipe
+          onReturnCatalog={singleWindow ? () => returnToCatalog("finder") : undefined}
           mode={finderMode}
           previewVisible={finderPreviewVisible}
           sidebarVisible={finderSidebarVisible}
@@ -1244,17 +1273,18 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
         />
       </MacApp>
       <MacApp {...showcaseApps.chooser}>
-        <ChooserRecipe onClose={() => setStatus("Chooser window closed.")} />
+        <ChooserRecipe onReturnCatalog={singleWindow ? () => returnToCatalog("chooser") : undefined} onClose={() => setStatus("Chooser window closed.")} />
       </MacApp>
       <MacApp {...showcaseApps.setup}>
         <SetupRecipe
+          singleWindow={singleWindow}
           onCancel={() => closeSetup("Setup Assistant cancelled.")}
           onClose={() => setStatus("Setup Assistant window closed.")}
           onComplete={() => closeSetup("Setup Assistant completed.")}
         />
       </MacApp>
       <MacApp {...showcaseApps.chat}>
-        <ChatRecipe sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />
+        <ChatRecipe onReturnCatalog={singleWindow ? () => returnToCatalog("chat") : undefined} sidebarVisible={chatSidebarVisible} onClose={() => setStatus("Chat window closed.")} onSidebarVisibleChange={updateChatSidebarVisibility} />
       </MacApp>
       <MacApp {...showcaseApps.appStore}><SystemAppRecipe label="App Store" symbol="app" /></MacApp>
       <MacApp {...showcaseApps.chrome}><SystemAppRecipe label="Google Chrome" symbol="network" /></MacApp>

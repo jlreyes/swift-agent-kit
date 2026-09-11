@@ -82,15 +82,17 @@ maps to: a contained Mac desktop presentation; no direct SwiftUI counterpart.
 `MacEmbeddedPresentation({ children, height = 640, menuBar = false, windowManagement = false }: { readonly children: ReactNode; readonly height?: number; readonly menuBar?: boolean; readonly windowManagement?: boolean })`
 
 Use this as the outer boundary for a Mac surface embedded in a bounded host,
-such as a chat preview. By default it renders one fixed-flow window with an
-inert visual traffic-light cluster: it does not offer dragging, resizing, a
-Dock, or managed window state. `menuBar` independently adds app menus.
+such as a chat preview. By default it presents supplied `WindowChrome`
+children as fixed full-frame surfaces with inert visual traffic lights: it
+does not create a window or offer dragging, resizing, a Dock, or managed
+window state. `menuBar` reveals menus supplied by a child `DesktopShell`.
 
 Set `windowManagement` only when a prototype needs managed close, minimize,
-restore, zoom, desktop insets, and a Dock. It then composes the existing
-`MacWindowManager`, `DesktopShell`, `MacApp`, and `MacAppDock` model. A
-multiple-window or managed-desktop demo commonly enables both
-`windowManagement` and `menuBar`.
+restore, zoom, desktop insets, and a Dock. The presentation is only the
+bounded context and host: it does not render a manager, shell, app, or Dock.
+Its children must compose `MacWindowManager`, `DesktopShell`, `MacApp`, and
+`MacAppDock` when that behavior is wanted. A multiple-window or
+managed-desktop demo commonly enables both `windowManagement` and `menuBar`.
 
 Menus and popovers must use the presentation's scoped host so they remain
 inside the bounded surface. React Aria's modal isolation is still

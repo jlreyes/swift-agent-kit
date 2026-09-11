@@ -27,7 +27,7 @@ export default function EmbeddedShowcase({ menuBar = true, windowManagement = tr
     <div onClickCapture={navigate}>
       <MacEmbeddedPresentation menuBar={menuBar} windowManagement={windowManagement} height={640}>
         {page === "showcase"
-          ? <ShowcaseDesktop sheetMotionHref="#/showcase/sheet-motion" initialSidebarVisible={initialWidth >= 500} initialInspectorVisible={initialWidth >= 1000} />
+          ? <ShowcaseDesktop singleWindow={!windowManagement} sheetMotionHref="#/showcase/sheet-motion" initialSidebarVisible={initialWidth >= 500} initialInspectorVisible={initialWidth >= 1000} />
           : <SheetMotion showcaseHref="#/showcase" />}
       </MacEmbeddedPresentation>
     </div>

@@ -37,6 +37,13 @@ export CHAT_PREVIEW_PYTHON='python3'
 The source font and the generated subset are private local inputs. Do not add
 either to Git or extract Apple-owned assets into a repository.
 
+The private-font output restriction applies only when the build embeds a
+subset. A symbol-free preview may write inside Git even when given an unused
+font path. For `srcSet`/`srcset` props, assignments, or `setAttribute`, use
+only one base64 image data URL with an optional width or density descriptor;
+candidate lists and other literal forms fail. Computed values remain browser
+verification work.
+
 ## Build the three showcase modes
 
 Run this from `skills/mac-prototyping/packages/chat-preview`. The output path

@@ -34,7 +34,6 @@ export async function buildPreview(options) {
   if (entry === output) throw new Error('output must differ from entry.');
   const root = options.root ?? 'mac-chat-preview';
   validateRoot(root);
-  if (options.fontPath) await ensurePrivateOutput(output);
   const dependencies = resolve(options.dependencies ?? dirname(entry));
   const projectRequire = createRequire(resolve(dependencies, '__preview_resolver__.cjs'));
   const modules = loadToolchain(options.toolchain);
@@ -49,14 +48,21 @@ export async function buildPreview(options) {
   const sourceCache = new Map();
   const navigationUrls = new Set();
   const plugin = { name: 'self-contained-mac-preview', setup(builder) {
-    if (options.macChromeDirectory) builder.onResolve({ filter: /(?:^mac-chrome(?:\/|$)|(?:^|\/)(?:lib|packages)\/mac-chrome(?:\/|$))/ }, args => {
+    if (options.macChromeDirectory) builder.onResolve({ filter: /(?:^mac-chrome(?:\/|$)|(?:^|\/)(?:lib|packages)\/mac-chrome(?:\/|$))/ }, async args => {
       const match = args.path.match(/(?:^mac-chrome|(?:^|\/)(?:lib|packages)\/mac-chrome)(?:\/(.*))?$/);
       if (!match) return;
-      const rootPath = resolve(options.macChromeDirectory);
-      const path = resolve(rootPath, match[1] || 'index.ts');
-      const within = relative(rootPath, path);
-      if (within.startsWith('..' + sep) || within === '..' || isAbsolute(within)) throw new Error('mac-chrome import escapes macChromeDirectory.');
-      return { path };
+      const rootPath = await realpath(resolve(options.macChromeDirectory));
+      const requested = resolve(rootPath, match[1] || 'index');
+      const inside = path => { const within = relative(rootPath, path); return within !== '..' && !within.startsWith('..' + sep) && !isAbsolute(within); };
+      if (!inside(requested)) throw new Error('mac-chrome import escapes macChromeDirectory.');
+      for (const suffix of ['', '.ts', '.tsx', '.mjs', '.js', '.jsx', '.cjs', '/index.ts', '/index.tsx', '/index.mjs', '/index.js', '/index.jsx', '/index.cjs']) {
+        let path;
+        try { path = await realpath(requested + suffix); }
+        catch (error) { if (['ENOENT', 'ENOTDIR'].includes(error.code)) continue; throw error; }
+        if (!inside(path)) throw new Error('mac-chrome import resolves outside macChromeDirectory through a symlink.');
+        if ((await stat(path)).isFile()) return { path };
+      }
+      throw new Error(`Cannot resolve mac-chrome import ${args.path} inside macChromeDirectory.`);
     });
     builder.onResolve({ filter: /^symbolist$/ }, () => { importsSymbols = true; return { path: 'symbolist', namespace: 'preview-symbols' }; });
     builder.onLoad({ filter: /.*/, namespace: 'preview-symbols' }, () => ({ contents: packagedSymbols === null ? 'export function getSymbol(name){return globalThis.__MAC_PREVIEW_SYMBOL_PROBE__(name)}' : symbolModule(packagedSymbols), loader: 'js' }));
@@ -115,6 +121,7 @@ export async function buildPreview(options) {
   let css = scopeCss(result.outputFiles.find(file => file.path.endsWith('.css'))?.text ?? '', root, { postcss, cssTree });
   let font = null;
   if (options.fontPath && symbolReport.symbols.length) {
+    await ensurePrivateOutput(output);
     font = await buildSymbolFont({ fontPath: options.fontPath, symbols: symbolReport.symbols, family: `${root}-symbols`, python: options.python ?? 'python3' });
     css += '\n' + font.css.replace(/:root\b/g, '#' + root);
   }
@@ -128,7 +135,7 @@ export async function buildPreview(options) {
     output, root, runtimeDiagnostics, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
     symbols: symbolReport.symbols.map(({ name }) => name), automaticSymbols: symbolReport.automatic,
     dynamicSymbolExpressions: symbolReport.dynamic, fontBytes: font?.bytes ?? 0,
-    localSymbols: Boolean(options.localSymbols && !font), reactInstallations: [...reactRoots], contributors,
+    localSymbols: Boolean(options.localSymbols && !font && symbolReport.symbols.length), reactInstallations: [...reactRoots], contributors,
     limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'Authored checks reject direct common network calls and literal resource props. Emitted-code diagnostics also inspect dependencies, but computed aliases, HTML strings, and arbitrary runtime behavior are not exhaustively analyzed. Exercise every relevant state in an isolated iframe with network blocked.', 'Use an isolated iframe permitting inline scripts/styles and data images/fonts. Keep portals inside the preview root.'],
   };
 }

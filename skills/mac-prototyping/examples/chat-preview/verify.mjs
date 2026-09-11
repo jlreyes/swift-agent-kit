@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { installHostPreview, readHostProfile } from './host-profile.mjs';
+import { installHostPreview, readHostProfile, refreshObservedHostTheme } from './host-profile.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -102,6 +102,22 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     for (const [index, name] of storyNames.entries()) {
       await check(`story ${name}`, async () => { await selectStory(name); await screenshot(`story-${index + 1}`); });
     }
+    await check('toolkit palette survives host theme and refresh', async () => {
+      async function palette() {
+        const glyph = await catalog.locator('.mc-sidebar-item-icon .mc-system-symbol').first().evaluate(element => ({ color: getComputedStyle(element).color, fontFamily: getComputedStyle(element).fontFamily }));
+        const primary = await catalog.getByRole('button', { name: 'Open Example Window', exact: true }).evaluate(element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
+        assert.equal(glyph.color, 'rgb(10, 122, 255)');
+        assert.match(glyph.fontFamily, /mac-chat-preview-symbols/);
+        assert.equal(primary.background, 'rgb(10, 122, 255)');
+        assert.equal(primary.color, 'rgb(255, 255, 255)');
+        return { glyph, primary };
+      }
+      const initial = await palette();
+      await refreshObservedHostTheme(frame);
+      const refreshed = await palette();
+      await screenshot('palette');
+      return { initial, refreshed };
+    });
     await check('controlled preferences', async () => {
       await selectStory('Controls & Forms');
       const form = catalog.getByRole('form', { name: 'Example preferences' });
@@ -122,6 +138,8 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     await check('command menu and interactive popover', async () => {
       await selectStory('Menus & Popovers');
       await catalog.getByRole('button', { name: 'Actions', exact: true }).click();
+      const mutedShortcut = frame.getByRole('menu', { name: 'Example actions' }).getByRole('menuitem', { name: /New Document/ }).locator('small');
+      assert.equal(await mutedShortcut.evaluate(element => getComputedStyle(element).color), 'rgb(118, 121, 126)');
       await frame.getByRole('menu', { name: 'Example actions' }).getByRole('menuitem', { name: /New Folder/ }).click();
       await catalog.getByText('New Folder selected', { exact: true }).waitFor();
       const trigger = catalog.getByRole('button', { name: 'Component information' });

@@ -4,6 +4,17 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+export const observedHostThemeFixture = {
+  '--accent': 'rgb(229, 242, 255)',
+  '--muted': 'color-mix(in srgb, rgb(26, 28, 31) 10%, transparent)',
+};
+
+export async function refreshObservedHostTheme(frame) {
+  await frame.evaluate(values => {
+    for (const [name, value] of Object.entries(values)) document.documentElement.style.setProperty(name, value);
+  }, observedHostThemeFixture);
+}
+
 export async function readHostProfile(directory) {
   if (!directory) throw new Error('--visualize-skill must point to the installed visualization skill directory.');
   const names = ['scripts/render.py', 'assets/visualize.css', 'assets/visualize.html'];
@@ -22,6 +33,12 @@ export async function readHostProfile(directory) {
       kind: 'visualization-skill-profile-reconstruction',
       files: names.map((name, index) => ({ name, sha256: createHash('sha256').update(files[index]).digest('hex') })),
       profile,
+      observedInlineThemeFixture: {
+        values: observedHostThemeFixture,
+        scope: 'Two colliding host tokens using the observed light-theme fallbacks; not a complete host theme.',
+        sourceArchiveSha256: '64fc2f27d2dddfa968acfacbe5e4e0328071bdc406351ff4a7d18f0b4692c83d',
+        sourceFunction: 'Gfa host style-variable getter; applied inline by jpa bootstrap',
+      },
       limitations: [
         'The remotely loaded inner Skybridge implementation and live host messaging are not exercised.',
         'Distinct synthetic origins reconstruct the observed outer iframe sandbox flags.',
@@ -55,7 +72,8 @@ export async function installHostPreview(page, profile, { height = 880, authored
   });
   await page.goto(parentUrl);
   async function load(source) {
-    documentHtml = `<!doctype html><meta charset="utf-8"><style>${profile.baseCss}</style>${profile.innerKit.replace('<!--__INLINE_VISUALIZATION_FRAGMENT__-->', () => `${source}<style>html,body{overflow-y:hidden!important;scrollbar-width:none!important}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none!important}</style>`)}`;
+    const themeBootstrap = `<script>for(const [name,value] of Object.entries(${JSON.stringify(observedHostThemeFixture)}))document.documentElement.style.setProperty(name,value);</script>`;
+    documentHtml = `<!doctype html><meta charset="utf-8"><style>${profile.baseCss}</style>${profile.innerKit.replace('<!--__INLINE_VISUALIZATION_FRAGMENT__-->', () => `${themeBootstrap}${source}<style>html,body{overflow-y:hidden!important;scrollbar-width:none!important}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none!important}</style>`)}`;
     const url = `${documentOrigin}/fragment?revision=${++revision}`;
     await page.locator('iframe').evaluate((iframe, nextUrl) => new Promise(resolve => { iframe.addEventListener('load', resolve, { once: true }); iframe.src = nextUrl; }), url);
     return page.frames().find(frame => frame.url() === url);

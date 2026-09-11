@@ -60,7 +60,7 @@ not the only way to build an app.
 | Product need | Public primitive | Notes |
 | --- | --- | --- |
 | Windowed or menu-bar app identity and lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | `presentation="windowed"` gets Dock/window lifecycle; `presentation="menuBar"` composes a status item without a Dock tile. |
-| Fixed, bounded presentation embedded in chat | `MacEmbeddedPresentation` | Wraps the managed desktop; it does not enable dragging or resizing. |
+| Fixed, bounded presentation embedded in chat | `MacEmbeddedPresentation` | Bounds caller-composed content; it does not enable dragging or resizing. |
 | Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
 | Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
 | Sidebar source list | `MacSourceList` | Controlled row selection, optional selectable titled sections, and controlled collapsible sections. |
@@ -87,6 +87,10 @@ children as fixed static surfaces with a 12px surround and inert visual traffic
 lights: it
 does not create a window or offer dragging, resizing, a Dock, or managed
 window state. `menuBar` reveals menus supplied by a child `DesktopShell`.
+The embedded surface sets `--accent` and `--muted` locally so host root values
+cannot recolor Mac controls; customize those two tokens on
+`.mc-embedded-presentation`, while ordinary root token customization remains
+available outside the embedded surface.
 
 Set `windowManagement` only when a prototype needs managed close, minimize,
 restore, zoom, desktop insets, and a Dock. The presentation is only the

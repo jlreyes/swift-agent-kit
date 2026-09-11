@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { installHostPreview, readHostProfile, verifyRuntimePolicy } from './host-profile.mjs';
+import { installHostPreview, readHostProfile, verifyRuntimePolicy, refreshObservedHostTheme } from './host-profile.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -81,6 +81,18 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       assert.ok(css.keyframes.some(keyframe => Math.abs(Number(keyframe.opacity) - 0.4) < 0.001));
       assert.ok(css.keyframes.some(keyframe => Number(keyframe.opacity) === 1));
       return css;
+    });
+    await check('primary control palette survives host theme and refresh', async () => {
+      async function palette() {
+        const primary = await window.getByRole('button', { name: 'Save', exact: true }).evaluate(element => ({ color: getComputedStyle(element).color, background: getComputedStyle(element).backgroundColor }));
+        assert.equal(primary.background, 'rgb(10, 122, 255)');
+        assert.equal(primary.color, 'rgb(255, 255, 255)');
+        assert.equal(await frame.locator('.mc-embedded-presentation').evaluate(element => getComputedStyle(element).getPropertyValue('--muted').trim()), '#76797e');
+        return primary;
+      }
+      const initial = await palette();
+      await refreshObservedHostTheme(frame);
+      return { initial, refreshed: await palette() };
     });
     await check('form pointer and keyboard submission', async () => {
       const field = window.getByRole('textbox', { name: 'Document title', exact: true });

@@ -1,0 +1,125 @@
+/* Canonical token set for the mac-chrome layer. Every color, radius, blur,
+   and shadow in the chrome stylesheets resolves here. --brand carries product
+   identity; --accent drives controls and focus rings. */
+
+:root,
+.mc-embedded-presentation {
+  --accent: #0a7aff;
+  --muted: #76797e;
+}
+
+:root {
+  /* Identity */
+  --brand: #34c759;
+  --brand-strong: #2ca84f;
+  --brand-soft: rgba(52, 199, 89, 0.13);
+
+  /* Controls + focus */
+  --accent-strong: #0863d2;
+  --accent-soft: rgba(10, 122, 255, 0.14);
+
+  /* Ink scale */
+  --ink: #202124;
+  --faint: #9a9da2;
+  /* Foreground for toolbar/window chrome (softer than --ink) */
+  --chrome-ink: #3e4146;
+
+  /* Hairlines */
+  --line: rgba(0, 0, 0, 0.1);
+  --line-soft: rgba(0, 0, 0, 0.065);
+
+  /* Chrome surfaces. Public token names retain their original `-glass`
+     spelling for compatibility, but interactive chrome defaults to stable,
+     opaque materials rather than a simulated Liquid Glass treatment. */
+  --glass: #f7f8fa;
+  --glass-strong: #fcfcfd;
+  --sidebar-glass: #e8ebef;
+  --menu-bar-glass: #263544;
+  --toolbar-glass: #f4f5f6;
+  --capsule-glass: #f8f8f9;
+  --capsule-glass-hover: #ececee;
+  --capsule-glass-selected: #ffffff;
+  --capsule-border: rgba(0, 0, 0, 0.11);
+  --dock-glass: #e1e5ea;
+  /* Menus/popovers deliberately use a stable opaque material. Translucent
+     web approximations make text and icons depend on arbitrary wallpaper. */
+  --popover-surface: #f7f7f8;
+  --popover-border: rgba(0, 0, 0, 0.12);
+
+  /* Window chrome */
+  --window-border: rgba(0, 0, 0, 0.15);
+  --window-edge: rgba(255, 255, 255, 0.72);
+  --traffic-close: #ff5f57;
+  --traffic-minimize: #febc2e;
+  --traffic-zoom: #28c840;
+  --traffic-disabled: #c9ccd1;
+
+  /* Backdrop behind the desktop canvas */
+  --desktop-backdrop: #101720;
+
+  /* Radii */
+  --radius-window: 12px;
+  --radius-control: 7px;
+  --radius-menu-item: 6px;
+  --radius-menu-popover: 10px;
+  --radius-capsule: 999px;
+  --radius-popover: 12px;
+  /* Aliases kept for extracted CSS written against the older names */
+  --window-radius: var(--radius-window);
+  --control-radius: var(--radius-control);
+
+  /* Blur scale */
+  --blur-chrome: 24px;
+  --blur-capsule: 14px;
+  --blur-dock: 28px;
+  --blur-toolbar: 20px;
+  --blur-window: 34px;
+  --blur-popover: 28px;
+
+  /* Shadows */
+  --shadow-window:
+    0 34px 80px rgba(10, 15, 24, 0.28),
+    0 4px 18px rgba(10, 15, 24, 0.17);
+  --shadow-window-inactive:
+    0 18px 44px rgba(10, 15, 24, 0.18),
+    0 2px 10px rgba(10, 15, 24, 0.11);
+  --shadow-popover:
+    0 10px 28px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+
+  /* Windows-layer surfaces (Finder / Chooser / Setup Assistant / Chat) */
+  --text-strong: #1d1d1f;
+  --text: #303338;
+  --text-soft: #65696e;
+  --text-faint: #8a8e93;
+  --on-accent: #ffffff;
+  --accent-tint: rgba(10, 122, 255, 0.16);
+  --selection-tint: rgba(57, 125, 196, 0.15);
+  --selection-strong: #397dc4;
+  --focus-ring: rgba(10, 122, 255, 0.55);
+  --window-surface: #f9f9fa;
+  --content-surface: #fbfcfd;
+  --toolbar-surface: #f7f8f9;
+  --footer-surface: #f6f6f7;
+  --scrim: rgba(32, 37, 43, 0.18);
+  --bubble-owner: rgba(10, 122, 255, 0.14);
+  --bubble-agent: rgba(0, 0, 0, 0.05);
+  --system-tint: rgba(120, 122, 128, 0.14);
+  --radius-card: 9px;
+  --radius-sheet: 12px;
+  --blur-glass: 28px;
+  --blur-soft: 14px;
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+  /* Native typography contract. Browsers on macOS resolve the system aliases
+     to San Francisco; no bundled font asset or smoothing override is needed. */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --font-mac: var(--font-system);
+  --font-size-menu: 13px;
+  --font-size-secondary: 11px;
+  --line-height-menu: 16px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-sf-symbols: "SF Pro Text", "SF Pro Display", -apple-system, system-ui, sans-serif;
+  color-scheme: light;
+}

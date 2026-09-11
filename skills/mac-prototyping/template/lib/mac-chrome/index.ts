@@ -32,6 +32,7 @@ export {
   MacSegmentedControl,
   MacSourceList,
   MacTextField,
+  MacSearchField,
   MacToggle,
   MacToolbar,
   MacWindowManager,
@@ -117,3 +118,7 @@ export type {
   WindowSize,
 } from "./stub.tsx";
 export type { FixedDesktopReviewViewport } from "./viewport.ts";
+
+export { macBookAirM1DisplaySize, useDesktopSpace, getElementScale, viewportPointToLocal, viewportDeltaToLocal } from "./desktop-space.tsx";
+export type { MacDisplaySize, DesktopSpace, DesktopPoint } from "./desktop-space.tsx";
+export { MacEmbeddedPresentation, type MacEmbeddedPresentationProps } from "./embedded-presentation.tsx";

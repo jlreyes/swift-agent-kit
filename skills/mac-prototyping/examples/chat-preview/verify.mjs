@@ -90,7 +90,14 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       await catalog.waitFor();
       const origin = await frame.evaluate(() => location.origin);
       assert.equal(origin, host.documentOrigin);
-      assert.equal(await catalog.getAttribute('data-embedded-window'), 'true');
+      if (values['window-static']) {
+        assert.equal(await catalog.getAttribute('data-embedded-window'), 'true');
+        assert.equal(await catalog.getAttribute('data-window-resizable'), 'false');
+      } else {
+        assert.equal(await catalog.getAttribute('data-embedded-window'), null);
+        assert.equal(await catalog.getAttribute('data-window-resizable'), 'true');
+        assert.equal(await catalog.evaluate(element => element.closest('.showcase-viewport')?.getAttribute('data-display-space')), 'logical');
+      }
       await screenshot('initial');
       return { origin };
     });

@@ -32,8 +32,8 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `fixedDesktopReviewViewport`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `MacEmbeddedPresentation`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
-Types: `DesktopShellProps`, `FixedDesktopReviewViewport`, `MenuBarMenu`, `MenuCommand`, `MobileReviewMode`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowMobilePresentation`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
+Values: `DesktopShell`, `fixedDesktopReviewViewport`, `macBookAirM1DisplaySize`, `useDesktopSpace`, `getElementScale`, `viewportPointToLocal`, `viewportDeltaToLocal`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `MacEmbeddedPresentation`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacSearchField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
+Types: `DesktopShellProps`, `FixedDesktopReviewViewport`, `MacDisplaySize`, `DesktopSpace`, `DesktopPoint`, `MacEmbeddedPresentationProps`, `MenuBarMenu`, `MenuCommand`, `MobileReviewMode`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowMobilePresentation`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog for
 public building blocks and their main compositions against a working desktop
@@ -66,7 +66,7 @@ not the only way to build an app.
 | Sidebar source list | `MacSourceList` | Controlled row selection, optional selectable titled sections, and controlled collapsible sections. |
 | Selectable rows | `MacList` | Single selection, sections, row actions, and accessories. |
 | Expand/collapse detail | `MacDisclosureGroup` | Controlled expansion. |
-| Standard controls and structured settings | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
+| Standard controls and structured settings | `MacButton`, `MacTextField`, `MacSearchField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | Use their built-in ARIA controls rather than local equivalents. |
 | No-content state | `MacContentUnavailable` | Optional system-style icon, description, and actions. |
 | Window feedback and modal decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | Status bar, short alert, or attached modal task. |
 | Dock artwork | `MacDockAppIcon` + `DockIcon` data | One shared optical-size contract. |
@@ -105,8 +105,8 @@ document-wide; do not claim that an iframe changes that behavior.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.
-`DesktopShell({ appName, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, canPerformMenuAction, date, clock, menuBarExtras, mobileReviewMode, wallpaper, children }: DesktopShellProps)`
-`interface DesktopShellProps { readonly appName: string; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly canPerformMenuAction?: (command: MenuCommand) => boolean; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly mobileReviewMode?: "fixed-desktop"; readonly wallpaper?: string; readonly children: ReactNode }`
+`DesktopShell({ appName, displaySize = macBookAirM1DisplaySize, menuItems = defaultMenuItems, appleMenuItems, appMenuItems, onMenuAction, canPerformMenuAction, date, clock, menuBarExtras, mobileReviewMode, wallpaper, children }: DesktopShellProps)`
+`interface DesktopShellProps { readonly appName: string; readonly displaySize?: MacDisplaySize | "viewport"; readonly menuItems?: readonly (string | MenuBarMenu)[]; readonly appleMenuItems?: MenuSpec; readonly appMenuItems?: MenuSpec; readonly onMenuAction?: (command: MenuCommand) => void; readonly canPerformMenuAction?: (command: MenuCommand) => boolean; readonly date?: string; readonly clock?: string; readonly menuBarExtras?: ReactNode; readonly mobileReviewMode?: "fixed-desktop"; readonly wallpaper?: string; readonly children: ReactNode }`
 `type MenuBarMenu = { readonly title: string; readonly items: MenuSpec }`
 `type MenuCommand = { readonly menu: string; readonly id: string; readonly label: string }`
 - The shell always provides functional Apple and app menus; use
@@ -133,12 +133,34 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
 - Omit `date` and `clock` for a live host-local macOS-style date and clock.
 - `menuBarExtras`: `MenuBarExtra` elements rendered **in flow** next to the status items, so they can never overlap the clock/date. A `MenuBarExtra` rendered outside this slot falls back to absolute positioning at `--mc-menubar-extra-right` (default `177px`) — set that var when composing standalone extras against non-default status text.
 - `wallpaper` takes a CSS image value (`url(...)`, gradient, `var(...)`) or a bare image URL. Default: `/mac-assets/wallpapers/tahoe.jpg`; without hydrated assets, it falls back to the original abstract SVG at `styles/wallpaper.svg` (referenced from `styles/base.css`; replace the prop, not the file).
-- The default desktop remains responsive. `mobileReviewMode="fixed-desktop"`
-  instead keeps its authored 1200x750 coordinate space on phone/coarse-pointer
-  browsers, which pan and zoom the page themselves. Pair that shell prop with
-  route-local viewport metadata compatible with `fixedDesktopReviewViewport`;
-  do not apply the metadata in a root layout unless every route is a Mac
-  desktop review surface.
+- `displaySize` selects the desktop's logical CSS-point coordinate space. Its default,
+  `macBookAirM1DisplaySize`, is 1440×900: a supported scaled mode for the M1
+  MacBook Air, not its 2560×1600 physical panel and not a prevalence claim.
+  Pass another positive finite `{ width, height }` or `"viewport"` for the
+  responsive stage. Host resizing changes presentation fit, not saved logical
+  window frames; changing the logical display can recontain them. The existing
+  full-page shell treats `100dvh` as a height constraint, capping presentation
+  width by the logical width, available width, and the available height times
+  the logical aspect ratio. An embedded presentation uses its explicit height.
+  No extra display-sizing prop is required.
+- Logical points, panel pixels, DPR, browser page zoom, and visual-viewport
+  pinch zoom are distinct. Pointer/client geometry crosses the canvas through
+  the exported conversion helpers. Use percentages or container-relative
+  layout for a logical desktop; `vw`, `vh`, media queries, and
+  `window.innerWidth` still see the physical browser viewport.
+- Menus and the Dock intersect the logical canvas with the visible visual
+  viewport, then recompute on resize and scroll. Their placement therefore
+  stays owned by the logical desktop while its browser presentation is panned
+  or zoomed.
+- This is a browser presentation contract. It does not establish behavior for
+  physical macOS display-setting changes, which have not been tested.
+- The default is the 1440x900 logical desktop. To review the legacy 1200x750
+  Mac canvas on a phone or coarse-pointer browser, use both
+  `displaySize="viewport"` and `mobileReviewMode="fixed-desktop"` outside
+  `MacEmbeddedPresentation`. The browser then owns page pan and zoom. Pair the
+  shell props with route-local viewport metadata compatible with
+  `fixedDesktopReviewViewport`; do not apply that metadata in a root layout
+  unless every route is a Mac desktop review surface.
 - Inside `MacWindowManager`, File › Close Window and the standard Window
   menu target the key managed window. Window lists the current app's open or
   minimized windows and can restore them. The standard application menu's
@@ -196,16 +218,16 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 `WindowChrome({ children, className = "", defaultOpen = true, defaultSize = genericDefaultSize, draggable = true, dragHandleSelector, frame, label, minSize = { width: 420, height: 280 }, mobilePresentation = "authored", resizable = true, style, windowId, onClose, onMinimize, onZoom, onDragEnter, onDragLeave, onDragOver, onDrop }: { readonly children: ReactNode; readonly className?: string; readonly defaultOpen?: boolean; readonly defaultSize?: WindowSize; readonly draggable?: boolean; readonly dragHandleSelector?: string; readonly frame?: WindowFrame; readonly label: string; readonly minSize?: WindowSize; readonly mobilePresentation?: "authored" | "maximized"; readonly resizable?: boolean; readonly style?: CSSProperties; readonly windowId?: string; readonly onClose?: () => void; readonly onMinimize?: () => void; readonly onZoom?: () => void; readonly onDragEnter?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragLeave?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void; readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void })`
 `type WindowFrame = { readonly top?: number | string; readonly left?: number | string; readonly width?: number | string; readonly height?: number | string }` — numbers are px; strings pass through as CSS.
 `type WindowSize = { readonly width: number; readonly height: number }`
-- **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) applied as inline `width/height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top/left` there or in `frame`). The desktop contracts below its 1200px reference width and window CSS has a final canvas-containment guard. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
+- **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) is applied as inline `width`/`height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top`/`left` there or in `frame`). In a logical desktop, these are logical points in the configured 1440×900 default (or the caller's `displaySize`); `displaySize="viewport"` opts into responsive viewport layout. A host fit changes presentation scale only and does not physically recontain saved logical frames. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
-- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller canvas wins so a positive, reachable frame remains even when the canvas is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. An active gesture rebases when its canvas changes size. Set `resizable={false}` for intentionally fixed-size utility windows.
+- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller logical canvas wins so a positive, reachable frame remains even when it is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone viewport windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. A logical display-size change cancels an active gesture before containment may update the frame. A measured presentation-scale change also cancels an active gesture, preserving saved logical geometry; begin a new gesture after either change. Set `resizable={false}` for intentionally fixed-size utility windows.
 - **Phone-review presentation** defaults to `authored`, preserving the
   window's role and frame inside an opted-in fixed desktop. Use
   `mobilePresentation="maximized"` only for a content workspace that should
   occupy the available Mac canvas below the menu bar. Touch never starts
   simulated window dragging or resizing. The toolkit does not auto-center a
   window when focus changes, so the browser's current pan position survives.
-- **Nested split-view observation**: the shared ResizeObserver compatibility adapter defers and coalesces only observations whose target is a `react-resizable-panels` `[data-group]` to the following task. Ordinary ResizeObserver delivery remains synchronous. This prevents the feedback cycle at its source; it does not suppress browser error events or hide unrelated failures.
+- **Nested split-view observation**: the shared ResizeObserver compatibility adapter defers and coalesces only observations whose target is a `react-resizable-panels` `[data-group]` to the following task. Ordinary ResizeObserver delivery remains synchronous. This prevents the feedback cycle at its source; it does not suppress browser error events or hide unrelated failures. The package patch uses the rendered viewport extent as the pointer-drag denominator and cancels an in-flight split drag only when its measured display scale changes, so zoom or presentation scaling cannot apply a stale pointer anchor. Nested or simultaneous resizing continues normally. See `patches/README.md` for scope and removal criteria.
 - **Window controls**: provides close/minimize/zoom to any `TrafficLights` inside (React context). Internal defaults always run — close hides, managed minimize captures the window and transitions it to a separate Dock thumbnail (reduced motion skips the animation), and zoom toggles the frame against `~canvas − margins`; the `onClose/onMinimize/onZoom` props are notifications alongside those defaults. Standalone windows retain the local ~220ms hide fallback. Managed windows keep the application subtree mounted and move through `open`, `minimized`, and `closed` registry states so the Dock, thumbnail, or Window menu can restore them.
 
 ### MacDock
@@ -439,6 +461,12 @@ renders a labelled no-content state with optional icon, description, and
 actions. Use these instead of product-local imitations so the control has one
 focus, keyboard, and visual contract.
 
+`MacSearchField` is the controlled generic search field. Give it `ariaLabel`
+or a visible `label`, pass `value`/`onChange`, and use `onSubmit` for Enter.
+Its magnifier, clear action, and input-focus restoration after clear are built
+in. Escape clears a nonempty editable field before it can reach a containing
+sheet; read-only and disabled fields stay immutable.
+
 ### MacWindowStatusBar, MacAlert, and MacSheet
 maps to: a window-attached status area, SwiftUI `.alert` / `NSAlert`, and
 SwiftUI `.sheet` / `NSWindow.beginSheet`.
@@ -448,8 +476,8 @@ compact bottom status area. Use it for feedback owned by that window; do not
 send Dock-launch descriptions into an unrelated window's status bar.
 
 `MacAlert({ open, onClose, title, message, icon, actions, fallbackFocusRef, applicationName, presentationScope = "automatic" }: { readonly actions: readonly MacDialogAction[]; readonly applicationName?: string; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly icon?: ReactNode; readonly message: ReactNode; readonly onClose: () => void; readonly open: boolean; readonly presentationScope?: MacAlertPresentationScope; readonly title: string })`
-`MacSheet({ open, onClose, title, children, actions, fallbackFocusRef, initialFocusSelector, presentationKey }: { readonly actions: readonly MacDialogAction[]; readonly children: ReactNode; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly initialFocusSelector?: string; readonly onClose: () => void; readonly open: boolean; readonly presentationKey?: string; readonly title: string })`
-`type MacDialogAction = { readonly id: string; readonly label: string; readonly role?: "cancel" | "destructive"; readonly isDefault?: boolean; readonly disabled?: boolean; readonly onPress?: () => void }`
+`MacSheet({ open, onClose, title, children, actions, bodyScroll = "automatic", contentInset = "standard", headerAccessory, fallbackFocusRef, initialFocusSelector, presentationKey, size = "compact" }: { readonly actions: readonly MacDialogAction[]; readonly bodyScroll?: "automatic" | "contained"; readonly children: ReactNode; readonly contentInset?: "standard" | "none"; readonly fallbackFocusRef?: RefObject<HTMLElement | null>; readonly headerAccessory?: ReactNode; readonly initialFocusSelector?: string; readonly onClose: () => void; readonly open: boolean; readonly presentationKey?: string; readonly size?: "compact" | "wide" | "large"; readonly title: string })`
+`type MacDialogAction = { readonly id: string; readonly label: string; readonly role?: "cancel" | "destructive"; readonly placement?: "leading" | "trailing"; readonly isDefault?: boolean; readonly disabled?: boolean; readonly onPress?: () => void }`
 `type MacAlertPresentationScope = "automatic" | "desktop"`
 
 `MacSheet` owns the visible title, body, actions, and insets for an attached
@@ -459,6 +487,15 @@ pass `presentationScope="desktop"` for a menu-bar app. `isDefault` is
 independent of `cancel`/`destructive` semantics. Escape invokes the enabled
 cancel action, dismissal restores focus, and the default action receives
 initial focus. `Sheet` remains a freeform compatibility surface only.
+
+Its `compact`, `wide`, and `large` widths cap at 420, 700, and 960 logical
+points within the owner. `contentInset="none"` removes only body insets;
+`bodyScroll="contained"` delegates scrolling to a scrollable child while the
+owned header/footer remain fixed. `headerAccessory` is independently labelled header content,
+such as `MacSearchField`. Mark secondary actions `placement: "leading"`; the
+trailing group retains its semantic and default-action order. `MacList` exposes
+React Aria's `escapeKeyBehavior`; use `"none"` in a sheet list when Escape
+must leave selection intact and invoke the sheet's enabled Cancel action.
 
 For motion, keep one `MacSheet` and every ancestor through its calling tree
 mounted; drive it with `open`. Setting `open={false}` retains the last open

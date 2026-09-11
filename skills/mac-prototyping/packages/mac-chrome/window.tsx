@@ -4,6 +4,7 @@ import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactP
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useManagedWindowRegistration } from "./app.tsx";
+import { getElementScale, useDesktopSpace, viewportDeltaToLocal, viewportPointToLocal } from "./desktop-space.tsx";
 import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { macWindowViewTransitionName } from "./window-transition.ts";
 import "./styles/tokens.css";
@@ -140,7 +141,11 @@ type ContainmentRect = {
 
 function elementContainmentRect(element: HTMLElement): ContainmentRect {
   const canvas = element.closest<HTMLElement>(".desktop-canvas");
-  if (canvas !== null) return canvas.getBoundingClientRect();
+  if (canvas !== null) {
+    const rect = canvas.getBoundingClientRect();
+    const size = viewportDeltaToLocal(canvas, { x: rect.width, y: rect.height });
+    return { left: 0, top: 0, width: size.x, height: size.y, right: size.x, bottom: size.y };
+  }
   return {
     bottom: window.innerHeight,
     height: window.innerHeight,
@@ -149,6 +154,25 @@ function elementContainmentRect(element: HTMLElement): ContainmentRect {
     top: 0,
     width: window.innerWidth,
   };
+}
+
+function localWindowRect(element: HTMLElement): DOMRect {
+  const rect = element.getBoundingClientRect();
+  const canvas = element.closest<HTMLElement>(".desktop-canvas");
+  if (canvas === null) return rect;
+  const origin = viewportPointToLocal(canvas, { x: rect.left, y: rect.top });
+  const size = viewportDeltaToLocal(canvas, { x: rect.width, y: rect.height });
+  return new DOMRect(origin.x, origin.y, size.x, size.y);
+}
+
+function pointerScale(element: HTMLElement) {
+  const canvas = element.closest<HTMLElement>(".desktop-canvas");
+  return canvas === null ? { x: 1, y: 1 } : getElementScale(canvas);
+}
+
+function pointerDelta(element: HTMLElement, x: number, y: number) {
+  const canvas = element.closest<HTMLElement>(".desktop-canvas");
+  return canvas === null ? { x, y } : viewportDeltaToLocal(canvas, { x, y });
 }
 
 function proportionallyContractedInsets(
@@ -169,10 +193,12 @@ export function useWindowDrag<T extends HTMLElement>(
   enabled: boolean,
   handleSelector: string = "[data-window-drag-handle]",
 ) {
+  const desktopSpace = useDesktopSpace();
   const windowRef = useRef<T>(null);
   const [offset, setOffset] = useState<WindowOffset>({ x: 0, y: 0 });
   const offsetRef = useRef(offset);
   const dragRef = useRef<{
+    readonly scale: ReturnType<typeof getElementScale>;
     readonly pointerId: number;
     readonly startX: number;
     readonly startY: number;
@@ -224,11 +250,14 @@ export function useWindowDrag<T extends HTMLElement>(
     if (!enabled) return;
     const element = windowRef.current;
     if (element === null) return;
+    const previousDrag = dragRef.current;
+    dragRef.current = null;
+    if (previousDrag !== null && element.hasPointerCapture?.(previousDrag.pointerId)) element.releasePointerCapture(previousDrag.pointerId);
     const contain = () => {
       const element = windowRef.current;
       if (!element) return;
       const current = offsetRef.current;
-      const rect = element.getBoundingClientRect();
+      const rect = localWindowRect(element);
       const next = clampedOffset(current, rect, current.x, current.y);
       if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
@@ -262,7 +291,7 @@ export function useWindowDrag<T extends HTMLElement>(
       observer?.disconnect();
       window.removeEventListener("resize", contain);
     };
-  }, [enabled]);
+  }, [enabled, desktopSpace?.revision, desktopSpace?.displaySize?.width, desktopSpace?.displaySize?.height]);
 
   useEffect(() => () => {
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
@@ -276,13 +305,14 @@ export function useWindowDrag<T extends HTMLElement>(
     const element = windowRef.current;
     if (!element) return;
     dragRef.current = {
+      scale: pointerScale(element),
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
       origin: offsetRef.current,
-      rect: element.getBoundingClientRect(),
+      rect: localWindowRect(element),
     };
     // Pointer capture is absent in non-visual test DOMs (jsdom); dragging
     // still works there, it just loses outside-the-element move tracking.
@@ -293,11 +323,22 @@ export function useWindowDrag<T extends HTMLElement>(
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = { ...drag, lastX: event.clientX, lastY: event.clientY };
+    const element = windowRef.current;
+    if (element === null) return;
+    const scale = pointerScale(element);
+    if (scale.x !== drag.scale.x || scale.y !== drag.scale.y) {
+      finishDrag(event);
+      if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      pendingOffsetRef.current = null;
+      return;
+    }
+    const delta = pointerDelta(element, event.clientX - drag.startX, event.clientY - drag.startY);
     scheduleOffset(clampedOffset(
       drag.origin,
       drag.rect,
-      drag.origin.x + event.clientX - drag.startX,
-      drag.origin.y + event.clientY - drag.startY,
+      drag.origin.x + delta.x,
+      drag.origin.y + delta.y,
     ));
   }
 
@@ -469,6 +510,7 @@ function untransformedClientRect(element: HTMLElement): DOMRect {
 }
 
 type WindowInteraction = {
+  readonly scale: ReturnType<typeof getElementScale>;
   readonly kind: "drag" | "resize";
   readonly edge?: WindowResizeEdge;
   readonly geometryOwned: boolean;
@@ -681,6 +723,7 @@ function useWindowGeometry({
   readonly preserveResponsiveFrame: boolean;
   readonly visible: boolean;
 }) {
+  const desktopSpace = useDesktopSpace();
   const windowRef = useRef<HTMLElement>(null);
   const [geometryState, setGeometryState] = useState<WindowGeometryState | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
@@ -741,11 +784,12 @@ function useWindowGeometry({
     const canvas = element.closest<HTMLElement>(".desktop-canvas");
     if (canvas !== null) {
       const canvasRect = canvas.getBoundingClientRect();
-      const bounds = safeBounds(canvasRect.width, canvasRect.height, minSize);
-      return bounds === null ? null : { bounds, originLeft: canvasRect.left, originTop: canvasRect.top };
+      const size = viewportDeltaToLocal(canvas, { x: canvasRect.width, y: canvasRect.height });
+      const bounds = safeBounds(size.x, size.y, minSize);
+      return bounds === null ? null : { bounds, originLeft: canvasRect.left, originTop: canvasRect.top, scale: getElementScale(canvas) };
     }
     const bounds = safeBounds(window.innerWidth, window.innerHeight, minSize);
-    return bounds === null ? null : { bounds, originLeft: 0, originTop: 0 };
+    return bounds === null ? null : { bounds, originLeft: 0, originTop: 0, scale: { x: 1, y: 1 } };
   }
 
   function captureGeometry(element: HTMLElement): WindowGeometry | null {
@@ -757,15 +801,18 @@ function useWindowGeometry({
     const rect = untransformedClientRect(element);
     normalizationRef.current = geometryNormalization(element);
     const captured = {
-      left: rect.left - context.originLeft,
-      top: rect.top - context.originTop,
-      width: rect.width || numericInlineLength(element.style.width, minSize.width),
-      height: rect.height || numericInlineLength(element.style.height, minSize.height),
+      left: (rect.left - context.originLeft) / context.scale.x,
+      top: (rect.top - context.originTop) / context.scale.y,
+      width: rect.width / context.scale.x || numericInlineLength(element.style.width, minSize.width),
+      height: rect.height / context.scale.y || numericInlineLength(element.style.height, minSize.height),
     };
     return clampedGeometry(captured, context.bounds);
   }
 
   useLayoutEffect(() => {
+    // A presentation-scale change ends an in-flight gesture without changing
+    // the logical frame; its earlier viewport pointer samples are now stale.
+    cancelInteraction();
     const element = windowRef.current;
     if (inputSignatureRef.current !== inputSignature) {
       inputSignatureRef.current = inputSignature;
@@ -849,7 +896,7 @@ function useWindowGeometry({
         containmentTaskRef.current = null;
       }
     };
-  }, [enabled, inputSignature, minSize.height, minSize.width, preserveResponsiveFrame, visible]);
+  }, [enabled, inputSignature, minSize.height, minSize.width, preserveResponsiveFrame, visible, desktopSpace?.revision, desktopSpace?.displaySize?.width, desktopSpace?.displaySize?.height]);
 
   useEffect(() => () => cancelInteraction(), []);
 
@@ -869,6 +916,7 @@ function useWindowGeometry({
     const origin = geometryRef.current ?? (element === null ? null : captureGeometry(element));
     if (element === null || origin === null) return;
     interactionRef.current = {
+      scale: pointerScale(element),
       kind: "drag",
       geometryOwned: geometryRef.current !== null,
       pointerId: event.pointerId,
@@ -896,6 +944,7 @@ function useWindowGeometry({
     event.preventDefault();
     event.stopPropagation();
     interactionRef.current = {
+      scale: pointerScale(element),
       kind: "resize",
       edge,
       geometryOwned: geometryRef.current !== null,
@@ -916,6 +965,10 @@ function useWindowGeometry({
     if (interaction === null || element === null || interaction.pointerId !== event.pointerId) return;
     const context = geometryContext(element);
     if (context === null) return;
+    if (context.scale.x !== interaction.scale.x || context.scale.y !== interaction.scale.y) {
+      cancelInteraction();
+      return;
+    }
     const initialDeltaX = event.clientX - interaction.startX;
     const initialDeltaY = event.clientY - interaction.startY;
     if (
@@ -946,8 +999,8 @@ function useWindowGeometry({
           startY: event.clientY,
         };
     interactionRef.current = { ...activeInteraction, lastX: event.clientX, lastY: event.clientY };
-    const deltaX = event.clientX - activeInteraction.startX;
-    const deltaY = event.clientY - activeInteraction.startY;
+    const deltaX = (event.clientX - activeInteraction.startX) / context.scale.x;
+    const deltaY = (event.clientY - activeInteraction.startY) / context.scale.y;
     const next = activeInteraction.kind === "drag"
       ? clampedGeometry({
           ...activeInteraction.origin,
@@ -1056,7 +1109,7 @@ export function WindowChrome({
   readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void;
 }) {
   const embeddedPresentation = useEmbeddedPresentation();
-  const embedded = embeddedPresentation !== null;
+  const embedded = embeddedPresentation?.windowManagement === false;
   const [hidden, setHidden] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
   const [localZoomed, setLocalZoomed] = useState(false);
@@ -1068,7 +1121,8 @@ export function WindowChrome({
   const managed = manager !== null && resolvedWindowId !== null;
   const managedOpen = appRunning && (managedWindow?.state === "open" || (managedWindow === null && defaultOpen));
   const visible = managed ? managedOpen : !hidden;
-  const zoomed = managedWindow?.zoomed ?? localZoomed;
+  const zoomed = !embedded && (managedWindow?.zoomed ?? localZoomed);
+  const showMinimizing = !embedded && minimizing;
   const authoredFrameStyle: CSSProperties = {
     ...framePlacement(frame, defaultSize),
     ...style,
@@ -1120,7 +1174,7 @@ export function WindowChrome({
   if (!visible && !managed) return null;
 
   const interactiveGeometryStyle = zoomed || embedded ? null : windowGeometry.geometryStyle;
-  const embeddedInset = zoomed ? "0px" : "var(--mc-embedded-inset)";
+  const embeddedInset = "var(--mc-embedded-inset)";
   const composedStyle: CSSProperties = {
     ...(zoomed
       ? { ...zoomedPlacement, ...style }
@@ -1144,7 +1198,7 @@ export function WindowChrome({
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
     ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };
-  if (minimizing) {
+  if (showMinimizing) {
     const existingTransform = composedStyle.transform;
     composedStyle.transform = `${existingTransform === undefined || existingTransform === "none" ? "" : `${existingTransform} `}translateY(42px) scale(0.5)`;
     composedStyle.opacity = 0;
@@ -1156,7 +1210,7 @@ export function WindowChrome({
       <section
         ref={windowGeometry.windowRef}
         style={composedStyle}
-        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}${retained ? " mc-retained" : ""}`}
+        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${showMinimizing ? " mc-minimizing" : ""}${retained ? " mc-retained" : ""}`}
         aria-label={retained ? undefined : label}
         aria-hidden={retained ? true : undefined}
         hidden={retained}

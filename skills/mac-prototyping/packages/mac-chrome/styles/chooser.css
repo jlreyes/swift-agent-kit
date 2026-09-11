@@ -235,7 +235,7 @@
 }
 
 .mc-chooser-secondary-menu {
-  min-width: min(300px, calc(100vw - 16px));
+  min-width: min(300px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
 }
 
 /* Detail pane */

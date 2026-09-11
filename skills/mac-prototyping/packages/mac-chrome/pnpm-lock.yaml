@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  react-resizable-panels@4.12.2:
+    hash: 09121684657d9c831965d1fd3de67ce3fa71d28121c12e5aca06e3974ab1075e
+    path: patches/react-resizable-panels@4.12.2.patch
+
 importers:
 
   .:
@@ -16,7 +21,7 @@ importers:
         version: 1.20.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react-resizable-panels:
         specifier: 4.12.2
-        version: 4.12.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 4.12.2(patch_hash=09121684657d9c831965d1fd3de67ce3fa71d28121c12e5aca06e3974ab1075e)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       symbolist:
         specifier: 5.1.0
         version: 5.1.0
@@ -1456,7 +1461,7 @@ snapshots:
 
   react-is@17.0.2: {}
 
-  react-resizable-panels@4.12.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  react-resizable-panels@4.12.2(patch_hash=09121684657d9c831965d1fd3de67ce3fa71d28121c12e5aca06e3974ab1075e)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)

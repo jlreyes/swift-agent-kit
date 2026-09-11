@@ -22,9 +22,9 @@ afterEach(() => {
 });
 
 describe("template fixed-desktop mobile review", () => {
-  it("opts in only the showcase route", () => {
+  it("lets the logical showcase fit the normal device viewport", () => {
     expect(rootLayoutSource).not.toMatch(/export const viewport/);
-    expect(showcaseLayoutSource).toContain("export const viewport: Viewport = fixedDesktopReviewViewport");
+    expect(showcaseLayoutSource).not.toMatch(/export const viewport/);
     expect(fixedDesktopReviewViewport).toEqual({
       width: 1200,
       initialScale: 1,
@@ -40,7 +40,7 @@ describe("template fixed-desktop mobile review", () => {
     responsive.unmount();
 
     const fixed = render(
-      <DesktopShell appName="Fixed" mobileReviewMode="fixed-desktop">Fixed</DesktopShell>,
+      <DesktopShell appName="Fixed" displaySize="viewport" mobileReviewMode="fixed-desktop">Fixed</DesktopShell>,
     );
     expect(fixed.container.querySelector<HTMLElement>(".showcase-viewport")?.dataset.mobileReviewMode).toBe("fixed-desktop");
   });

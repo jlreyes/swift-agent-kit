@@ -72,7 +72,7 @@ resource values. Both are advisory review signals, not proof of isolation.
 
 ## CLI
 
-`cli.mjs` accepts `--entry`, `--output`, `--component`,
+`cli.mjs` accepts `--entry`, `--output`, `--component`, `--config`,
 `--mac-chrome-directory`, `--dependencies`, `--toolchain`, `--asset-root`,
 `--font`, `--python`, `--additional-symbols` (a JSON array file),
 `--format gzip|raw`, `--root`, `--max-bytes`, `--local-symbols`, and

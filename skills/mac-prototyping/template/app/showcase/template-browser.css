@@ -1,0 +1,6 @@
+.showcase-template-list {
+  min-height: 0;
+  height: 320px;
+  flex: 1 1 auto;
+  overflow: auto;
+}

@@ -1,0 +1,2 @@
+patchedDependencies:
+  react-resizable-panels@4.12.2: lib/mac-chrome/patches/react-resizable-panels@4.12.2.patch

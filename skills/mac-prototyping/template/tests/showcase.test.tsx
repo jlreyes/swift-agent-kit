@@ -4,7 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 
-import { coveredExports, ShowcaseDesktop } from "../app/showcase/showcase-desktop.tsx";
+import { ShowcaseDesktop } from "../app/showcase/showcase-desktop.tsx";
+import { coveredExports } from "../app/showcase/coverage.ts";
 import * as MacChrome from "../lib/mac-chrome/index.ts";
 
 afterEach(cleanup);
@@ -28,6 +29,11 @@ function dockButton(name: string): HTMLButtonElement {
 
 type TestUser = ReturnType<typeof userEvent.setup>;
 
+function activateMenuCommand(menu: HTMLElement, label: string) {
+  // jsdom has no layout: canvas-portalled menus and split handles share zero bounds.
+  fireEvent.click(within(menu).getByText(label));
+}
+
 async function openViewMenu(user: TestUser): Promise<HTMLElement> {
   await user.click(screen.getByRole("button", { name: /^View(?: menu)?$/ }));
   return screen.findByRole("menu", { name: "View menu" });
@@ -41,7 +47,8 @@ async function openRecipe(user: TestUser, story: "Chat" | "Chooser" | "Setup Ass
 test("the showcase opens as a persistent split-view component catalog", () => {
   render(<ShowcaseDesktop />);
 
-  expect(document.querySelector(".showcase-viewport")?.getAttribute("data-mobile-review-mode")).toBe("fixed-desktop");
+  expect(document.querySelector(".showcase-viewport")?.getAttribute("data-display-space")).toBe("logical");
+  expect(document.querySelector(".showcase-viewport")?.getAttribute("style")).toContain("1440px");
   const catalog = screen.getByRole("region", { name: "Mac Chrome component showcase" });
   expect(catalog).toBeDefined();
   expect(catalog.getAttribute("style")).toContain("100% - 32px");
@@ -124,13 +131,13 @@ test("View menu and toolbar controls share sidebar and inspector visibility", as
 
   await user.click(screen.getByRole("button", { name: /^View(?: menu)?$/ }));
   let menu = await screen.findByRole("menu", { name: "View menu" });
-  await user.click(within(menu).getByText("Hide Inspector"));
+  activateMenuCommand(menu, "Hide Inspector");
   expect(screen.queryByRole("complementary", { name: "Component inspector" })).toBeNull();
   expect(screen.getByText("Inspector hidden.")).toBeDefined();
 
   await user.click(screen.getByRole("button", { name: /^View(?: menu)?$/ }));
   menu = await screen.findByRole("menu", { name: "View menu" });
-  await user.click(within(menu).getByText("Hide Sidebar"));
+  activateMenuCommand(menu, "Hide Sidebar");
   expect(document.querySelector(".mc-sidebar-tree[aria-label='Component catalog']")).toBeNull();
   expect(screen.getByRole("button", { name: "Show Sidebar" })).toBeDefined();
 
@@ -148,7 +155,7 @@ test("Finder View commands target only Finder and stay in sync with its toolbar"
   expect(finder.getAttribute("data-key-window")).toBe("true");
   let menu = await openViewMenu(user);
   expect(within(menu).queryByText("Hide Inspector")).toBeNull();
-  await user.click(within(menu).getByText("List View"));
+  activateMenuCommand(menu, "List View");
   expect(within(finder).getByRole("button", { name: "List view" }).getAttribute("aria-pressed")).toBe("true");
   expect(finder.getAttribute("data-key-window")).toBe("true");
 
@@ -156,7 +163,7 @@ test("Finder View commands target only Finder and stay in sync with its toolbar"
   expect(finder.getAttribute("data-key-window")).toBe("true");
   menu = await openViewMenu(user);
   expect(within(menu).getByRole("menuitemradio", { name: "Icon View" }).getAttribute("aria-checked")).toBe("true");
-  await user.click(within(menu).getByText("Hide Sidebar"));
+  activateMenuCommand(menu, "Hide Sidebar");
   expect(finder.querySelector(".mc-finder-sidebar")).toBeNull();
   expect(catalog.querySelector(".mc-sidebar-tree[aria-label='Component catalog']")).not.toBeNull();
   expect(within(catalog).getByRole("complementary", { name: "Component inspector" })).toBeDefined();
@@ -165,7 +172,7 @@ test("Finder View commands target only Finder and stay in sync with its toolbar"
   expect(finder.querySelector(".mc-finder-sidebar")).not.toBeNull();
   menu = await openViewMenu(user);
   expect(within(menu).getByText("Hide Sidebar")).toBeDefined();
-  await user.click(within(menu).getByText("Hide Preview"));
+  activateMenuCommand(menu, "Hide Preview");
   expect(finder.querySelector(".mc-finder-preview")).toBeNull();
   expect(within(catalog).getByRole("complementary", { name: "Component inspector" })).toBeDefined();
 
@@ -189,7 +196,7 @@ test("frontmost-window focus retargets View without removing background apps", a
   let menu = await openViewMenu(user);
   expect(within(menu).queryByText("Icon View")).toBeNull();
   expect(within(menu).queryByText("Hide Inspector")).toBeNull();
-  await user.click(within(menu).getByText("Hide Sidebar"));
+  activateMenuCommand(menu, "Hide Sidebar");
   expect(chat.querySelector(".mc-chat-sidebar")).toBeNull();
   expect(sourceList()).toBeDefined();
 
@@ -363,7 +370,7 @@ test("menus and popovers are distinct shared presentation primitives", async () 
   await user.click(sourceItem("Menus & Popovers"));
   await user.click(screen.getByRole("button", { name: "Actions" }));
   const menu = await screen.findByRole("menu", { name: "Example actions" });
-  await user.click(within(menu).getByText("New Folder"));
+  activateMenuCommand(menu, "New Folder");
   expect(screen.getByText("New Folder selected")).toBeDefined();
 
   await user.click(screen.getByRole("button", { name: "Component information" }));
@@ -384,11 +391,13 @@ test("the popover option is controlled and reflects each activation", async () =
   const option = screen.getByRole("checkbox", { name: "Example option" });
   expect((option as HTMLInputElement).checked).toBe(true);
 
-  await user.click(option);
+  act(() => option.focus());
+  await user.keyboard(" ");
   expect((option as HTMLInputElement).checked).toBe(false);
   expect(screen.getByText("Example option disabled")).toBeDefined();
 
-  await user.click(option);
+  act(() => option.focus());
+  await user.keyboard(" ");
   expect((option as HTMLInputElement).checked).toBe(true);
   expect(screen.getByText("Example option enabled")).toBeDefined();
 });
@@ -445,7 +454,8 @@ test("the menu-bar app presents its system alert at desktop scope", async () => 
   if (trigger === null) throw new Error("Showcase activity trigger was not rendered");
 
   await user.click(trigger);
-  await user.click(screen.getByRole("button", { name: "Clear Activity…" }));
+  act(() => screen.getByRole("button", { name: "Clear Activity…" }).focus());
+  await user.keyboard("{Enter}");
   const alert = screen.getByRole("alertdialog", { name: "Clear the activity notes?" });
   expect(alert.closest<HTMLElement>("[data-modal-kind='alert']")?.dataset.modalScope).toBe("desktop");
   expect(screen.queryByRole("dialog", { name: "Showcase activity" })).toBeNull();
@@ -607,7 +617,7 @@ test("the Showcase menu mirrors source-list story selection", async () => {
   render(<ShowcaseDesktop />);
 
   await user.click(screen.getByRole("button", { name: /^Showcase(?: menu)?$/ }));
-  await user.click(within(await screen.findByRole("menu", { name: "Showcase menu" })).getByText("Lists & Collections"));
+  activateMenuCommand(await screen.findByRole("menu", { name: "Showcase menu" }), "Lists & Collections");
   expect(screen.getByRole("main", { name: "Lists & Collections story" })).toBeDefined();
   expect(sourceItem("Lists & Collections").getAttribute("aria-selected")).toBe("true");
 });
@@ -682,4 +692,57 @@ test("single-window Setup keeps step Back and returns focus after finishing", as
   await user.click(within(setup).getByRole("button", { name: "Finish" }));
   await waitFor(() => expect(screen.queryByRole("region", { name: "Setup Assistant showcase" })).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(trigger));
+});
+
+
+test("template browsing filters results, guards hidden selection, and chooses a template", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+  await user.click(sourceItem("Presentation & Feedback"));
+  await user.click(screen.getByRole("button", { name: "Browse Templates…" }));
+  const dialog = screen.getByRole("dialog", { name: "Browse Templates" });
+  const search = within(dialog).getByRole("searchbox", { name: "Search templates" });
+  expect(dialog.classList.contains("mc-sheet-wide")).toBe(true);
+  expect(dialog.querySelector(".mc-sheet-header-accessory")?.contains(search)).toBe(true);
+  expect(dialog.querySelector(".mc-sheet-body-contained.mc-sheet-body-flush")).not.toBeNull();
+  await user.click(within(dialog).getByRole("option", { name: /Project Brief/ }));
+  fireEvent.change(search, { target: { value: "does not exist" } });
+  expect(within(dialog).getByText("No matching templates")).toBeDefined();
+  expect(within(dialog).getByRole("button", { name: "Choose" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.change(search, { target: { value: "meeting" } });
+  await user.click(within(dialog).getByRole("option", { name: /Meeting Notes/ }));
+  await user.click(within(dialog).getByRole("button", { name: "Choose" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Browse Templates" })).toBeNull());
+  expect(screen.getByText("Created Meeting Notes.")).toBeDefined();
+});
+
+test("template search Escape clears before cancelling and restores trigger focus", async () => {
+  const user = userEvent.setup();
+  render(<ShowcaseDesktop />);
+  await user.click(sourceItem("Presentation & Feedback"));
+  const trigger = screen.getByRole("button", { name: "Browse Templates…" });
+  await user.click(trigger);
+  const dialog = screen.getByRole("dialog", { name: "Browse Templates" });
+  const search = within(dialog).getByRole("searchbox", { name: "Search templates" });
+  await user.click(search);
+  await user.type(search, "research");
+  await user.keyboard("{Escape}");
+  expect(search.getAttribute("value")).toBe("");
+  expect(screen.getByRole("dialog", { name: "Browse Templates" })).toBeDefined();
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Browse Templates" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+});
+
+
+test("custom display dimensions remain separate from the single-window showcase", () => {
+  const displaySize = { width: 1680, height: 1050 };
+  const managed = render(<ShowcaseDesktop displaySize={displaySize} />);
+  const desktop = managed.container.querySelector<HTMLElement>(".showcase-viewport");
+  expect(desktop?.dataset.displaySpace).toBe("logical");
+  expect(desktop?.style.getPropertyValue("--mc-display-width")).toBe("1680px");
+  expect(desktop?.style.getPropertyValue("--mc-display-height")).toBe("1050px");
+  managed.unmount();
+  const single = render(<MacChrome.MacEmbeddedPresentation><ShowcaseDesktop singleWindow displaySize={displaySize} /></MacChrome.MacEmbeddedPresentation>);
+  expect(single.container.querySelector<HTMLElement>(".showcase-viewport")?.dataset.displaySpace).toBe("viewport");
 });

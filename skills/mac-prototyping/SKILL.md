@@ -97,7 +97,7 @@ copy a showcase layout or private component into product code.
 | Sectioned sidebar navigation | `MacSourceList` | `List(.sidebar)` / source list |
 | Selectable rows | `MacList` | `List` |
 | Collapsible grouped detail | `MacDisclosureGroup` | `DisclosureGroup` |
-| Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
+| Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacSearchField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
 | No-content state | `MacContentUnavailable` | `ContentUnavailableView` |
 | Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
@@ -118,6 +118,26 @@ are inert. Enable `menuBar` only for app menus supplied by a child
 `DesktopShell`, and `windowManagement` only when the prototype needs
 registry-owned close, minimize, restore, zoom, and Dock behavior;
 multiple-window and managed-desktop demos commonly need both.
+
+With the default `windowManagement={false}`, the embedded fixed-window
+presentation takes precedence: a child `DesktopShell.displaySize` does not
+create a managed logical desktop. Enable window management before selecting a
+custom logical display for an embedded desktop.
+
+`DesktopShell` defaults to a 1440×900 logical CSS-point desktop, the documented
+scaled mode for an M1 MacBook Air. It is neither the panel's 2560×1600 raster
+resolution nor a claim that this is the most common Mac. Pass a custom
+`displaySize` for another logical desktop or `"viewport"` to opt into the
+responsive viewport stage. The full-page shell preserves its existing `100dvh`
+height constraint when fitting the logical desktop; an embedded presentation
+uses its explicit height. Saved window geometry stays in logical points. DPR, browser page zoom, and
+visual-viewport pinch zoom are presentation/input concerns, not alternate
+desktop sizes. Use percentages and container-relative layout inside the
+logical canvas; do not use `vw`, `vh`, or `window.innerWidth` as desktop
+dimensions. If a zoom or presentation-scale change occurs during a split-panel
+pointer drag, release and start the gesture again: its stale anchor is
+cancelled. This browser behavior does not establish physical macOS
+display-setting behavior, which is untested.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;
@@ -235,7 +255,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `Sheet` is compatibility-only; `SetupHeading` is recipe artwork, not a
   general dialog API. Keep `MacSheet` and its calling ancestors mounted for
   presentation motion; control `open` and use `presentationKey` to request a
-  replacement.
+  replacement. Choose its `compact`/`wide`/`large` logical size, body inset
+  and scrolling deliberately; use `headerAccessory` for a compact search or
+  other header control. Put optional secondary actions in the action's
+  `placement: "leading"`; keep the primary/default and semantic trailing
+  actions trailing. A `MacList` in a sheet may use `escapeKeyBehavior="none"`
+  to keep its selection and let Escape reach the sheet's Cancel action.
 - **One disclosure contract.** Use `MacDisclosureGroup` for grouped detail and
   `MacSourceList` for navigable sidebar sections. The shared indicator is a
   `SystemSymbol`; source-list section headers are structural by default. A
@@ -250,9 +275,9 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
   default windows remain clear of the menu bar and Dock, including at small
-  viewports. Size explicit frames against the desktop canvas with `%`, not
-  `vw`/`vh`; the shell contracts below its 1200px reference width and an
-  initial window must be wholly visible without horizontal scrolling.
+  viewports. Size explicit frames against the desktop canvas with `%` or
+  container-relative layout, not `vw`/`vh` or `window.innerWidth`; an initial
+  window must be wholly visible without horizontal scrolling.
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,

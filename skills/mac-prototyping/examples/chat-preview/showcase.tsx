@@ -1,18 +1,20 @@
 import { useState, type MouseEvent } from "react";
-import { MacEmbeddedPresentation } from "../../packages/mac-chrome/index.ts";
+import { MacEmbeddedPresentation, macBookAirM1DisplaySize, type MacDisplaySize } from "../../packages/mac-chrome/index.ts";
 import "../../packages/mac-chrome/styles/embedded.css";
 import { ShowcaseDesktop } from "../../template/app/showcase/showcase-desktop.tsx";
 import "../../template/app/showcase/showcase.css";
 import { SheetMotion } from "../../template/app/showcase/sheet-motion/sheet-motion.tsx";
 
 export type EmbeddedShowcaseProps = {
+  readonly displaySize?: MacDisplaySize | "viewport";
   readonly menuBar?: boolean;
   readonly windowManagement?: boolean;
 };
 
-export default function EmbeddedShowcase({ menuBar = true, windowManagement = true }: EmbeddedShowcaseProps) {
+export default function EmbeddedShowcase({ displaySize = macBookAirM1DisplaySize, menuBar = true, windowManagement = true }: EmbeddedShowcaseProps) {
   const [page, setPage] = useState("showcase");
-  const [initialWidth] = useState(() => typeof window === "undefined" ? 1024 : window.innerWidth);
+  const [viewportWidth] = useState(() => typeof window === "undefined" ? 1024 : window.innerWidth);
+  const initialWidth = windowManagement && displaySize !== "viewport" ? displaySize.width : viewportWidth;
 
   function navigate(event: MouseEvent<HTMLDivElement>) {
     if (!(event.target instanceof Element)) return;
@@ -27,8 +29,8 @@ export default function EmbeddedShowcase({ menuBar = true, windowManagement = tr
     <div onClickCapture={navigate}>
       <MacEmbeddedPresentation menuBar={menuBar} windowManagement={windowManagement} height={640}>
         {page === "showcase"
-          ? <ShowcaseDesktop singleWindow={!windowManagement} sheetMotionHref="#/showcase/sheet-motion" initialSidebarVisible={initialWidth >= 500} initialInspectorVisible={initialWidth >= 1000} />
-          : <SheetMotion showcaseHref="#/showcase" />}
+          ? <ShowcaseDesktop displaySize={displaySize} singleWindow={!windowManagement} sheetMotionHref="#/showcase/sheet-motion" initialSidebarVisible={initialWidth >= 500} initialInspectorVisible={initialWidth >= 1000} />
+          : <SheetMotion displaySize={displaySize} showcaseHref="#/showcase" />}
       </MacEmbeddedPresentation>
     </div>
   );

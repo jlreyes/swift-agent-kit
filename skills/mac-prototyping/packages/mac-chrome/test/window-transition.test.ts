@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { macWindowViewTransitionName } from "../window-transition.ts";
+import { toPng } from "html-to-image";
+
+import { captureMacWindowThumbnail, macWindowViewTransitionName } from "../window-transition.ts";
 
 describe("macWindowViewTransitionName", () => {
   it("injectively encodes ids that collided under delimiter escaping", () => {
@@ -19,5 +21,36 @@ describe("macWindowViewTransitionName", () => {
       "mc-window-1-d83d",
       "mc-window-1-de00",
     ]);
+  });
+});
+
+vi.mock("html-to-image", () => ({ toPng: vi.fn() }));
+afterEach(() => vi.resetAllMocks());
+
+describe("captureMacWindowThumbnail", () => {
+  it.each([0.5, 1, 1.5])("captures logical dimensions at presentation scale %s", async (scale) => {
+    const element = document.createElement("div");
+    Object.defineProperties(element, {
+      offsetWidth: { value: 720 },
+      offsetHeight: { value: 480 },
+    });
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 30, 720 * scale, 480 * scale));
+    vi.mocked(toPng).mockResolvedValue("data:image/png;base64,fixture");
+
+    expect(await captureMacWindowThumbnail(element)).toEqual({
+      src: "data:image/png;base64,fixture", width: 720, height: 480, rasterWidth: 360, rasterHeight: 240,
+    });
+    expect(toPng).toHaveBeenCalledWith(element, expect.objectContaining({
+      width: 720, height: 480, canvasWidth: 360, canvasHeight: 240, pixelRatio: 1,
+      style: expect.objectContaining({ translate: "none", transform: "none", left: "0", top: "0" }),
+    }));
+  });
+
+  it("preserves logical fallback geometry when rasterization fails", async () => {
+    const element = document.createElement("div");
+    element.style.width = "600px";
+    element.style.height = "400px";
+    vi.mocked(toPng).mockRejectedValue(new Error("Resource unavailable"));
+    expect(await captureMacWindowThumbnail(element)).toEqual({ width: 600, height: 400 });
   });
 });

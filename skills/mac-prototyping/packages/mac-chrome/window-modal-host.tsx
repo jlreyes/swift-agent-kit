@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useOptionalMacWindowManager } from "./app.tsx";
+import { useDesktopSpace } from "./desktop-space.tsx";
 import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { useModalFocusTrap } from "./modal-focus.ts";
 
@@ -108,7 +109,7 @@ function reconcileModalStack(stack: ModalOwnerStack) {
   for (const child of stack.owner.element.children) {
     if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
   }
-  if (stack.owner.scope === "desktop" && stack.owner.element !== stack.owner.boundary) {
+  if (stack.owner.scope === "desktop" && stack.owner.element !== stack.owner.boundary && stack.owner.boundary.contains(stack.owner.element)) {
     // Keep the ancestor branch containing the portalled modal interactive,
     // while suppressing every sibling alongside that branch. This reaches
     // application chrome beside a nested desktop-canvas without making the
@@ -202,6 +203,7 @@ export function isContentEditableTarget(target: Element) {
 
 function resolveModalOwner({
   allowDesktopFallback,
+  desktopCanvas,
   anchor,
   fallbackFocus,
   keyWindowId,
@@ -209,21 +211,25 @@ function resolveModalOwner({
   root,
 }: {
   readonly root: Document | HTMLElement;
+  readonly desktopCanvas: HTMLElement | null;
   readonly allowDesktopFallback: boolean;
   readonly anchor: HTMLElement | null;
   readonly fallbackFocus: HTMLElement | null;
   readonly keyWindowId: string | null;
   readonly presentationScope: "automatic" | "desktop";
 }): ModalOwner | null {
+  // A nested embed can inherit a desktop context outside its DOM boundary.
+  const containedCanvas = desktopCanvas !== null && root.contains(desktopCanvas) ? desktopCanvas : null;
   if (presentationScope === "automatic") {
+    const windowRoot = containedCanvas ?? root;
     function windowInRoot(element: HTMLElement | null) {
       const candidate = element?.closest<HTMLElement>(windowSelector) ?? null;
-      return candidate !== null && root.contains(candidate) ? candidate : null;
+      return candidate !== null && windowRoot.contains(candidate) ? candidate : null;
     }
     const nearestWindow = windowInRoot(fallbackFocus)
       ?? windowInRoot(anchor)
-      ?? managedKeyWindow(keyWindowId, root)
-      ?? root.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
+      ?? managedKeyWindow(keyWindowId, windowRoot)
+      ?? windowRoot.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
     if (nearestWindow !== null) return { element: nearestWindow, boundary: nearestWindow, scope: "window" };
   }
   if (!allowDesktopFallback) return null;
@@ -233,7 +239,7 @@ function resolveModalOwner({
   // accident. The body fallback also lets the primitive remain testable and
   // usable outside DesktopShell.
   return {
-    element: root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
+    element: containedCanvas ?? root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
     boundary: root instanceof HTMLElement ? root : document.body,
     scope: "desktop",
   };
@@ -448,19 +454,21 @@ export function MacWindowModalHost({
   const anchorRef = useRef<HTMLSpanElement>(null);
   const manager = useOptionalMacWindowManager();
   const embeddedPresentation = useEmbeddedPresentation();
+  const desktop = useDesktopSpace();
   const [owner, setOwner] = useState<ModalOwner | null>(null);
 
   useLayoutEffect(() => {
-    if (!open || owner !== null || embeddedPresentation !== null && embeddedPresentation.portalContainer === null) return;
+    if (!open || owner !== null || desktop !== null && desktop.canvas === null || embeddedPresentation !== null && embeddedPresentation.portalContainer === null) return;
     setOwner(resolveModalOwner({
-      root: embeddedPresentation?.portalContainer ?? document,
+      root: embeddedPresentation?.portalContainer ?? desktop?.canvas ?? document,
+      desktopCanvas: desktop?.canvas ?? null,
       allowDesktopFallback,
       anchor: anchorRef.current,
       fallbackFocus: presentation.fallbackFocusRef?.current ?? null,
       keyWindowId: manager?.keyWindowId ?? null,
       presentationScope,
     }));
-  }, [allowDesktopFallback, embeddedPresentation, manager?.keyWindowId, open, owner, presentation.fallbackFocusRef, presentationScope]);
+  }, [allowDesktopFallback, desktop, embeddedPresentation, manager?.keyWindowId, open, owner, presentation.fallbackFocusRef, presentationScope]);
 
   return <>
     <span ref={anchorRef} className="mc-window-modal-anchor" aria-hidden="true" />

@@ -41,13 +41,14 @@ async function flushFocus() {
 }
 
 describe("DesktopShell menu bar menus", () => {
-  it("keeps responsive layout as the default and marks fixed-desktop review explicitly", () => {
+  it("uses logical layout by default and keeps viewport review as an explicit opt-out", () => {
     const responsive = render(<DesktopShell appName="Responsive"><p>Desktop</p></DesktopShell>);
     expect(responsive.container.querySelector(".showcase-viewport")?.hasAttribute("data-mobile-review-mode")).toBe(false);
+    expect(responsive.container.querySelector(".showcase-viewport")?.getAttribute("data-display-space")).toBe("logical");
     responsive.unmount();
 
     const fixed = render(
-      <DesktopShell appName="Fixed" mobileReviewMode="fixed-desktop"><p>Desktop</p></DesktopShell>,
+      <DesktopShell appName="Fixed" displaySize="viewport" mobileReviewMode="fixed-desktop"><p>Desktop</p></DesktopShell>,
     );
     expect(fixed.container.querySelector(".showcase-viewport")?.getAttribute("data-mobile-review-mode")).toBe("fixed-desktop");
   });

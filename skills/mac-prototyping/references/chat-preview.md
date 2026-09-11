@@ -6,8 +6,10 @@ bounded chat host. HMR remains the normal workflow for developing a prototype.
 Install the preview builder's pinned dependencies once from its package:
 
 ```sh
-cd skills/mac-prototyping/packages/chat-preview
-pnpm install --frozen-lockfile
+(
+  cd skills/mac-prototyping/packages/chat-preview
+  pnpm install --frozen-lockfile
+)
 ```
 
 `--dependencies ../../template` in the showcase command resolves React and the
@@ -15,8 +17,10 @@ prototype's runtime packages from `template/node_modules`. Install that
 template once before using the command:
 
 ```sh
-cd skills/mac-prototyping/template
-pnpm install
+(
+  cd skills/mac-prototyping/template
+  pnpm install
+)
 ```
 
 For another prototype, point `--dependencies` at that prototype's directory
@@ -112,6 +116,30 @@ node cli.mjs \
 
 All three wrappers accept the underlying presentation props, but the examples
 make their intended feature level explicit.
+
+The managed showcase defaults to `displaySize={macBookAirM1DisplaySize}`:
+1440×900 logical CSS points, a supported scaled mode for the M1 MacBook Air.
+That preset is not the 2560×1600 physical panel and makes no claim about which
+Mac is most common. Pass another `{ width, height }` logical display size for
+a different desktop or `displaySize="viewport"` to opt out of the fixed
+logical stage. The static window examples remain fixed-flow with their 12px
+surround and inert traffic lights; they do not gain managed drag/resize
+behavior from this default.
+
+Inside a managed logical stage, frames and layout use logical points. DPR,
+browser page zoom, and visual-viewport pinch zoom do not redefine that stage;
+they affect presentation fitting, raster output, or input conversion. Avoid
+`vw`, `vh`, and `window.innerWidth` for desktop decisions—use canvas
+percentages or container-relative rules. When verifying a scaled preview,
+exercise ordinary page zoom and visual-viewport pinch zoom as separate cases.
+The full-page shell also fits against its `100dvh` height constraint, keeping
+the complete desktop and Dock visible on short hosts; the embedded preview
+continues to use its explicit height.
+If a split-panel drag is in flight while its measured display scale changes,
+release and begin it again; the patched dependency cancels that stale gesture
+rather than applying its old pointer anchor. Nested or simultaneous resizing
+does not cancel the gesture. This browser evidence does not test
+physical macOS display-setting changes.
 
 `showcase-symbols.json` is intentionally `[]`: this wrapper declares no extra
 symbols beyond recognized literals. The builder does not infer component or
@@ -223,6 +251,28 @@ node skills/mac-prototyping/examples/chat-preview/verify-second-consumer.mjs \
 This consumer checks reconstructed-profile connection failures and an
 approved-CDN positive control. It is evidence for the reconstruction, not
 inspection of the live remote host.
+
+## Verify logical display geometry
+
+Use the dedicated browser check for the managed showcase's logical frames,
+pointer drag, representative split divider, and page-zoom fitting. This tool
+requires Node 24 or later for native `await using`; it is separate from the
+template's Node 22 runtime. Keep its evidence outside Git:
+
+```sh
+node skills/mac-prototyping/examples/chat-preview/verify-display.mjs \
+  --input /private/tmp/mac-chat-preview/showcase.html \
+  --dependencies skills/mac-prototyping/template \
+  --output-directory /private/tmp/mac-chat-preview/verify-display \
+  --width 1440
+```
+
+The check uses Chromium and WebKit, emulated base DPRs, host resize, and real
+browser page zoom. Separate Chromium verification covers native pinch and pan,
+including Dock placement. WebKit's page zoom is tested, but its automation
+protocol cannot produce a native pinch gesture, so no WebKit pinch coverage is
+claimed. These checks do not inspect the chat host's runtime policy or change
+physical macOS display settings.
 
 The skill's independent design review remains required for a final
 presentation.

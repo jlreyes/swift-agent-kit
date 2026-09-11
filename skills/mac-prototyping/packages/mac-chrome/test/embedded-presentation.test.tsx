@@ -59,6 +59,45 @@ describe("embedded presentation", () => {
     expect(callbacks.zoom).not.toHaveBeenCalled();
   });
 
+  it("keeps the static surround when switching from a zoomed managed window", () => {
+    const { rerender } = render(<EmbeddedDesktop />);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom window" }));
+    expect(screen.getByRole("region", { name: "Notes window" }).classList.contains("mc-zoomed")).toBe(true);
+    rerender(<EmbeddedDesktop windowManagement={false} />);
+    const staticWindow = screen.getByRole("region", { name: "Notes window" });
+    expect(staticWindow.style.left).toBe("var(--mc-embedded-inset)");
+    expect(staticWindow.style.width).toBe("calc(100% - var(--mc-embedded-inset) - var(--mc-embedded-inset))");
+    expect(staticWindow.classList.contains("mc-zoomed")).toBe(false);
+    rerender(<EmbeddedDesktop />);
+    expect(screen.getByRole("region", { name: "Notes window" }).classList.contains("mc-zoomed")).toBe(true);
+  });
+
+  it.each(["minimize", "close", "quit"] as const)("keeps registry visibility authoritative after %s when switching to static mode", async (action) => {
+    const { rerender } = render(<EmbeddedDesktop />);
+    fireEvent.click(screen.getByRole("button", { name: "Count 0" }));
+    if (action === "quit") {
+      fireEvent.click(screen.getByRole("button", { name: "Notes", expanded: false }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Quit Notes" }));
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: action === "minimize" ? "Minimize window" : "Close window" }));
+    }
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Notes window" })).toBeNull());
+    rerender(<EmbeddedDesktop windowManagement={false} />);
+    expect(screen.queryByRole("region", { name: "Notes window" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Count 1" })).toBeNull();
+    rerender(<EmbeddedDesktop />);
+    expect(screen.queryByRole("region", { name: "Notes window" })).toBeNull();
+    const dock = screen.getByRole("navigation", { name: "Dock" });
+    fireEvent.click(within(dock).getByRole("button", { name: "Notes" }));
+    expect(screen.getByRole("button", { name: "Count 1" })).toBeTruthy();
+  });
+
+  it("keeps an initially stopped app hidden in static mode", () => {
+    const stoppedNotes: MacAppDefinition = { ...notes, defaultRunning: false };
+    render(<MacEmbeddedPresentation><MacWindowManager initialApps={[stoppedNotes]}><DesktopShell appName="Notes"><MacApp {...stoppedNotes}><WindowChrome label="Stopped notes"><TrafficLights /><p>Static contents</p></WindowChrome></MacApp></DesktopShell></MacWindowManager></MacEmbeddedPresentation>);
+    expect(screen.queryByRole("region", { name: "Stopped notes" })).toBeNull();
+  });
+
   it("can expose the real menu bar without enabling window-management commands", async () => {
     render(<EmbeddedDesktop windowManagement={false} />);
     const window = screen.getByRole("region", { name: "Notes window" });
@@ -131,14 +170,14 @@ describe("embedded presentation", () => {
     }
   });
 
-  it("renders a bounded initial frame without desktop dragging or resize affordances", () => {
-    const html = renderToStaticMarkup(<EmbeddedDesktop />);
+  it("renders a static bounded frame without dragging or resize affordances", () => {
+    const html = renderToStaticMarkup(<EmbeddedDesktop windowManagement={false} />);
     expect(html).toContain('height:560px');
     expect(html).toContain('data-embedded-window="true"');
     expect(html).toContain('data-window-resizable="false"');
     expect(html).not.toContain('data-mobile-review-mode="fixed-desktop"');
     expect(html).not.toContain('data-window-resize-handle');
-    const { container } = render(<EmbeddedDesktop />);
+    const { container } = render(<EmbeddedDesktop windowManagement={false} />);
     const window = screen.getByRole("region", { name: "Notes window" });
     const initialStyle = window.getAttribute("style");
     const handle = window.querySelector("[data-window-drag-handle]");
@@ -151,13 +190,26 @@ describe("embedded presentation", () => {
     expect(container.querySelectorAll("[data-window-resize-handle]")).toHaveLength(0);
   });
 
+  it("preserves the authored managed frame within a fitted logical desktop", () => {
+    const html = renderToStaticMarkup(<EmbeddedDesktop />);
+    expect(html).toContain('data-display-space="logical"');
+    expect(html).toContain('--mc-display-width:1440px');
+    expect(html).toContain('--mc-display-height:900px');
+    expect(html).toContain('--mc-display-fit-width:896px');
+    expect(html).toContain('width:900px;height:700px');
+    expect(html).not.toContain('data-embedded-window="true"');
+    expect(html).toContain('data-window-resizable="true"');
+    const { container } = render(<EmbeddedDesktop />);
+    expect(container.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
+  });
+
   it("uses the same registry to zoom, minimize, restore, close, and reopen without discarding state", async () => {
     render(<EmbeddedDesktop />);
     const window = screen.getByRole("region", { name: "Notes window" });
     fireEvent.click(screen.getByRole("button", { name: "Count 0" }));
     fireEvent.click(within(window).getByRole("button", { name: "Zoom window" }));
     expect(window.classList.contains("mc-zoomed")).toBe(true);
-    expect(window.style.left).toBe("0px");
+    expect(window.style.left).toBe("24px");
     fireEvent.click(within(window).getByRole("button", { name: "Zoom window" }));
     expect(window.classList.contains("mc-zoomed")).toBe(false);
     fireEvent.click(within(window).getByRole("button", { name: "Minimize window" }));

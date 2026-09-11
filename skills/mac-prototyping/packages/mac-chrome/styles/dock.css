@@ -204,7 +204,6 @@
   bottom: calc(100% + 2px);
   left: 50%;
   box-sizing: border-box;
-  max-width: calc(100vw - 16px);
   padding: 4px 7px;
   border: 0.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 5px;

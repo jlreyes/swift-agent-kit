@@ -67,7 +67,7 @@ test("the showcase server-renders its catalog shell", async () => {
   assert.match(html, /Window &amp; Toolbar/);
 });
 
-test("only the showcase opts into fixed-desktop phone review metadata", async () => {
+test("the showcase fits a logical desktop inside the device viewport", async () => {
   const defaultHtml = await render("/example").then((response) => response.text());
   const showcaseHtml = await render("/showcase").then((response) => response.text());
 
@@ -75,7 +75,10 @@ test("only the showcase opts into fixed-desktop phone review metadata", async ()
   assert.doesNotMatch(defaultHtml, /width=1200/);
   assert.match(
     showcaseHtml,
-    /<meta name="viewport" content="width=1200, initial-scale=1, minimum-scale=0\.25, maximum-scale=4, user-scalable=yes"\s*\/>/,
+    /<meta name="viewport" content="width=device-width, initial-scale=1"\s*\/>/,
   );
-  assert.match(showcaseHtml, /data-mobile-review-mode="fixed-desktop"/);
+  assert.match(showcaseHtml, /data-display-space="logical"/);
+  assert.match(showcaseHtml, /--mc-display-width:\s*1440px/);
+  assert.match(showcaseHtml, /--mc-display-height:\s*900px/);
+  assert.doesNotMatch(showcaseHtml, /data-mobile-review-mode="fixed-desktop"/);
 });

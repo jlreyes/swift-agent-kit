@@ -1120,7 +1120,7 @@ export function WindowChrome({
   if (!visible && !managed) return null;
 
   const interactiveGeometryStyle = zoomed || embedded ? null : windowGeometry.geometryStyle;
-  const embeddedInset = zoomed || embeddedPresentation?.windowManagement === false ? "0px" : "var(--mc-embedded-inset)";
+  const embeddedInset = zoomed ? "0px" : "var(--mc-embedded-inset)";
   const composedStyle: CSSProperties = {
     ...(zoomed
       ? { ...zoomedPlacement, ...style }

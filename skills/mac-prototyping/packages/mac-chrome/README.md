@@ -83,7 +83,8 @@ maps to: a contained Mac desktop presentation; no direct SwiftUI counterpart.
 
 Use this as the outer boundary for a Mac surface embedded in a bounded host,
 such as a chat preview. By default it presents supplied `WindowChrome`
-children as fixed full-frame surfaces with inert visual traffic lights: it
+children as fixed static surfaces with a 12px surround and inert visual traffic
+lights: it
 does not create a window or offer dragging, resizing, a Dock, or managed
 window state. `menuBar` reveals menus supplied by a child `DesktopShell`.
 

@@ -16,7 +16,6 @@
 
 .mc-embedded-presentation[data-embedded-window-management="false"] {
   --mc-embedded-dock-height: 0px;
-  --mc-embedded-inset: 0px;
 }
 
 .mc-embedded-presentation > .showcase-viewport,

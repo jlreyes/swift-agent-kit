@@ -225,7 +225,7 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       });
     }
     if (values['window-static']) {
-      await check('static window fills preview with inert traffic lights', async () => {
+      await check('static window keeps 12px surround with inert traffic lights', async () => {
         await selectStory('Controls & Forms');
         const field = catalog.getByRole('textbox', { name: 'Workspace name' });
         await field.fill('Static window state');
@@ -245,10 +245,10 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
         const menuBounds = values['menu-hidden'] ? null : await frame.locator('.mac-menu-bar').boundingBox();
         const menuHeight = menuBounds?.height ?? 0;
         assert.ok(rootBounds && windowBounds);
-        assert.ok(Math.abs(windowBounds.x - rootBounds.x) <= 1);
-        assert.ok(Math.abs(windowBounds.y - rootBounds.y - menuHeight) <= 1);
-        assert.ok(Math.abs(windowBounds.width - rootBounds.width) <= 1);
-        assert.ok(Math.abs(windowBounds.height - rootBounds.height + menuHeight) <= 1);
+        assert.ok(Math.abs(windowBounds.x - rootBounds.x - 12) <= 1);
+        assert.ok(Math.abs(windowBounds.y - rootBounds.y - menuHeight - 12) <= 1);
+        assert.ok(Math.abs(windowBounds.width - rootBounds.width + 24) <= 1);
+        assert.ok(Math.abs(windowBounds.height - rootBounds.height + menuHeight + 24) <= 1);
         return { rootBounds, windowBounds, menuHeight };
       });
     } else await check('traffic lights zoom, minimize, restore, close', async () => {

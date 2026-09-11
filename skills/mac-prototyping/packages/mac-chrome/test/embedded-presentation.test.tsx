@@ -45,7 +45,7 @@ describe("embedded presentation", () => {
     const callbacks = { close: vi.fn(), minimize: vi.fn(), zoom: vi.fn() };
     const { container } = render(<MacEmbeddedPresentation><MacWindowManager initialApps={[notes]}><DesktopShell appName="Notes"><MacApp {...notes}><WindowChrome label="Static window"><TrafficLights onClose={callbacks.close} onMinimize={callbacks.minimize} onZoom={callbacks.zoom} /></WindowChrome></MacApp><MacAppDock /></DesktopShell></MacWindowManager></MacEmbeddedPresentation>);
     const window = screen.getByRole("region", { name: "Static window" });
-    expect(window.style.left).toBe("0px");
+    expect(window.style.left).toBe("var(--mc-embedded-inset)");
     expect(container.querySelector(".mc-embedded-presentation")?.getAttribute("data-embedded-menu-bar")).toBe("false");
     expect(container.querySelector(".mc-embedded-presentation")?.getAttribute("data-embedded-window-management")).toBe("false");
     expect(container.querySelector(".mac-menu-bar")).toBeNull();

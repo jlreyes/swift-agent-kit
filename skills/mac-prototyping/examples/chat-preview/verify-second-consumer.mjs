@@ -94,6 +94,32 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       await refreshObservedHostTheme(frame);
       return { initial, refreshed: await palette() };
     });
+    await check('explicit 200px presentation height is honored', async () => {
+      const presentation = frame.locator('.mc-embedded-presentation');
+      const originalHeight = await presentation.evaluate(element => element.style.height);
+      try {
+        await presentation.evaluate(async element => {
+          element.style.height = '200px';
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        });
+        const root = await presentation.boundingBox();
+        assert.ok(root);
+        assert.equal(root.height, 200);
+        await frame.waitForFunction(() => document.querySelector('[data-embedded-window]')?.getBoundingClientRect().height === 176);
+        const bounds = await window.boundingBox();
+        assert.ok(bounds);
+        assert.equal(bounds.height, 176);
+        assert.equal(bounds.y - root.y, 12);
+        assert.equal(root.y + root.height - bounds.y - bounds.height, 12);
+        await screenshot('height-200');
+        return { presentationHeight: root.height, windowHeight: bounds.height };
+      } finally {
+        await presentation.evaluate(async (element, height) => {
+          element.style.height = height;
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }, originalHeight);
+      }
+    });
     await check('form pointer and keyboard submission', async () => {
       const field = window.getByRole('textbox', { name: 'Document title', exact: true });
       await field.fill('Portable notes');

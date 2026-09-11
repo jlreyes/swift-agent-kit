@@ -5,7 +5,7 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  min-height: 240px;
+  min-height: 0;
   color: var(--ink);
   font-family: var(--font-mac);
 }

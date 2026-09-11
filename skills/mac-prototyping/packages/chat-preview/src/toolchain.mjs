@@ -10,8 +10,11 @@ export function loadToolchain(project) {
   const dependencies = {};
   for (const name of ['esbuild', 'acorn', 'terser']) {
     for (const resolver of resolvers) {
-      try { dependencies[name] = resolver(name); break; }
-      catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }
+      let path;
+      try { path = resolver.resolve(name); }
+      catch (error) { if (error.code === 'MODULE_NOT_FOUND') continue; throw error; }
+      dependencies[name] = resolver(path);
+      break;
     }
     if (!dependencies[name]) throw new Error(`Missing build dependency ${name}. Install this package's declared dependencies, or supply toolchain pointing to an existing installation. Nothing was installed automatically.`);
   }

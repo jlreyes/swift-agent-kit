@@ -18,6 +18,7 @@ type MacWindowModalKind = "alert" | "sheet";
 
 type ModalOwner = {
   readonly element: HTMLElement;
+  readonly boundary: HTMLElement;
   readonly scope: "desktop" | "window";
 };
 
@@ -107,21 +108,21 @@ function reconcileModalStack(stack: ModalOwnerStack) {
   for (const child of stack.owner.element.children) {
     if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
   }
-  if (stack.owner.scope === "desktop" && stack.owner.element !== document.body) {
+  if (stack.owner.scope === "desktop" && stack.owner.element !== stack.owner.boundary) {
     // Keep the ancestor branch containing the portalled modal interactive,
     // while suppressing every sibling alongside that branch. This reaches
     // application chrome beside a nested desktop-canvas without making the
     // application root itself inert.
     let branch: HTMLElement = stack.owner.element;
-    while (branch.parentElement !== null && branch.parentElement !== document.body) {
+    while (branch.parentElement !== null && branch.parentElement !== stack.owner.boundary) {
       for (const sibling of branch.parentElement.children) {
         if (sibling instanceof HTMLElement && sibling !== branch) desired.add(sibling);
       }
       branch = branch.parentElement;
     }
 
-    // Body-level portal roots are also part of a desktop modal's underlay.
-    for (const child of document.body.children) {
+    // Portal roots within the presentation boundary also belong to the underlay.
+    for (const child of stack.owner.boundary.children) {
       if (!(child instanceof HTMLElement) || child === branch || child.contains(stack.owner.element)) continue;
       desired.add(child);
     }
@@ -148,7 +149,7 @@ function registerModalLayer(owner: ModalOwner, layer: HTMLDivElement) {
       const current = modalOwnerStacks.get(owner.element);
       if (current !== undefined) reconcileModalStack(current);
     });
-    const bodyObserver = owner.scope === "desktop" && owner.element !== document.body
+    const bodyObserver = owner.scope === "desktop" && owner.element !== owner.boundary
       ? new MutationObserver(() => {
           const current = modalOwnerStacks.get(owner.element);
           if (current !== undefined) reconcileModalStack(current);
@@ -157,7 +158,7 @@ function registerModalLayer(owner: ModalOwner, layer: HTMLDivElement) {
     stack = { layers: [], owner, suppressed: new Set(), ownerObserver, bodyObserver };
     modalOwnerStacks.set(owner.element, stack);
     ownerObserver.observe(owner.element, { childList: true });
-    bodyObserver?.observe(document.body, { childList: true, subtree: true });
+    bodyObserver?.observe(owner.boundary, { childList: true, subtree: true });
   }
   stack.layers.push(layer);
   reconcileModalStack(stack);
@@ -223,7 +224,7 @@ function resolveModalOwner({
       ?? windowInRoot(anchor)
       ?? managedKeyWindow(keyWindowId, root)
       ?? root.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
-    if (nearestWindow !== null) return { element: nearestWindow, scope: "window" };
+    if (nearestWindow !== null) return { element: nearestWindow, boundary: nearestWindow, scope: "window" };
   }
   if (!allowDesktopFallback) return null;
 
@@ -233,6 +234,7 @@ function resolveModalOwner({
   // usable outside DesktopShell.
   return {
     element: root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
+    boundary: root instanceof HTMLElement ? root : document.body,
     scope: "desktop",
   };
 }

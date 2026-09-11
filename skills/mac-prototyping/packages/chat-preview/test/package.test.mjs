@@ -18,11 +18,12 @@ const getSymbol = name => Object.hasOwn(glyphs, name) ? glyphs[name] : undefined
 function symbols(source, additional) { return collectSymbols(source, getSymbol, tools.acorn, additional); }
 
 test('collects both conditional states and finite symbol tables', () => {
-  const source = 'const table={first:"folder",second:"gearshape"};jsx(SystemSymbol,{name:table[selected]});jsx(SystemSymbol,{name:open?"info.circle":"folder"});';
+  const source = 'jsx(SystemSymbol,{name:({first:"folder",second:"gearshape"})[selected]});jsx(SystemSymbol,{name:open?"info.circle":"folder"});';
   assert.deepEqual(symbols(source).symbols.map(item => item.name), ['folder', 'gearshape', 'info.circle']);
 });
-test('finite compiler-emitted var tables work but mutated tables require a declaration', () => {
-  assert.deepEqual(symbols('var table={one:"folder",two:"gearshape"};jsx(SystemSymbol,{name:table[selected]});').symbols.map(item => item.name), ['folder','gearshape']);
+test('named tables conservatively require a declaration even when initialized with literals', () => {
+  assert.throws(() => symbols('var table={one:"folder",two:"gearshape"};jsx(SystemSymbol,{name:table[selected]});'), /additionalSymbols/);
+  assert.deepEqual(symbols('var table={one:"folder",two:"gearshape"};jsx(SystemSymbol,{name:table[selected]});', []).symbols.map(item => item.name), ['folder','gearshape']);
   assert.throws(() => symbols('var table={one:"folder"};table.extra=externalValue;jsx(SystemSymbol,{name:table[selected]});'), /additionalSymbols/);
 });
 test('unbounded symbols require an explicit dynamic declaration', () => {

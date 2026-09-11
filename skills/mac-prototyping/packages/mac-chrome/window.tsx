@@ -104,10 +104,12 @@ export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }:
   readonly onZoom?: () => void;
 } = {}) {
   const controls = useContext(WindowControlsContext);
+  const embeddedPresentation = useEmbeddedPresentation();
+  const inert = disabled || embeddedPresentation?.windowManagement === false;
 
   function control(kind: "close" | "minimize" | "zoom", label: string, action: (() => void) | undefined) {
-    if (disabled || action === undefined) {
-      return <span className={`traffic-${kind}`}>{disabled ? null : <TrafficGlyph kind={kind} />}</span>;
+    if (inert || action === undefined) {
+      return <span className={`traffic-${kind}`}>{inert ? null : <TrafficGlyph kind={kind} />}</span>;
     }
     return (
       <button type="button" className={`traffic-${kind}`} aria-label={label} onClick={action}>
@@ -117,7 +119,7 @@ export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }:
   }
 
   return (
-    <div className={`traffic-lights${disabled ? " mc-disabled" : ""}`} aria-label="Window controls">
+    <div className={`traffic-lights${inert ? " mc-disabled" : ""}`} aria-label="Window controls">
       {control("close", "Close window", onClose ?? controls?.close)}
       {control("minimize", "Minimize window", onMinimize ?? controls?.minimize)}
       {control("zoom", "Zoom window", onZoom ?? controls?.zoom)}
@@ -1053,7 +1055,8 @@ export function WindowChrome({
   readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void;
   readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void;
 }) {
-  const embedded = useEmbeddedPresentation() !== null;
+  const embeddedPresentation = useEmbeddedPresentation();
+  const embedded = embeddedPresentation !== null;
   const [hidden, setHidden] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
   const [localZoomed, setLocalZoomed] = useState(false);
@@ -1117,7 +1120,7 @@ export function WindowChrome({
   if (!visible && !managed) return null;
 
   const interactiveGeometryStyle = zoomed || embedded ? null : windowGeometry.geometryStyle;
-  const embeddedInset = zoomed ? "0px" : "var(--mc-embedded-inset)";
+  const embeddedInset = zoomed || embeddedPresentation?.windowManagement === false ? "0px" : "var(--mc-embedded-inset)";
   const composedStyle: CSSProperties = {
     ...(zoomed
       ? { ...zoomedPlacement, ...style }

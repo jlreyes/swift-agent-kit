@@ -8,9 +8,9 @@ import { parseArgs } from 'node:util';
 
 const { values } = parseArgs({ options: {
   input: { type: 'string' }, dependencies: { type: 'string' }, 'output-directory': { type: 'string' },
-  width: { type: 'string', default: '1024' }, 'menu-hidden': { type: 'boolean', default: false },
+  width: { type: 'string', default: '1024' }, 'menu-hidden': { type: 'boolean', default: false }, 'window-static': { type: 'boolean', default: false },
 } });
-if (!values.input || !values.dependencies || !values['output-directory']) throw new Error('Usage: node verify.mjs --input /path/preview.html --dependencies /path/to/test-project --output-directory /private/output [--width 1024] [--menu-hidden]');
+if (!values.input || !values.dependencies || !values['output-directory']) throw new Error('Usage: node verify.mjs --input /path/preview.html --dependencies /path/to/test-project --output-directory /private/output [--width 1024] [--menu-hidden] [--window-static]');
 const width = Number(values.width);
 if (!Number.isInteger(width) || width < 320 || width > 2000) throw new Error('Width must be 320–2000');
 const inputPath = resolve(values.input);
@@ -62,14 +62,18 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
   try {
     await page.setContent('<style>html,body{margin:0}</style><iframe sandbox="allow-scripts" style="display:block;border:0;width:100%;height:880px"></iframe>');
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'unsafe-inline';style-src 'unsafe-inline';img-src data:;font-src data:;connect-src 'none'">`;
-    await page.locator('iframe').evaluate((iframe, html) => { iframe.srcdoc = html; }, `<!doctype html><meta charset="utf-8">${csp}<style>html,body{margin:0}</style>${source}`);
+    async function loadPreview() {
+      await page.locator('iframe').evaluate((iframe, html) => new Promise(resolve => { iframe.addEventListener('load', resolve, { once: true }); iframe.srcdoc = html; }), `<!doctype html><meta charset="utf-8">${csp}<style>html,body{margin:0}</style>${source}`);
+    }
+    await loadPreview();
     const frame = page.frames()[1];
     const catalog = frame.getByRole('region', { name: 'Mac Chrome component showcase', exact: true });
     const dock = frame.getByRole('navigation', { name: 'Showcase Dock', exact: true });
     const catalogDock = dock.getByRole('button', { name: 'Mac Chrome', exact: true });
     recover = async () => {
       if (await frame.getByRole('dialog').count() || await frame.getByRole('alertdialog').count()) await page.keyboard.press('Escape');
-      await catalogDock.click();
+      if (values['window-static']) await loadPreview();
+      else await catalogDock.click();
       await catalog.waitFor();
     };
     const catalogSource = catalog.locator('[aria-label="Component catalog"].mc-sidebar-tree');
@@ -87,7 +91,8 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     });
     await check('menu bar follows preview option', async () => {
       assert.equal(await frame.locator('.mac-menu-bar').isVisible(), !values['menu-hidden']);
-      await dock.waitFor();
+      if (values['window-static']) assert.equal(await dock.count(), 0);
+      else await dock.waitFor();
     });
     for (const [index, name] of storyNames.entries()) {
       await check(`story ${name}`, async () => { await selectStory(name); await screenshot(`story-${index + 1}`); });
@@ -170,13 +175,43 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
           await recipe.getByRole('log', { name: 'Conversation' }).getByText('Offline showcase message', { exact: false }).waitFor();
         }
         await screenshot(`recipe-${story.toLowerCase().replaceAll(' ', '-')}`);
-        await recipe.getByRole('button', { name: 'Close window', exact: true }).click();
-        await recipe.waitFor({ state: 'hidden' });
-        await catalogDock.click();
+        if (values['window-static']) await loadPreview();
+        else {
+          await recipe.getByRole('button', { name: 'Close window', exact: true }).click();
+          await recipe.waitFor({ state: 'hidden' });
+          await catalogDock.click();
+        }
         await catalog.waitFor();
       });
     }
-    await check('traffic lights zoom, minimize, restore, close', async () => {
+    if (values['window-static']) {
+      await check('static window fills preview with inert traffic lights', async () => {
+        await selectStory('Controls & Forms');
+        const field = catalog.getByRole('textbox', { name: 'Workspace name' });
+        await field.fill('Static window state');
+        const windowId = await catalog.getAttribute('data-window-id');
+        const controls = catalog.locator('.traffic-lights');
+        assert.equal(await controls.locator('button').count(), 0);
+        for (const control of ['close', 'minimize', 'zoom']) {
+          await controls.locator(`.traffic-${control}`).click();
+          assert.equal(await catalog.isVisible(), true);
+          assert.equal(await catalog.getAttribute('data-window-id'), windowId);
+          assert.equal(await field.inputValue(), 'Static window state');
+          assert.equal(await catalog.evaluate(element => element.classList.contains('mc-zoomed')), false);
+        }
+        assert.equal(await dock.count(), 0);
+        const rootBounds = await frame.locator('.mc-embedded-presentation').boundingBox();
+        const windowBounds = await catalog.boundingBox();
+        const menuBounds = values['menu-hidden'] ? null : await frame.locator('.mac-menu-bar').boundingBox();
+        const menuHeight = menuBounds?.height ?? 0;
+        assert.ok(rootBounds && windowBounds);
+        assert.ok(Math.abs(windowBounds.x - rootBounds.x) <= 1);
+        assert.ok(Math.abs(windowBounds.y - rootBounds.y - menuHeight) <= 1);
+        assert.ok(Math.abs(windowBounds.width - rootBounds.width) <= 1);
+        assert.ok(Math.abs(windowBounds.height - rootBounds.height + menuHeight) <= 1);
+        return { rootBounds, windowBounds, menuHeight };
+      });
+    } else await check('traffic lights zoom, minimize, restore, close', async () => {
       await selectStory('Controls & Forms');
       const field = catalog.getByRole('textbox', { name: 'Workspace name' });
       await field.fill('Retained state');
@@ -209,7 +244,7 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       return { previewImage };
     });
     if (!values['menu-hidden']) {
-      await check('Window menu minimize and thumbnail restore', async () => {
+      if (!values['window-static']) await check('Window menu minimize and thumbnail restore', async () => {
         await selectStory('Controls & Forms');
         const field = catalog.getByRole('textbox', { name: 'Workspace name' });
         await field.fill('Window menu retained state');
@@ -248,7 +283,7 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     await screenshot('final');
     if (!values['menu-hidden']) {
       await check('Mark as Read closes and restores keyboard access', async () => {
-        await page.locator('iframe').evaluate((iframe, html) => new Promise(resolve => { iframe.addEventListener('load', resolve, { once: true }); iframe.srcdoc = html; }), `<!doctype html><meta charset="utf-8">${csp}<style>html,body{margin:0}</style>${source}`);
+        await loadPreview();
         const freshFrame = page.frames()[1];
         const freshCatalog = freshFrame.getByRole('region', { name: 'Mac Chrome component showcase', exact: true });
         await freshCatalog.waitFor();
@@ -285,7 +320,7 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
   }
   return result;
 }));
-const result = { inputPath, inputBytes: Buffer.byteLength(source), inputSha256: createHash('sha256').update(source).digest('hex'), menuBarExpected: !values['menu-hidden'], observations };
+const result = { inputPath, inputBytes: Buffer.byteLength(source), inputSha256: createHash('sha256').update(source).digest('hex'), menuBarExpected: !values['menu-hidden'], windowManagementExpected: !values['window-static'], observations };
 await writeFile(resolve(outputRoot, 'results.json'), JSON.stringify(result, null, 2));
 console.log(JSON.stringify({ inputPath, inputBytes: result.inputBytes, resultsPath: resolve(outputRoot, 'results.json'), observations: observations.map(({ engineName, passed, checks, errors, requests, console: consoleMessages, failure }) => ({ engineName, passed, completedChecks: checks.length, errors, requests, console: consoleMessages, failedChecks: checks.filter(check => !check.passed).map(check => check.name), failure })) }, null, 2));
 if (observations.some(result => !result.passed)) process.exitCode = 1;

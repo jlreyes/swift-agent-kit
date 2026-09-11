@@ -406,6 +406,7 @@ export function DesktopShell({
   const windowManager = useOptionalMacWindowManager();
   const embeddedPresentation = useEmbeddedPresentation();
   const showMenuBar = embeddedPresentation?.menuBar ?? true;
+  const windowManagement = embeddedPresentation?.windowManagement ?? true;
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
@@ -417,6 +418,7 @@ export function DesktopShell({
   useEffect(() => {
     if (!showMenuBar || date !== undefined && clock !== undefined) return;
 
+    setNow(new Date());
     let timer: number | undefined;
     function scheduleNextMinute() {
       const delay = 60_000 - (Date.now() % 60_000);
@@ -479,10 +481,18 @@ export function DesktopShell({
     { title: activeApplicationName, items: appMenuItems ?? defaultAppMenu(activeApplicationName) },
     ...menuItems.map(resolveMenu),
   ]
-    .map((menu, index) => windowManager === null
+    .map((menu, index) => windowManager === null || !windowManagement
       ? menu
       : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
-    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction));
+    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction))
+    .map((menu, index) => {
+      if (windowManagement) return menu;
+      const disabledCommands = index === 1
+        ? ["hide-app", "hide-others", "quit-app"]
+        : menu.title === "File" ? ["close-window"]
+          : menu.title === "Window" ? ["minimize", "zoom", "bring-all-to-front"] : [];
+      return { ...menu, items: menu.items.map((entry) => entry.kind === "action" && disabledCommands.includes(entry.id) ? { ...entry, disabled: true, onSelect: undefined } : entry) };
+    });
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }

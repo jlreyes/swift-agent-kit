@@ -37,7 +37,7 @@ export CHAT_PREVIEW_PYTHON='python3'
 The source font and the generated subset are private local inputs. Do not add
 either to Git or extract Apple-owned assets into a repository.
 
-## Build the canonical showcase
+## Build the three showcase modes
 
 Run this from `skills/mac-prototyping/packages/chat-preview`. The output path
 must stay outside every Git repository because the preview contains the
@@ -59,21 +59,57 @@ node cli.mjs \
   --max-bytes 1000000
 ```
 
-`--component` mounts the entry module's default export. The showcase uses the
-actual 11-story template, sheet-motion navigation, and its optional menu bar.
-Gzip is the default because the tested Chromium and WebKit targets both expose
-its native decoder. Use `--format raw` only when the target host cannot decode
-gzip.
+`--component` mounts the entry module's default export. This managed example
+uses the actual 11-story template, sheet-motion navigation, and explicitly
+sets both `menuBar` and `windowManagement` to true. Gzip is the default because
+the tested Chromium and WebKit targets both expose its native decoder. Use
+`--format raw` only when the target host cannot decode gzip.
 
-For the frame-only variant, replace the `--entry` value with
-`../../examples/chat-preview/showcase-window.tsx` and keep the remaining
-arguments unchanged.
+The window-only entry explicitly keeps both options false, so it has no menu
+bar or Dock:
 
-`showcase-symbols.json` is intentionally `[]`: it asserts that this finite
-fixture needs no *extra* symbols beyond the builder's conservative collection
-of static and finite reachable literals. It does not make arbitrary computed
-symbol names safe. For an unbounded expression, provide a complete JSON array
-with `--additional-symbols`; an undeclared runtime glyph is an error.
+```sh
+node cli.mjs \
+  --entry ../../examples/chat-preview/showcase-window.tsx \
+  --output /private/tmp/mac-chat-preview/showcase-window.html \
+  --component \
+  --mac-chrome-directory ../mac-chrome \
+  --dependencies ../../template \
+  --asset-root ../../template/public \
+  --font "$CHAT_PREVIEW_SF_PRO_FONT" \
+  --python "$CHAT_PREVIEW_PYTHON" \
+  --additional-symbols ../../examples/chat-preview/showcase-symbols.json \
+  --root mac-chat-preview \
+  --format gzip \
+  --max-bytes 1000000
+```
+
+The static menu entry enables `menuBar` while keeping `windowManagement`
+false:
+
+```sh
+node cli.mjs \
+  --entry ../../examples/chat-preview/showcase-window-menu.tsx \
+  --output /private/tmp/mac-chat-preview/showcase-window-menu.html \
+  --component \
+  --mac-chrome-directory ../mac-chrome \
+  --dependencies ../../template \
+  --asset-root ../../template/public \
+  --font "$CHAT_PREVIEW_SF_PRO_FONT" \
+  --python "$CHAT_PREVIEW_PYTHON" \
+  --additional-symbols ../../examples/chat-preview/showcase-symbols.json \
+  --root mac-chat-preview \
+  --format gzip \
+  --max-bytes 1000000
+```
+
+All three wrappers accept the underlying presentation props, but the examples
+make their intended feature level explicit.
+
+`showcase-symbols.json` is intentionally `[]`: it asserts that this fixture
+needs no symbols beyond recognized literal names. Named object members and
+unbounded expressions require a complete JSON array with
+`--additional-symbols`; an undeclared runtime glyph is an error.
 
 ## Verify the boundary
 
@@ -92,7 +128,7 @@ cd skills/mac-prototyping/template
 pnpm exec playwright install chromium webkit
 ```
 
-From the repository root, verify the menu-bar artifact and write private
+From the repository root, verify the managed artifact and write private
 screenshots and results outside Git:
 
 ```sh
@@ -103,7 +139,8 @@ node skills/mac-prototyping/examples/chat-preview/verify.mjs \
   --width 1024
 ```
 
-Verify the menu-hidden variant separately:
+Verify the static window with no menu separately. `--window-static` is
+required for static artifacts, and `--menu-hidden` asserts the omitted menu:
 
 ```sh
 node skills/mac-prototyping/examples/chat-preview/verify.mjs \
@@ -111,12 +148,29 @@ node skills/mac-prototyping/examples/chat-preview/verify.mjs \
   --dependencies skills/mac-prototyping/template \
   --output-directory /private/tmp/mac-chat-preview/verify-window \
   --width 1024 \
-  --menu-hidden
+  --menu-hidden \
+  --window-static
+```
+
+Verify the static window with a menu separately:
+
+```sh
+node skills/mac-prototyping/examples/chat-preview/verify.mjs \
+  --input /private/tmp/mac-chat-preview/showcase-window-menu.html \
+  --dependencies skills/mac-prototyping/template \
+  --output-directory /private/tmp/mac-chat-preview/verify-window-menu \
+  --width 1024 \
+  --window-static
 ```
 
 `--input`, `--dependencies`, and `--output-directory` are required.
-`--width` and `--menu-hidden` are optional. Chromium and WebKit run in
-parallel, and the verifier refuses an output directory inside a Git repository.
+`--width`, `--menu-hidden`, and `--window-static` are optional in general.
+Chromium and WebKit run in parallel, and the verifier refuses an output
+directory inside a Git repository.
+Static checks catch common direct resource calls and literals, but dynamic or
+aliased resources and dependencies can evade them. Treat the inline/data-only
+CSP and network-blocked sandbox browser verification as the enforcement
+boundary.
 
 The skill's independent design review remains required for a final
 presentation.

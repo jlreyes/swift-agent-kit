@@ -102,7 +102,7 @@ copy a showcase layout or private component into product code.
 | Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
-| A fixed in-chat Mac desktop presentation | `MacEmbeddedPresentation` | bounded stage with managed app/window lifecycle, Dock restoration, and optional menu bar |
+| A fixed in-chat Mac presentation | `MacEmbeddedPresentation` | defaults to one bounded window; enable menu or managed-window behavior only when the prototype needs it |
 
 `MacNavigationSplitView` has either two columns (sidebar + detail) or three
 navigation columns (sidebar + content + detail). Its optional middle column
@@ -111,6 +111,12 @@ supplementary trailing pane; do not treat it as the third navigation column.
 When its panel defaults use compatible CSS units, the shared split view
 normalizes them for SSR. Use this primitive rather than assembling local panel
 layouts, so hydration does not shift its children.
+
+For an in-chat surface, start with `MacEmbeddedPresentation`'s default single
+bounded window. Its traffic lights are visual only. Enable `menuBar` only for
+app menus and `windowManagement` only when the prototype needs registry-owned
+close, minimize, restore, zoom, and Dock behavior; multiple-window and
+managed-desktop demos commonly need both.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;

@@ -19,12 +19,12 @@ afterEach(cleanup);
 
 const notes: MacAppDefinition = { id: "notes", name: "Notes", icon: { kind: "systemSymbol", name: "doc.text.fill" } };
 
-function EmbeddedDesktop({ menuBar = true }: { readonly menuBar?: boolean }) {
+function EmbeddedDesktop({ menuBar = true, windowManagement = true }: { readonly menuBar?: boolean; readonly windowManagement?: boolean }) {
   const [count, setCount] = useState(0);
   return (
-    <MacEmbeddedPresentation menuBar={menuBar} height={560}>
+    <MacEmbeddedPresentation menuBar={menuBar} windowManagement={windowManagement} height={560}>
       <MacWindowManager initialApps={[notes]}>
-        <DesktopShell appName="Notes" mobileReviewMode="fixed-desktop" menuItems={["Window"]} menuBarExtras={<MenuBarExtra label="Status details" icon={<span>Status</span>}><p>Status content</p></MenuBarExtra>}>
+        <DesktopShell appName="Notes" mobileReviewMode="fixed-desktop" menuItems={["File", "Window"]} menuBarExtras={<MenuBarExtra label="Status details" icon={<span>Status</span>}><p>Status content</p></MenuBarExtra>}>
           <MacApp {...notes}>
             <WindowChrome label="Notes window" frame={{ width: 900, height: 700 }}>
               <div data-window-drag-handle=""><TrafficLights /></div>
@@ -41,6 +41,62 @@ function EmbeddedDesktop({ menuBar = true }: { readonly menuBar?: boolean }) {
 }
 
 describe("embedded presentation", () => {
+  it("defaults to one full-size window with inert traffic lights, no menu bar, and no Dock", () => {
+    const callbacks = { close: vi.fn(), minimize: vi.fn(), zoom: vi.fn() };
+    const { container } = render(<MacEmbeddedPresentation><MacWindowManager initialApps={[notes]}><DesktopShell appName="Notes"><MacApp {...notes}><WindowChrome label="Static window"><TrafficLights onClose={callbacks.close} onMinimize={callbacks.minimize} onZoom={callbacks.zoom} /></WindowChrome></MacApp><MacAppDock /></DesktopShell></MacWindowManager></MacEmbeddedPresentation>);
+    const window = screen.getByRole("region", { name: "Static window" });
+    expect(window.style.left).toBe("0px");
+    expect(container.querySelector(".mc-embedded-presentation")?.getAttribute("data-embedded-menu-bar")).toBe("false");
+    expect(container.querySelector(".mc-embedded-presentation")?.getAttribute("data-embedded-window-management")).toBe("false");
+    expect(container.querySelector(".mac-menu-bar")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Dock" })).toBeNull();
+    const trafficLights = container.querySelector(".traffic-lights");
+    expect(trafficLights?.querySelectorAll("span")).toHaveLength(3);
+    expect(trafficLights?.querySelectorAll("button")).toHaveLength(0);
+    trafficLights?.querySelectorAll("span").forEach((dot) => fireEvent.click(dot));
+    expect(callbacks.close).not.toHaveBeenCalled();
+    expect(callbacks.minimize).not.toHaveBeenCalled();
+    expect(callbacks.zoom).not.toHaveBeenCalled();
+  });
+
+  it("can expose the real menu bar without enabling window-management commands", async () => {
+    render(<EmbeddedDesktop windowManagement={false} />);
+    const window = screen.getByRole("region", { name: "Notes window" });
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    const minimize = await screen.findByRole("menuitem", { name: "Minimize" });
+    expect(minimize.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Zoom" }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(minimize);
+    expect(window.hidden).toBe(false);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Window menu" }), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    expect((await screen.findByRole("menuitem", { name: "Close Window" })).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.keyDown(screen.getByRole("menu", { name: "File menu" }), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Notes" }));
+    expect((await screen.findByRole("menuitem", { name: "Quit Notes" })).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Hide Notes" }).getAttribute("aria-disabled")).toBe("true");
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Notes menu" }), { key: "Escape" });
+    for (const key of ["m", "w", "q"]) fireEvent.keyDown(window, { key, metaKey: true });
+    expect(window.hidden).toBe(false);
+    expect(window.classList.contains("mc-zoomed")).toBe(false);
+    expect(screen.queryByRole("navigation", { name: "Dock" })).toBeNull();
+  });
+
+  it("refreshes the clock immediately when a hidden menu bar becomes visible", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-11T10:01:05"));
+      const { container, rerender } = render(<EmbeddedDesktop menuBar={false} />);
+      const currentTime = new Date("2026-09-11T10:04:12");
+      vi.setSystemTime(currentTime);
+      rerender(<EmbeddedDesktop menuBar />);
+      const expected = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(currentTime);
+      expect(container.querySelector(".menu-right > span:last-child")?.textContent).toBe(expected);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders a bounded initial frame without desktop dragging or resize affordances", () => {
     const html = renderToStaticMarkup(<EmbeddedDesktop />);
     expect(html).toContain('height:560px');

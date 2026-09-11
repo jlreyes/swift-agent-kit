@@ -10,10 +10,12 @@ export type MacEmbeddedPresentationProps = {
   readonly children: ReactNode;
   readonly height?: number;
   readonly menuBar?: boolean;
+  readonly windowManagement?: boolean;
 };
 
 type EmbeddedPresentation = {
   readonly menuBar: boolean;
+  readonly windowManagement: boolean;
   readonly portalContainer: HTMLDivElement | null;
 };
 
@@ -29,15 +31,16 @@ function preventNativeSubmitActivation(event: KeyboardEvent<HTMLDivElement>) {
   if ((event.key === "Enter" || event.key === " " || event.key === "Spacebar") && !event.nativeEvent.isComposing && target instanceof HTMLButtonElement && target.dataset.embeddedSubmit === "true" && target.form !== null) event.preventDefault();
 }
 
-export function MacEmbeddedPresentation({ children, height = 640, menuBar = true }: MacEmbeddedPresentationProps) {
+export function MacEmbeddedPresentation({ children, height = 640, menuBar = false, windowManagement = false }: MacEmbeddedPresentationProps) {
   const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
-  const presentation = useMemo(() => ({ menuBar, portalContainer }), [menuBar, portalContainer]);
+  const presentation = useMemo(() => ({ menuBar, portalContainer, windowManagement }), [menuBar, portalContainer, windowManagement]);
   return (
     <EmbeddedPresentationContext.Provider value={presentation}>
       <div
         ref={setPortalContainer}
         className="mc-embedded-presentation"
         data-embedded-menu-bar={menuBar ? "true" : "false"}
+        data-embedded-window-management={windowManagement ? "true" : "false"}
         style={{ height }}
         onKeyDownCapture={preventNativeSubmitActivation}
         onKeyUpCapture={preventNativeSubmitActivation}

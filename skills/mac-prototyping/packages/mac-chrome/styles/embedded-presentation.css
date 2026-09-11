@@ -14,6 +14,11 @@
   --mc-embedded-menu-height: 0px;
 }
 
+.mc-embedded-presentation[data-embedded-window-management="false"] {
+  --mc-embedded-dock-height: 0px;
+  --mc-embedded-inset: 0px;
+}
+
 .mc-embedded-presentation > .showcase-viewport,
 .mc-embedded-presentation > .showcase-viewport > .desktop-canvas {
   width: 100%;

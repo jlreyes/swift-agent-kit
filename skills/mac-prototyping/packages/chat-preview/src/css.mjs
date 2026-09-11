@@ -27,21 +27,30 @@ export function scopeCss(source, root, { postcss, cssTree }) {
     if (name === 'charset') { rule.remove(); return; }
     if (!allowedAtRules.has(name)) throw new Error(`Unsupported global CSS @${name}; resolve its isolation explicitly before packaging.`);
     if (name.endsWith('keyframes')) {
-      const renamed = `${root}-${rule.params}`;
-      keyframes.set(rule.params, renamed);
-      rule.params = renamed;
+      const parsed = cssTree.parse(rule.params, { context: 'value' });
+      const node = parsed.children.first;
+      if (parsed.children.size !== 1 || !['Identifier', 'String'].includes(node?.type)) throw new Error(`Unsupported keyframe name: ${rule.params}`);
+      const original = node.type === 'String' ? node.value : cssTree.ident.decode(node.name);
+      const renamed = `${root}-${original}`;
+      keyframes.set(original, renamed);
+      if (node.type === 'String') node.value = renamed;
+      else node.name = cssTree.ident.encode(renamed);
+      rule.params = cssTree.generate(parsed);
     }
   });
   css.walkRules(rule => {
-    if (rule.parent.type === 'atrule' && rule.parent.name.endsWith('keyframes')) return;
+    if (rule.parent.type === 'atrule' && rule.parent.name.toLowerCase().endsWith('keyframes')) return;
     const selectors = cssTree.parse(rule.selector, { context: 'selectorList' });
-    let hasViewTransition = false;
     const includeRoot = [];
-    selectors.children.forEach(selector => {
+    selectors.children.forEach((selector, item, list) => {
+      let hasViewTransition = false;
+      cssTree.walk(selector, node => {
+        if (node.type === 'PseudoElementSelector' && node.name.startsWith('view-transition')) hasViewTransition = true;
+      });
+      if (hasViewTransition) { list.remove(item); return; }
       let roots = 0;
       const topLevel = selector.children.toArray();
       cssTree.walk(selector, node => {
-        if (node.type === 'PseudoElementSelector' && node.name.startsWith('view-transition')) hasViewTransition = true;
         if (!documentRoot(node)) return;
         if (!topLevel.includes(node)) throw new Error(`Nested document-root CSS needs explicit adaptation: ${rule.selector}`);
         roots += 1;
@@ -56,15 +65,27 @@ export function scopeCss(source, root, { postcss, cssTree }) {
         selector.children.prependData({ type: 'IdSelector', name: root });
       }
     });
-    if (hasViewTransition) { rule.remove(); return; }
+    if (selectors.children.isEmpty) { rule.remove(); return; }
     rule.selector = [...includeRoot, cssTree.generate(selectors)].join(',');
   });
   css.walkDecls(declaration => {
     const parsed = cssTree.parse(declaration.value, { context: 'value', parseCustomProperty: true });
     cssTree.walk(parsed, node => {
       if (node.type === 'Url' && !/^(?:data:|#)/i.test(node.value)) throw new Error(`Unembedded CSS URL remains: ${node.value}`);
-      if ((declaration.prop === 'animation' || declaration.prop === 'animation-name') && node.type === 'Identifier' && keyframes.has(node.name)) node.name = keyframes.get(node.name);
     });
+    const property = declaration.prop.toLowerCase().replace(/^-webkit-/, '');
+    if (keyframes.size && (property === 'animation' || property === 'animation-name')) {
+      const match = cssTree.lexer.matchProperty(property, parsed);
+      if (match.error) throw new Error(`Cannot safely scope CSS ${declaration.prop}: ${declaration.value}; use explicit animation values instead of ambiguous or unsupported syntax.`);
+      cssTree.walk(parsed, node => {
+        if (node.type !== 'Identifier' && node.type !== 'String') return;
+        if (!match.getTrace(node)?.some(part => part.type === 'Type' && part.name === 'keyframes-name')) return;
+        const original = node.type === 'String' ? node.value : cssTree.ident.decode(node.name);
+        if (!keyframes.has(original)) return;
+        if (node.type === 'String') node.value = keyframes.get(original);
+        else node.name = cssTree.ident.encode(keyframes.get(original));
+      });
+    }
     declaration.value = cssTree.generate(parsed);
   });
   return css.toString();

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { MacDock, type DockIconSource, type DockItem } from "./dock.tsx";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import {
   captureMacWindowThumbnail,
   commitMacWindowViewTransition,
@@ -706,6 +707,8 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
   readonly onAppActivate?: (appId: string) => void;
 }) {
   const manager = useMacWindowManager();
+  const embeddedPresentation = useEmbeddedPresentation();
+  if (embeddedPresentation?.windowManagement === false) return null;
   const appIds = new Set(manager.apps.map((app) => app.id));
   const unmanagedItems = extraItems.filter((item) => !appIds.has(item.id));
   function appDockItem(app: MacManagedApp): DockItem {

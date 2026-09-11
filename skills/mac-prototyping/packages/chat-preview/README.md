@@ -47,14 +47,19 @@ preview. The private-font path requires an output directory outside every Git
 repository. The supplied Python must already have fontTools and Brotli; no
 font tooling is downloaded automatically.
 
-## Symbol reachability
+## Symbols and runtime diagnostics
 
-The builder includes recognized static and finite reachable symbol strings.
-For an unbounded expression, supply every possible name through
-`additionalSymbols`, for example `additionalSymbols: ["folder", "gearshape"]`.
-An undeclared dynamic name fails at build time or, if it reaches the packaged
-lookup, at runtime. This prevents a small preview from silently carrying a
-full symbol dictionary.
+The builder includes recognized literal symbol names. Named object members and
+unbounded expressions need every possible name through `additionalSymbols`,
+for example `additionalSymbols: ["folder", "gearshape"]`. An undeclared
+dynamic name fails at build time or, if it reaches the packaged lookup, at
+runtime. This prevents a small preview from silently carrying a full symbol
+dictionary.
+
+The result's `runtimeDiagnostics` reports common network calls, resource URL
+properties and assignments, `setAttribute` resource writes, remaining dynamic
+imports, and computed resource values in the final minified bundle, including
+dependencies. A diagnostic is a review signal, not a proof of isolation.
 
 ## CLI
 
@@ -64,9 +69,14 @@ full symbol dictionary.
 `--format gzip|raw`, `--root`, `--max-bytes`, `--local-symbols`, and
 `--keep-desktop-css`. Run `node cli.mjs --help` for the current synopsis.
 
-The builder rejects external imports, runtime network APIs, non-embedded
-authored resource URLs, invalid CSS-global usage, oversized outputs, and
-multiple React installations. It returns the output path, final size
-breakdown, retained symbols, navigation URLs, and the largest bundled
-contributors so a caller can inspect the result without guessing from source
-size.
+Source validation rejects common direct external imports, network calls
+including `sendBeacon`, and non-embedded authored resource literals. CSS
+validation rejects unscoped ambiguous animation values when keyframes need
+renaming, alongside invalid CSS-global usage. Static checks and
+`runtimeDiagnostics` cannot prove that aliases, HTML strings, arbitrary
+runtime code, or every dependency path will not reach the network. Enforce
+that boundary with an inline/data-only CSP and network-blocked browser
+verification. The builder returns the output path, final size breakdown,
+retained symbols, `runtimeDiagnostics`, navigation URLs, and the largest
+bundled contributors so a caller can inspect the result without guessing from
+source size.

@@ -4,7 +4,7 @@ import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto';
 import { loadToolchain } from './toolchain.mjs';
 import { prepareCss, scopeCss } from './css.mjs';
-import { inspectSource, collectSymbols, symbolModule } from './source.mjs';
+import { inspectSource, collectSymbols, symbolModule, diagnoseRuntimeCode } from './source.mjs';
 import { formatPreview, validateRoot } from './format.mjs';
 import { buildSymbolFont } from './font.mjs';
 
@@ -120,14 +120,15 @@ export async function buildPreview(options) {
   }
   const minified = await modules.terser.minify(javascript, { compress: { passes: 2 }, mangle: true, format: { comments: 'some' }, ecma: 2022 });
   if (!minified.code) throw new Error('Terser did not produce JavaScript.');
+  const runtimeDiagnostics = diagnoseRuntimeCode(minified.code, acorn);
   const formatted = formatPreview({ root, css, script: minified.code, format: options.format ?? 'gzip', maxBytes: options.maxBytes ?? 1_000_000 });
   await atomicWrite(output, formatted.fragment);
   const contributors = Object.values(result.metafile.outputs).flatMap(item => Object.entries(item.inputs)).map(([path, item]) => ({ path, bytes: item.bytesInOutput })).sort((a, b) => b.bytes - a.bytes).slice(0, 20);
   return {
-    output, root, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
+    output, root, runtimeDiagnostics, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
     symbols: symbolReport.symbols.map(({ name }) => name), automaticSymbols: symbolReport.automatic,
     dynamicSymbolExpressions: symbolReport.dynamic, fontBytes: font?.bytes ?? 0,
     localSymbols: Boolean(options.localSymbols && !font), reactInstallations: [...reactRoots], contributors,
-    limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'Exercise every relevant state with network blocked; static source inspection cannot prove arbitrary runtime behavior.', 'Use an isolated iframe permitting inline scripts/styles and data images/fonts. Keep portals inside the preview root.'],
+    limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'Authored checks reject direct common network calls and literal resource props. Emitted-code diagnostics also inspect dependencies, but computed aliases, HTML strings, and arbitrary runtime behavior are not exhaustively analyzed. Exercise every relevant state in an isolated iframe with network blocked.', 'Use an isolated iframe permitting inline scripts/styles and data images/fonts. Keep portals inside the preview root.'],
   };
 }

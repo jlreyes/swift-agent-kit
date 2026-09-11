@@ -70,6 +70,7 @@ export async function buildPreview(options) {
     builder.onResolve({ filter: /^(?:react|react-dom)(?:\/|$)/ }, args => ({ path: projectRequire.resolve(args.path) }));
     builder.onResolve({ filter: /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i }, args => {
       if (args.path.startsWith('data:')) return;
+      if (/^data:/i.test(args.path)) return builder.resolve('data:' + args.path.slice(5), { kind: args.kind, resolveDir: args.resolveDir, importer: args.importer });
       throw new Error(`External import is not self-contained: ${args.path} (${args.importer})`);
     });
     builder.onResolve({ filter: /^\// }, async args => {

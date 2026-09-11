@@ -50,9 +50,9 @@ that local-only path. The supplied Python must already have fontTools and
 Brotli; no font tooling is downloaded automatically.
 
 For `srcSet`/`srcset` resource props, assignments, or `setAttribute`, the
-only accepted literal form is one base64 image data URL with an optional width
-or density descriptor. Other literals and computed values produce advisory
-diagnostics that need browser verification.
+only recognized nonempty literal form is one base64 image data URL with an
+optional width or density descriptor. Other nonempty literals and computed
+values produce advisory diagnostics that need browser verification.
 
 ## Symbols and runtime diagnostics
 

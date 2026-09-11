@@ -40,8 +40,8 @@ either to Git or extract Apple-owned assets into a repository.
 The private-font output restriction applies only when the build embeds a
 subset. A symbol-free preview may write inside Git even when given an unused
 font path. For `srcSet`/`srcset` props, assignments, or `setAttribute`, one
-base64 image data URL with an optional width or density descriptor is the
-recognized form. Other literals and computed values are advisory diagnostics
+nonempty base64 image data URL with an optional width or density descriptor is
+the recognized form. Other nonempty literals and computed values are advisory diagnostics
 for browser verification, not build failures.
 
 ## Build the three showcase modes

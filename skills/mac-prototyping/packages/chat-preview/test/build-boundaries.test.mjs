@@ -90,3 +90,26 @@ test('private-font artifacts are rejected inside bare repositories before font e
   });
   await assert.rejects(item.build({output:join(item.directory,'bare','private','preview.html'),fontPath:join(item.directory,'missing-font.otf')}),/including bare repositories/);
 });
+
+test('mixed-case data schemes embed CSS images and bundle JavaScript modules', async context => {
+  const svg='<svg xmlns="http://www.w3.org/2000/svg"/>';
+  const image='DATA:image/svg+xml;base64,'+Buffer.from(svg).toString('base64');
+  const module='DaTa:text/javascript;base64,'+Buffer.from('export default "embedded-module-value"').toString('base64');
+  const item=await fixture(context,{
+    'preview.js':`import value from ${JSON.stringify(module)};import "./preview.css";globalThis.embeddedValue=value;`,
+    'preview.css':`.image{background:url("${image}")}`,
+  });
+  await item.build();
+  const html=await item.read();
+  const css=stylesFromRawFragment(html);
+  const url=css.match(/url\((?:["']?)(data:[^"')]+)(?:["']?)\)/)[1];
+  assert.equal(await (await fetch(url)).text(),svg);
+  const runtime=vm.createContext({});
+  runtime.document={createElement:tag=>({tag}),head:{append(){}},body:{append(node){vm.runInContext(node.textContent,runtime)}}};
+  vm.runInContext(html.match(/<script>([\s\S]*)<\/script>/)[1],runtime);
+  assert.equal(runtime.embeddedValue,'embedded-module-value');
+  assert.doesNotMatch(html,/DaTa:text\/javascript/);
+  assert.doesNotMatch(html,/import\(/);
+  await writeFile(join(item.directory,'preview.js'),'import "HTTPS://example.com/remote.js";');
+  await assert.rejects(item.build(),/External import is not self-contained/);
+});

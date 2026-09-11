@@ -1169,6 +1169,7 @@ function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", in
                 disabled={extraCount === 0}
                 onPress={() => {
                   if (extraCount === 0) return;
+                  setActivityExtraOpen(false);
                   setExtraCount(0);
                   setStatus("Showcase activity marked as read.");
                 }}

@@ -145,6 +145,7 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       await sheet.getByRole('button', { name: 'Create', exact: true }).click();
       await sheet.waitFor({ state: 'hidden' });
       await catalog.getByText('Created Embedded Project.', { exact: true }).waitFor();
+      await frame.waitForFunction(() => document.activeElement?.textContent === 'Create Project…');
     });
     await check('attached alert', async () => {
       await catalog.getByRole('button', { name: 'Delete Draft…' }).press('Enter');
@@ -245,6 +246,36 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
       return geometry;
     });
     await screenshot('final');
+    if (!values['menu-hidden']) {
+      await check('Mark as Read closes and restores keyboard access', async () => {
+        await page.locator('iframe').evaluate((iframe, html) => new Promise(resolve => { iframe.addEventListener('load', resolve, { once: true }); iframe.srcdoc = html; }), `<!doctype html><meta charset="utf-8">${csp}<style>html,body{margin:0}</style>${source}`);
+        const freshFrame = page.frames()[1];
+        const freshCatalog = freshFrame.getByRole('region', { name: 'Mac Chrome component showcase', exact: true });
+        await freshCatalog.waitFor();
+        const trigger = freshFrame.getByRole('button', { name: 'Showcase activity', exact: true });
+        const popover = freshFrame.getByRole('dialog', { name: 'Showcase activity', exact: true });
+        await trigger.press('Enter');
+        await popover.getByText('2 component notes are ready.', { exact: true }).waitFor();
+        await popover.getByRole('button', { name: 'Mark as Read', exact: true }).press('Enter');
+        await popover.waitFor({ state: 'hidden' });
+        await freshFrame.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Showcase activity');
+        await freshCatalog.getByText('Showcase activity marked as read.', { exact: true }).waitFor();
+        await trigger.press('Enter');
+        await popover.getByText('You’re all caught up.', { exact: true }).waitFor();
+        assert.equal(await popover.getByRole('button', { name: 'Mark as Read', exact: true }).isDisabled(), true);
+        assert.equal(await popover.getByRole('button', { name: 'Clear Activity…', exact: true }).isDisabled(), true);
+        await screenshot('activity-read');
+        await page.keyboard.press('Escape');
+        await popover.waitFor({ state: 'hidden' });
+        await freshFrame.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Showcase activity');
+        assert.equal(await freshCatalog.evaluate(element => !!element.closest('[inert], [aria-hidden="true"]')), false);
+        await freshCatalog.locator('[aria-label="Component catalog"].mc-sidebar-tree').getByText('Controls & Forms', { exact: true }).click();
+        const field = freshCatalog.getByRole('textbox', { name: 'Workspace name' });
+        await field.fill('Keyboard access restored');
+        assert.equal(await field.inputValue(), 'Keyboard access restored');
+        assert.equal(await field.evaluate(element => element === document.activeElement), true);
+      });
+    }
   } catch (error) {
     result.failure = error.message;
     await screenshot('failure');

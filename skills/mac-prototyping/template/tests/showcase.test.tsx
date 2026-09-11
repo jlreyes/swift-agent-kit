@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 
@@ -97,17 +97,25 @@ test("Mark as Read becomes disabled once showcase activity is caught up", async 
   const trigger = document.querySelector<HTMLElement>(".mc-menubar-trigger[aria-label='Showcase activity']");
   if (trigger === null) throw new Error("Showcase activity trigger was not rendered");
 
-  await user.click(trigger);
-  const markAsRead = screen.getByRole("button", { name: "Mark as Read" }) as HTMLButtonElement;
-  expect(markAsRead.disabled).toBe(false);
-  await user.click(markAsRead);
-  expect(screen.getByText("You’re all caught up.")).toBeDefined();
-  expect(markAsRead.disabled).toBe(true);
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const markAsRead = screen.getByRole("button", { name: "Mark as Read" });
+  expect(markAsRead.hasAttribute("disabled")).toBe(false);
+  await user.tab();
+  await waitFor(() => expect(document.activeElement).toBe(markAsRead));
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Mark as Read" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
   expect(screen.getByText("Showcase activity marked as read.")).toBeDefined();
 
-  await user.click(markAsRead);
-  expect(markAsRead.disabled).toBe(true);
-  expect(screen.getByText("Showcase activity marked as read.")).toBeDefined();
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const completedAction = screen.getByRole("button", { name: "Mark as Read" });
+  expect(screen.getByText("You’re all caught up.")).toBeDefined();
+  expect(completedAction.hasAttribute("disabled")).toBe(true);
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Mark as Read" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
 test("View menu and toolbar controls share sidebar and inspector visibility", async () => {

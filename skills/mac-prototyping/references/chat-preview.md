@@ -6,8 +6,10 @@ bounded chat host. HMR remains the normal workflow for developing a prototype.
 Install the preview builder's pinned dependencies once from its package:
 
 ```sh
-cd skills/mac-prototyping/packages/chat-preview
-pnpm install --frozen-lockfile
+(
+  cd skills/mac-prototyping/packages/chat-preview
+  pnpm install --frozen-lockfile
+)
 ```
 
 `--dependencies ../../template` in the showcase command resolves React and the
@@ -15,8 +17,10 @@ prototype's runtime packages from `template/node_modules`. Install that
 template once before using the command:
 
 ```sh
-cd skills/mac-prototyping/template
-pnpm install
+(
+  cd skills/mac-prototyping/template
+  pnpm install
+)
 ```
 
 For another prototype, point `--dependencies` at that prototype's directory

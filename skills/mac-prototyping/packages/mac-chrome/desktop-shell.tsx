@@ -160,7 +160,10 @@ export interface DesktopShellProps {
   readonly clock?: string;
   /** MenuBarExtra elements rendered in flow beside the status items (no overlap). */
   readonly menuBarExtras?: ReactNode;
-  /** Keep the 1200x750 Mac canvas fixed on phone/coarse-pointer viewports. */
+  /**
+   * Keep the 1200x750 Mac canvas fixed on phone/coarse-pointer viewports when
+   * displaySize is "viewport" and the shell is not embedded.
+   */
   readonly mobileReviewMode?: MobileReviewMode;
   /** CSS image value (url(...), gradient, var(...)) or a bare image URL. */
   readonly wallpaper?: string;

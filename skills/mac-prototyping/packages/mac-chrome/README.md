@@ -154,12 +154,13 @@ maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar reg
   or zoomed.
 - This is a browser presentation contract. It does not establish behavior for
   physical macOS display-setting changes, which have not been tested.
-- The default desktop remains responsive. `mobileReviewMode="fixed-desktop"`
-  instead keeps its authored 1200x750 coordinate space on phone/coarse-pointer
-  browsers, which pan and zoom the page themselves. Pair that shell prop with
-  route-local viewport metadata compatible with `fixedDesktopReviewViewport`;
-  do not apply the metadata in a root layout unless every route is a Mac
-  desktop review surface.
+- The default is the 1440x900 logical desktop. To review the legacy 1200x750
+  Mac canvas on a phone or coarse-pointer browser, use both
+  `displaySize="viewport"` and `mobileReviewMode="fixed-desktop"` outside
+  `MacEmbeddedPresentation`. The browser then owns page pan and zoom. Pair the
+  shell props with route-local viewport metadata compatible with
+  `fixedDesktopReviewViewport`; do not apply that metadata in a root layout
+  unless every route is a Mac desktop review surface.
 - Inside `MacWindowManager`, File › Close Window and the standard Window
   menu target the key managed window. Window lists the current app's open or
   minimized windows and can restore them. The standard application menu's
@@ -219,7 +220,7 @@ maps to: `NSWindow` (titled, full-size content view); SwiftUI `Window`/`WindowGr
 `type WindowSize = { readonly width: number; readonly height: number }`
 - **Default geometry**: `defaultSize` (generic `720x480`; each product surface passes its own) is applied as inline `width`/`height`, horizontally centered and biased slightly above vertical center. Any side set in `frame` wins; `style` merges over the computed placement (CSS-position a window by passing `top`/`left` there or in `frame`). In a logical desktop, these are logical points in the configured 1440×900 default (or the caller's `displaySize`); `displaySize="viewport"` opts into responsive viewport layout. A host fit changes presentation scale only and does not physically recontain saved logical frames. For responsive custom frames, use canvas-relative `%` expressions (`calc(100% - 24px)`), never `vw`/`vh`; viewport units can be wider than an embedded browser pane.
 - **Draggable by default** via `[data-window-drag-handle]` surfaces.
-- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller logical canvas wins so a positive, reachable frame remains even when it is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone viewport windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. A logical display-size change may recontain and rebase an active window gesture. A measured presentation-scale change instead cancels an active gesture, preserving saved logical geometry; begin a new gesture after the change. Set `resizable={false}` for intentionally fixed-size utility windows.
+- **Resizable by default** from all four edges and corners. `minSize` is the preferred floor; a smaller logical canvas wins so a positive, reachable frame remains even when it is smaller than the normal safe insets. Dragging, resizing, and `ResizeObserver` containment use the nearest desktop canvas; standalone viewport windows recontain on viewport resize. Initial layout capture excludes caller-owned transform/translate/rotate/scale, so those effects are not baked into geometry and reapplied. A logical display-size change cancels an active gesture before containment may update the frame. A measured presentation-scale change also cancels an active gesture, preserving saved logical geometry; begin a new gesture after either change. Set `resizable={false}` for intentionally fixed-size utility windows.
 - **Phone-review presentation** defaults to `authored`, preserving the
   window's role and frame inside an opted-in fixed desktop. Use
   `mobilePresentation="maximized"` only for a content workspace that should

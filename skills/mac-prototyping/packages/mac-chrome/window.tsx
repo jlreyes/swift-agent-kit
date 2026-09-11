@@ -1120,8 +1120,11 @@ export function WindowChrome({
   });
   const managed = manager !== null && resolvedWindowId !== null;
   const managedOpen = appRunning && (managedWindow?.state === "open" || (managedWindow === null && defaultOpen));
-  const visible = managed ? managedOpen : !hidden;
-  const zoomed = managedWindow?.zoomed ?? localZoomed;
+  // Static presentation reveals content without mutating the retained app's
+  // lifecycle; switching back resumes the same managed state.
+  const visible = embedded || (managed ? managedOpen : !hidden);
+  const zoomed = !embedded && (managedWindow?.zoomed ?? localZoomed);
+  const showMinimizing = !embedded && minimizing;
   const authoredFrameStyle: CSSProperties = {
     ...framePlacement(frame, defaultSize),
     ...style,
@@ -1173,7 +1176,7 @@ export function WindowChrome({
   if (!visible && !managed) return null;
 
   const interactiveGeometryStyle = zoomed || embedded ? null : windowGeometry.geometryStyle;
-  const embeddedInset = zoomed ? "0px" : "var(--mc-embedded-inset)";
+  const embeddedInset = "var(--mc-embedded-inset)";
   const composedStyle: CSSProperties = {
     ...(zoomed
       ? { ...zoomedPlacement, ...style }
@@ -1197,7 +1200,7 @@ export function WindowChrome({
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
     ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };
-  if (minimizing) {
+  if (showMinimizing) {
     const existingTransform = composedStyle.transform;
     composedStyle.transform = `${existingTransform === undefined || existingTransform === "none" ? "" : `${existingTransform} `}translateY(42px) scale(0.5)`;
     composedStyle.opacity = 0;
@@ -1209,7 +1212,7 @@ export function WindowChrome({
       <section
         ref={windowGeometry.windowRef}
         style={composedStyle}
-        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${minimizing ? " mc-minimizing" : ""}${retained ? " mc-retained" : ""}`}
+        className={`mac-window ${className}${zoomed ? " mc-zoomed" : ""}${showMinimizing ? " mc-minimizing" : ""}${retained ? " mc-retained" : ""}`}
         aria-label={retained ? undefined : label}
         aria-hidden={retained ? true : undefined}
         hidden={retained}
@@ -1221,14 +1224,14 @@ export function WindowChrome({
         data-window-id={retained ? undefined : resolvedWindowId ?? undefined}
         data-window-resizable={resizable && !embedded ? "true" : "false"}
         data-window-state={managedWindow?.state}
-        onPointerDownCapture={retained ? undefined : () => {
+        onPointerDownCapture={retained || embedded ? undefined : () => {
           // Interactive descendants such as React Aria collections may stop
           // pointer events during their own press handling. Window activation
           // is a frame-level behavior, so observe it before descendants can
           // consume the event.
           if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
         }}
-        onFocusCapture={retained ? undefined : () => {
+        onFocusCapture={retained || embedded ? undefined : () => {
           if (resolvedWindowId !== null && consumeKeyboardWindowFocusIntent?.()) {
             activateManagedWindow?.(resolvedWindowId);
           }

@@ -119,6 +119,11 @@ are inert. Enable `menuBar` only for app menus supplied by a child
 registry-owned close, minimize, restore, zoom, and Dock behavior;
 multiple-window and managed-desktop demos commonly need both.
 
+With the default `windowManagement={false}`, the embedded fixed-window
+presentation takes precedence: a child `DesktopShell.displaySize` does not
+create a managed logical desktop. Enable window management before selecting a
+custom logical display for an embedded desktop.
+
 `DesktopShell` defaults to a 1440×900 logical CSS-point desktop, the documented
 scaled mode for an M1 MacBook Air. It is neither the panel's 2560×1600 raster
 resolution nor a claim that this is the most common Mac. Pass a custom

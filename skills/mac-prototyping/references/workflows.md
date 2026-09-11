@@ -53,11 +53,11 @@ patchedDependencies:
 
 The vendored directory carries a mirrored patch asset; the consumer workspace
 is the place pnpm resolves it. The patch fixes only the split panel's rendered
-viewport pointer-delta denominator under a transformed logical desktop and
-cancels an active gesture when that rendered extent changes, avoiding a stale
-pointer anchor after zoom or presentation scaling. It does not change panel
-constraints or add/change a dependency version. See the patch README for its
-removal criterion.
+viewport pointer-delta denominator under a transformed logical desktop. It
+cancels an active gesture when the measured render-to-logical scale changes,
+not when nested or simultaneous resizing changes a logical extent. It does not
+change panel constraints or add/change a dependency version. See the patch
+README for its removal criterion.
 
 Hydrate local private assets before running the prototype. This copies and
 converts local system app, folder, and Trash icons and extracts the actual
@@ -123,8 +123,9 @@ When checking a scaled desktop, distinguish page zoom from visual-viewport
 pinch zoom and confirm drag/resize, split panels, menus, modals, Dock tooltips,
 and minimized thumbnails remain attached to their logical owner. Host resizing
 may change presentation fit but must not rewrite saved logical frames. An
-in-flight split-panel pointer gesture cancels when its rendered extent changes;
-release and begin a new drag after zoom or scale changes.
+in-flight split-panel pointer gesture cancels when its measured display scale
+changes; release and begin a new drag after zoom or scale changes. Nested or
+simultaneous split resizing continues normally.
 
 These are browser presentation contracts. They do not establish behavior when
 physical macOS display settings change; that platform case has not been tested.

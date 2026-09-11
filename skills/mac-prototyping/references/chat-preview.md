@@ -131,9 +131,10 @@ exercise ordinary page zoom and visual-viewport pinch zoom as separate cases.
 The full-page shell also fits against its `100dvh` height constraint, keeping
 the complete desktop and Dock visible on short hosts; the embedded preview
 continues to use its explicit height.
-If a split-panel drag is in flight while its rendered extent changes, release
-and begin it again; the patched dependency cancels that stale gesture rather
-than applying its old pointer anchor. This browser evidence does not test
+If a split-panel drag is in flight while its measured display scale changes,
+release and begin it again; the patched dependency cancels that stale gesture
+rather than applying its old pointer anchor. Nested or simultaneous resizing
+does not cancel the gesture. This browser evidence does not test
 physical macOS display-setting changes.
 
 `showcase-symbols.json` is intentionally `[]`: this wrapper declares no extra

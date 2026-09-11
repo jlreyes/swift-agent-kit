@@ -109,7 +109,7 @@ function reconcileModalStack(stack: ModalOwnerStack) {
   for (const child of stack.owner.element.children) {
     if (child instanceof HTMLElement && child !== topLayer) desired.add(child);
   }
-  if (stack.owner.scope === "desktop" && stack.owner.element !== stack.owner.boundary) {
+  if (stack.owner.scope === "desktop" && stack.owner.element !== stack.owner.boundary && stack.owner.boundary.contains(stack.owner.element)) {
     // Keep the ancestor branch containing the portalled modal interactive,
     // while suppressing every sibling alongside that branch. This reaches
     // application chrome beside a nested desktop-canvas without making the
@@ -218,8 +218,10 @@ function resolveModalOwner({
   readonly keyWindowId: string | null;
   readonly presentationScope: "automatic" | "desktop";
 }): ModalOwner | null {
+  // A nested embed can inherit a desktop context outside its DOM boundary.
+  const containedCanvas = desktopCanvas !== null && root.contains(desktopCanvas) ? desktopCanvas : null;
   if (presentationScope === "automatic") {
-    const windowRoot = desktopCanvas ?? root;
+    const windowRoot = containedCanvas ?? root;
     function windowInRoot(element: HTMLElement | null) {
       const candidate = element?.closest<HTMLElement>(windowSelector) ?? null;
       return candidate !== null && windowRoot.contains(candidate) ? candidate : null;
@@ -237,7 +239,7 @@ function resolveModalOwner({
   // accident. The body fallback also lets the primitive remain testable and
   // usable outside DesktopShell.
   return {
-    element: desktopCanvas ?? root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
+    element: containedCanvas ?? root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
     boundary: root instanceof HTMLElement ? root : document.body,
     scope: "desktop",
   };

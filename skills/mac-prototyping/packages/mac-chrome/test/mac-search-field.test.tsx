@@ -20,7 +20,9 @@ describe("MacSearchField", () => {
     expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
     fireEvent.change(input, { target: { value: "letter" } });
     expect(input.value).toBe("letter");
-    const clear = screen.getByRole("button", { name: "Clear search" });
+    const clear = screen.getByRole<HTMLButtonElement>("button", { name: "Clear search" });
+    expect(input.tabIndex).toBe(0);
+    expect(clear.tabIndex).toBe(-1);
     act(() => clear.focus());
     fireEvent.click(clear);
     expect(input.value).toBe("");

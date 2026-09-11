@@ -1,4 +1,5 @@
 .showcase-catalog-window {
+  container: showcase-window / inline-size;
   overflow: hidden;
   color: var(--text);
   background: var(--content-surface);
@@ -583,11 +584,7 @@
   font-size: 12px;
 }
 
-@media (max-width: 900px) {
-  .showcase-component-inspector {
-    width: 220px !important;
-  }
-
+@container showcase-window (max-width: 900px) {
   .showcase-two-up {
     grid-template-columns: 1fr;
   }

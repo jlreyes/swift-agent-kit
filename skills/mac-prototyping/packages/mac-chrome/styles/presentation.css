@@ -83,9 +83,42 @@ body > .mc-window-modal-layer-desktop {
   border-radius: 0 0 10px 10px;
 }
 
+.mc-sheet-wide {
+  width: min(700px, calc(100% - 32px));
+}
+
+.mc-sheet-large {
+  width: min(960px, calc(100% - 32px));
+}
+
 .mc-sheet-header {
   flex: 0 0 auto;
   padding: 18px 22px 7px;
+}
+
+.mc-sheet-header-with-accessory {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 24px;
+  padding-bottom: 12px;
+}
+
+.mc-sheet-header-with-accessory h2 {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mc-sheet-header-accessory {
+  flex: 0 1 260px;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+
+.mc-sheet-header-accessory > * {
+  width: 100%;
 }
 
 .mc-sheet-header h2 {
@@ -102,6 +135,16 @@ body > .mc-window-modal-layer-desktop {
   overscroll-behavior: contain;
   padding: 0 22px 18px;
   color: var(--text);
+}
+
+.mc-sheet-body-contained {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mc-sheet-body-flush {
+  padding: 0;
 }
 
 .mc-sheet-footer {
@@ -122,6 +165,27 @@ body > .mc-window-modal-layer-desktop {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.mc-dialog-actions-separated {
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.mc-dialog-actions-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mc-dialog-actions-leading {
+  margin-inline-end: auto;
+}
+
+.mc-dialog-actions-trailing {
+  margin-inline-start: auto;
+  justify-content: flex-end;
 }
 
 .mc-dialog-actions .mc-button {

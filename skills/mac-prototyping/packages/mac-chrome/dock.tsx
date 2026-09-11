@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { getElementScale, getVisibleDesktopBounds, useDesktopSpace, viewportPointToLocal } from "./desktop-space.tsx";
 import { SystemSymbol, type SystemSymbolName } from "./system-symbol.tsx";
 import type { MacWindowThumbnail } from "./window-transition.ts";
 import "./styles/tokens.css";
@@ -63,6 +64,9 @@ const dockTooltipViewportInset = 8;
 interface DockTooltipPosition {
   readonly itemId: string;
   readonly left: number;
+  readonly top: number;
+  readonly maxWidth: number;
+  readonly maxHeight: number;
   readonly visible: boolean;
 }
 
@@ -204,6 +208,7 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
   readonly items?: readonly DockItem[];
   readonly label?: string;
 }) {
+  const desktopSpace = useDesktopSpace();
   const dockRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
@@ -230,28 +235,68 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
     const itemRect = item.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
     const visible = itemRect.right > scrollportRect.left && itemRect.left < scrollportRect.right;
-    const availableWidth = Math.max(0, window.innerWidth - dockTooltipViewportInset * 2);
+    const measuredScale = getElementScale(dock);
+    const scale = measuredScale.x;
+    const canvas = desktopSpace?.canvas;
+    const viewport = window.visualViewport;
+    let boundaryLeft = viewport?.offsetLeft ?? 0;
+    let boundaryRight = boundaryLeft + (viewport?.width ?? window.innerWidth);
+    let boundaryTop = viewport?.offsetTop ?? 0;
+    let boundaryBottom = boundaryTop + (viewport?.height ?? window.innerHeight);
+    if (canvas) {
+      const bounds = getVisibleDesktopBounds(canvas);
+      const canvasRect = canvas.getBoundingClientRect();
+      const canvasScale = getElementScale(canvas);
+      boundaryLeft = canvasRect.left + bounds.left * canvasScale.x;
+      boundaryRight = canvasRect.left + bounds.right * canvasScale.x;
+      boundaryTop = canvasRect.top + bounds.top * canvasScale.y;
+      boundaryBottom = canvasRect.top + bounds.bottom * canvasScale.y;
+    }
+    const inset = dockTooltipViewportInset * scale;
+    const availableWidth = Math.max(0, boundaryRight - boundaryLeft - inset * 2);
     const tooltipWidth = Math.min(tooltipRect.width, availableWidth);
-    const minimumCenter = dockTooltipViewportInset + tooltipWidth / 2;
-    const maximumCenter = window.innerWidth - dockTooltipViewportInset - tooltipWidth / 2;
+    const minimumCenter = boundaryLeft + inset + tooltipWidth / 2;
+    const maximumCenter = boundaryRight - inset - tooltipWidth / 2;
     const itemCenter = (itemRect.left + itemRect.right) / 2;
     const viewportCenter = minimumCenter <= maximumCenter
       ? Math.min(Math.max(itemCenter, minimumCenter), maximumCenter)
-      : window.innerWidth / 2;
+      : (boundaryLeft + boundaryRight) / 2;
+    const verticalInset = dockTooltipViewportInset * measuredScale.y;
+    const availableHeight = Math.max(0, boundaryBottom - boundaryTop - verticalInset * 2);
+    const tooltipHeight = Math.min(tooltipRect.height, availableHeight);
+    const minimumTop = boundaryTop + verticalInset;
+    const maximumTop = boundaryBottom - verticalInset - tooltipHeight;
+    const aboveDock = dockRect.top - 2 * measuredScale.y - tooltipHeight;
+    const preferredTop = aboveDock >= minimumTop ? aboveDock : dockRect.bottom + 2 * measuredScale.y;
+    const viewportTop = Math.min(Math.max(preferredTop, minimumTop), Math.max(minimumTop, maximumTop));
+    const localPosition = viewportPointToLocal(dock, { x: viewportCenter, y: viewportTop });
+    const dockStyle = getComputedStyle(dock);
+    const borderLeft = dockStyle.borderLeftStyle === "none"
+      ? 0
+      : Number.parseFloat(dockStyle.borderLeftWidth) || 0;
+    const borderTop = dockStyle.borderTopStyle === "none"
+      ? 0
+      : Number.parseFloat(dockStyle.borderTopWidth) || 0;
     const nextPosition = {
       itemId,
-      left: viewportCenter - dockRect.left,
+      left: localPosition.x - borderLeft,
+      top: localPosition.y - borderTop,
+      maxWidth: availableWidth / scale,
+      maxHeight: availableHeight / measuredScale.y,
       visible,
     } satisfies DockTooltipPosition;
 
     setTooltipPosition((current) => (
       current?.itemId === nextPosition.itemId
         && current.left === nextPosition.left
+        && current.top === nextPosition.top
+        && current.maxHeight === nextPosition.maxHeight
+        && current.maxWidth === nextPosition.maxWidth
         && current.visible === nextPosition.visible
         ? current
         : nextPosition
     ));
-  }, []);
+  }, [desktopSpace]);
 
   useLayoutEffect(() => {
     if (activeTooltipItemId === null || activeTooltipItem !== undefined) return;
@@ -270,11 +315,21 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
     reposition();
     scrollport.addEventListener("scroll", reposition, { passive: true });
     window.addEventListener("resize", reposition);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", reposition);
+    viewport?.addEventListener("scroll", reposition);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reposition);
+    for (const element of [dockRef.current, tooltipRef.current, desktopSpace?.canvas]) {
+      if (element) observer?.observe(element);
+    }
     return () => {
+      observer?.disconnect();
       scrollport.removeEventListener("scroll", reposition);
       window.removeEventListener("resize", reposition);
+      viewport?.removeEventListener("resize", reposition);
+      viewport?.removeEventListener("scroll", reposition);
     };
-  }, [activeTooltipItem, activeTooltipItemId, itemsLayoutKey, positionTooltip]);
+  }, [activeTooltipItem, activeTooltipItemId, desktopSpace?.canvas, itemsLayoutKey, positionTooltip]);
 
   function activateTooltip(itemId: string) {
     setActiveTooltipItemId(itemId);
@@ -367,7 +422,13 @@ export function MacDock({ items = defaultDockItems, label = "Dock" }: {
           className="p0-dock-tooltip"
           role="tooltip"
           data-visible={hasPositionedActiveTooltip && tooltipPosition.visible ? "true" : "false"}
-          style={{ left: hasPositionedActiveTooltip ? tooltipPosition.left : undefined }}
+          style={{
+            left: hasPositionedActiveTooltip ? tooltipPosition.left : undefined,
+            top: hasPositionedActiveTooltip ? tooltipPosition.top : undefined,
+            bottom: hasPositionedActiveTooltip ? "auto" : undefined,
+            maxHeight: hasPositionedActiveTooltip ? tooltipPosition.maxHeight : undefined,
+            maxWidth: hasPositionedActiveTooltip ? tooltipPosition.maxWidth : undefined,
+          }}
         >
           {activeTooltipItem.label}
         </span>

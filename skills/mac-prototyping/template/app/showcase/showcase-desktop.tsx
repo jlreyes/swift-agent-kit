@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TemplateBrowser } from "./template-browser.tsx";
 
 import {
   ChatWindow,
@@ -52,6 +53,7 @@ import {
   type FinderEntry,
   type FinderViewMode,
   type MacAppDefinition,
+  type MacDisplaySize,
   type MacListSection,
   type MacDialogAction,
   type MacSourceListSection,
@@ -167,58 +169,7 @@ const storyGroups: ReadonlyArray<{
 const stories = storyGroups.flatMap((group) => group.stories);
 
 /** Runtime-export coverage for the embedded catalog and its live recipes. */
-export const coveredExports = [
-  "ChatWindow",
-  "ChooserWindow",
-  "createStoredIdList",
-  "defaultDockItems",
-  "DesktopShell",
-  "fixedDesktopReviewViewport",
-  "finderKeyTarget",
-  "FinderWindow",
-  "MacApp",
-  "MacAppDock",
-  "MacAlert",
-  "MacButton",
-  "MacContentUnavailable",
-  "MacControlGroup",
-  "MacDetailsMenu",
-  "MacDisclosureGroup",
-  "MacDock",
-  "MacDockAppIcon",
-  "MacForm",
-  "MacFormSection",
-  "MacInspector",
-  "MacLabeledContent",
-  "MacList",
-  "MacMenu",
-  "MacNavigationSplitView",
-  "MacPopover",
-  "MacSheet",
-  "MacSegmentedControl",
-  "MacSourceList",
-  "MacTextField",
-  "MacToggle",
-  "MacToolbar",
-  "MacWindowManager",
-  "MacWindowStatusBar",
-  "MenuBarExtra",
-  "QuickLook",
-  "SetupAssistant",
-  "SetupHeading",
-  "Sheet",
-  "SystemSymbol",
-  "ToolbarButton",
-  "ToolbarCapsule",
-  "ToolbarGlyph",
-  "ToolbarSearchBubble",
-  "ToolbarToggle",
-  "TrafficLights",
-  "useModalFocusTrap",
-  "useMacWindowManager",
-  "useWindowDrag",
-  "WindowChrome",
-] as const;
+
 
 const finderEntriesByLocation: Readonly<Record<FinderLocation, readonly FinderEntry[]>> = {
   Recents: [
@@ -565,6 +516,7 @@ function PresentationStory({ sheetMotionHref }: { readonly sheetMotionHref: stri
     <div className="showcase-story-pane">
       <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, MacSheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
       <a href={sheetMotionHref}>Try sequential sheet motion…</a>
+      <TemplateBrowser onChoose={(name) => setPresentationStatus(`Created ${name}.`)} />
       <MacContentUnavailable
         icon={<SystemSymbol name="folder" />}
         title="No projects"
@@ -832,6 +784,7 @@ function ChooserRecipe({ onClose, onReturnCatalog }: { readonly onClose: () => v
 }
 
 function SetupRecipe({ onCancel, onClose, onComplete, singleWindow = false }: {
+  readonly displaySize?: MacDisplaySize | "viewport";
   readonly singleWindow?: boolean;
   readonly onCancel: () => void;
   readonly onClose: () => void;
@@ -1026,6 +979,7 @@ const showcaseApps = {
 const showcaseAppManifest: readonly MacAppDefinition[] = Object.values(showcaseApps);
 
 type ShowcaseDesktopProps = {
+  readonly displaySize?: MacDisplaySize | "viewport";
   readonly singleWindow?: boolean;
   readonly sheetMotionHref?: string;
   readonly initialSidebarVisible?: boolean;
@@ -1040,7 +994,7 @@ export function ShowcaseDesktop(props: ShowcaseDesktopProps = {}) {
   );
 }
 
-function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/showcase/sheet-motion", initialSidebarVisible = true, initialInspectorVisible = true }: ShowcaseDesktopProps) {
+function ManagedShowcaseDesktop({ displaySize, singleWindow = false, sheetMotionHref = "/showcase/sheet-motion", initialSidebarVisible = true, initialInspectorVisible = true }: ShowcaseDesktopProps) {
   const windowManager = useMacWindowManager();
   const [storyHistory, setStoryHistory] = useState<readonly StoryId[]>(["anatomy"]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -1057,12 +1011,12 @@ function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/show
   const [status, setStatus] = useState("Mac Chrome standard library is ready.");
   const activityTriggerRef = useRef<HTMLButtonElement>(null);
   const recipeTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const [restoreRecipeFocus, setRestoreRecipeFocus] = useState(false);
+  const restoreRecipeFocus = useRef(false);
   useEffect(() => {
-    if (!restoreRecipeFocus || windowManager.keyAppId !== "catalog") return;
+    if (!restoreRecipeFocus.current || windowManager.keyAppId !== "catalog") return;
     recipeTriggerRef.current?.focus();
-    setRestoreRecipeFocus(false);
-  }, [restoreRecipeFocus, windowManager.keyAppId]);
+    restoreRecipeFocus.current = false;
+  }, [windowManager.keyAppId]);
   const activeStoryId = storyHistory[historyIndex] ?? "anatomy";
   const activeStory = stories.find((story) => story.id === activeStoryId) ?? stories[0];
   const viewTarget: RecipeId | "catalog" | "system" = windowManager.keyAppId === "finder"
@@ -1122,7 +1076,7 @@ function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/show
       if (window.appId === recipe && window.state === "open") windowManager.closeWindow(window.id);
     }
     windowManager.activateApp("catalog");
-    setRestoreRecipeFocus(true);
+    restoreRecipeFocus.current = true;
   }
 
   function closeSetup(statusMessage: string) {
@@ -1132,7 +1086,7 @@ function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/show
     if (setupWindow !== undefined) windowManager.closeWindow(setupWindow.id);
     if (singleWindow) {
       windowManager.activateApp("catalog");
-      setRestoreRecipeFocus(true);
+      restoreRecipeFocus.current = true;
     }
     setStatus(statusMessage);
   }
@@ -1175,7 +1129,7 @@ function ManagedShowcaseDesktop({ singleWindow = false, sheetMotionHref = "/show
     <DesktopShell
       appName={keyAppName}
       menuItems={menuItems}
-      mobileReviewMode="fixed-desktop"
+      displaySize={singleWindow ? "viewport" : displaySize}
       onMenuAction={(command) => setStatus(`${command.menu} › ${command.label}`)}
       canPerformMenuAction={() => false}
       menuBarExtras={(

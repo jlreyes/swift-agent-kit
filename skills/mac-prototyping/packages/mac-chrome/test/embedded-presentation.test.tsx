@@ -131,14 +131,14 @@ describe("embedded presentation", () => {
     }
   });
 
-  it("renders a bounded initial frame without desktop dragging or resize affordances", () => {
-    const html = renderToStaticMarkup(<EmbeddedDesktop />);
+  it("renders a static bounded frame without dragging or resize affordances", () => {
+    const html = renderToStaticMarkup(<EmbeddedDesktop windowManagement={false} />);
     expect(html).toContain('height:560px');
     expect(html).toContain('data-embedded-window="true"');
     expect(html).toContain('data-window-resizable="false"');
     expect(html).not.toContain('data-mobile-review-mode="fixed-desktop"');
     expect(html).not.toContain('data-window-resize-handle');
-    const { container } = render(<EmbeddedDesktop />);
+    const { container } = render(<EmbeddedDesktop windowManagement={false} />);
     const window = screen.getByRole("region", { name: "Notes window" });
     const initialStyle = window.getAttribute("style");
     const handle = window.querySelector("[data-window-drag-handle]");
@@ -151,13 +151,26 @@ describe("embedded presentation", () => {
     expect(container.querySelectorAll("[data-window-resize-handle]")).toHaveLength(0);
   });
 
+  it("preserves the authored managed frame within a fitted logical desktop", () => {
+    const html = renderToStaticMarkup(<EmbeddedDesktop />);
+    expect(html).toContain('data-display-space="logical"');
+    expect(html).toContain('--mc-display-width:1440px');
+    expect(html).toContain('--mc-display-height:900px');
+    expect(html).toContain('--mc-display-fit-width:896px');
+    expect(html).toContain('width:900px;height:700px');
+    expect(html).not.toContain('data-embedded-window="true"');
+    expect(html).toContain('data-window-resizable="true"');
+    const { container } = render(<EmbeddedDesktop />);
+    expect(container.querySelectorAll("[data-window-resize-handle]")).toHaveLength(8);
+  });
+
   it("uses the same registry to zoom, minimize, restore, close, and reopen without discarding state", async () => {
     render(<EmbeddedDesktop />);
     const window = screen.getByRole("region", { name: "Notes window" });
     fireEvent.click(screen.getByRole("button", { name: "Count 0" }));
     fireEvent.click(within(window).getByRole("button", { name: "Zoom window" }));
     expect(window.classList.contains("mc-zoomed")).toBe(true);
-    expect(window.style.left).toBe("0px");
+    expect(window.style.left).toBe("24px");
     fireEvent.click(within(window).getByRole("button", { name: "Zoom window" }));
     expect(window.classList.contains("mc-zoomed")).toBe(false);
     fireEvent.click(within(window).getByRole("button", { name: "Minimize window" }));

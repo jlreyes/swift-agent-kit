@@ -118,7 +118,7 @@ test("arbitrary popovers keep tall controls reachable within available viewport 
   const surface = rule(".mc-popover-surface");
   const dialog = rule(".mc-popover-dialog");
 
-  expect(surface).toMatch(/max-height:\s*min\(var\(--available-height, calc\(100vh - 16px\)\), calc\(100vh - 16px\)\)/);
+  expect(surface).toMatch(importedPackageStyles ? /max-height:\s*var\(--mc-popover-available-height,[^;]+--mc-display-height/ : /max-height:\s*min\(var\(--available-height, calc\(100vh - 16px\)\), calc\(100vh - 16px\)\)/);
   expect(surface).toMatch(/overflow:\s*hidden/);
   expect(dialog).toMatch(/max-height:\s*inherit/);
   expect(dialog).toMatch(/overflow-y:\s*auto/);
@@ -188,7 +188,8 @@ test("the Dock keeps its shell visible while its inner strip scrolls", () => {
   expect(dockScroll).toMatch(/overflow-y:\s*hidden/);
   expect(rule(".p0-dock-scroll::-webkit-scrollbar")).toMatch(/display:\s*none/);
   expect(tooltip).toMatch(/bottom:\s*calc\(100% \+ 2px\)/);
-  expect(tooltip).toMatch(/max-width:\s*calc\(100vw - 16px\)/);
+  if (importedPackageStyles) expect(tooltip).not.toMatch(/max-width:[^;]*100vw/);
+  else expect(tooltip).toMatch(/max-width:\s*calc\(100vw - 16px\)/);
   expect(tooltip).toMatch(/visibility:\s*hidden/);
   expect(tooltip).toMatch(/text-overflow:\s*ellipsis/);
   expect(visibleTooltip).toMatch(/visibility:\s*visible/);
@@ -236,9 +237,9 @@ test("source lists own scrolling within their clipped navigation sidebar", () =>
 test("menu-bar popovers preserve their native cap without exceeding the viewport", () => {
   const popover = rule(".mc-menu-popover.mc-menubar-menu-popover");
 
-  expect(popover).toMatch(/min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
+  expect(popover).toMatch(importedPackageStyles ? /min-width:\s*min\(224px, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)/ : /min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
   expect(popover).not.toMatch(/min-width:\s*224px/);
-  expect(popover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
+  expect(popover).toMatch(importedPackageStyles ? /max-width:\s*min\(340px, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)/ : /max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
   expect(popover).not.toMatch(/max-width:\s*340px/);
 });
 

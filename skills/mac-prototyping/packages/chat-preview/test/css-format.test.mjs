@@ -84,7 +84,8 @@ test('embedded style entry loads the same component CSS without wallpaper assets
   const desktopCss = desktop.outputFiles[0].text;
   const componentInputs = Object.keys(embedded.metafile.inputs).filter(path => path.endsWith('.css') && !path.endsWith('/embedded.css'));
   assert.ok(componentInputs.every(path => Object.hasOwn(desktop.metafile.inputs, path)));
-  assert.match(embeddedCss, /--mc-wallpaper-default: none/);
+  assert.match(embeddedCss, /var\(--mc-wallpaper-default, none\)/);
+  assert.doesNotMatch(desktopCss, /--mc-wallpaper-default: none/);
   assert.doesNotMatch(embeddedCss, /wallpaper\.svg|tahoe\.jpg|data:image\/svg/);
   assert.match(desktopCss, /--mc-wallpaper-default: url\(/);
   assert.match(desktopCss, /tahoe\.jpg/);

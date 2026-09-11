@@ -103,10 +103,9 @@ img {
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  --mc-wallpaper-default: none;
   background:
     linear-gradient(180deg, rgba(7, 14, 24, 0.04), rgba(7, 14, 24, 0.12)),
-    var(--mc-wallpaper, var(--mc-wallpaper-default));
+    var(--mc-wallpaper, var(--mc-wallpaper-default, none));
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -206,8 +205,8 @@ img {
    rather than the wrapper. */
 .mc-menu-popover.mc-menubar-menu-popover {
   width: max-content;
-  min-width: min(224px, calc(100vw - 16px));
-  max-width: min(340px, calc(100vw - 16px));
+  min-width: min(224px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
+  max-width: min(340px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
   border-radius: var(--radius-menu-popover);
   text-shadow: none;
 }
@@ -237,7 +236,7 @@ img {
   min-width: 24px;
 }
 
-@media (max-width: 600px) {
+@container mac-desktop (max-width: 600px) {
   .mac-menu-bar {
     gap: 6px;
   }
@@ -488,4 +487,33 @@ img {
   .showcase-viewport[data-mobile-review-mode="fixed-desktop"] [data-window-drag-handle] {
     touch-action: auto;
   }
+}
+
+/* A fitted desktop reserves its painted footprint. The canvas remains a real
+   logical layout container, so browser zoom never rewrites window geometry. */
+.showcase-viewport[data-display-space="logical"] {
+  position: relative;
+  container-type: inline-size;
+  width: min(100%, var(--mc-display-fit-width));
+  height: auto;
+  min-height: 0;
+  margin-inline: auto;
+  aspect-ratio: var(--mc-display-ratio);
+  overflow: hidden;
+}
+
+.showcase-viewport[data-display-space="logical"] > .desktop-canvas {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: var(--mc-display-width);
+  height: var(--mc-display-height);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  transform: scale(calc(100cqw / var(--mc-display-width)));
+  transform-origin: top left;
+}
+
+.desktop-canvas {
+  container: mac-desktop / inline-size;
 }

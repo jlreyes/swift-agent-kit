@@ -57,7 +57,7 @@ it("renders Dock tooltips in the overflow-visible shell instead of the horizonta
 
   expect(tooltip).toMatch(/bottom:\s*calc\(100% \+ 2px\)/);
   expect(tooltip).toMatch(/box-sizing:\s*border-box/);
-  expect(tooltip).toMatch(/max-width:\s*calc\(100vw - 16px\)/);
+  expect(tooltip).not.toMatch(/\b\d+vw\b/);
   expect(tooltip).toMatch(/visibility:\s*hidden/);
   expect(tooltip).toMatch(/text-overflow:\s*ellipsis/);
   expect(visibleTooltip).toMatch(/visibility:\s*visible/);

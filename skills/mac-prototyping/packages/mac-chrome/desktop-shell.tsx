@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
+import { DesktopSpaceFrame, macBookAirM1DisplaySize, type MacDisplaySize } from "./desktop-space.tsx";
 import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import { SystemSymbol } from "./system-symbol";
@@ -143,6 +144,8 @@ export type MobileReviewMode = "fixed-desktop";
 
 export interface DesktopShellProps {
   readonly appName: string;
+  /** Authored logical CSS points; viewport opts into responsive desktop layout. */
+  readonly displaySize?: MacDisplaySize | "viewport";
   /** Plain standard titles get native defaults; objects supply product commands. */
   readonly menuItems?: readonly (string | MenuBarMenu)[];
   /** Overrides the system-shaped Apple menu. */
@@ -391,6 +394,7 @@ function nativeClock(now: Date) {
 
 export function DesktopShell({
   appName,
+  displaySize = macBookAirM1DisplaySize,
   menuItems = defaultMenuItems,
   appleMenuItems,
   appMenuItems,
@@ -501,8 +505,12 @@ export function DesktopShell({
     return (index + offset + menus.length) % menus.length;
   }
   return (
-    <main className="showcase-viewport" data-mobile-review-mode={embeddedPresentation === null ? mobileReviewMode : undefined}>
-      <div className="desktop-canvas" style={canvasStyle}>
+    <DesktopSpaceFrame
+      displaySize={displaySize === "viewport" || embeddedPresentation?.windowManagement === false ? null : displaySize}
+      constrainedHeight={embeddedPresentation?.height}
+      canvasStyle={canvasStyle}
+      mobileReviewMode={embeddedPresentation === null && displaySize === "viewport" ? mobileReviewMode : undefined}
+    >
         {showMenuBar ? <header className="mac-menu-bar">
           <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((item, index) => (
@@ -539,7 +547,6 @@ export function DesktopShell({
           </div>
         </header> : null}
         {children}
-      </div>
-    </main>
+    </DesktopSpaceFrame>
   );
 }

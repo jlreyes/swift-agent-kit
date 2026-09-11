@@ -1,0 +1,38 @@
+.mc-embedded-presentation {
+  --mc-embedded-menu-height: 24px;
+  --mc-embedded-dock-height: 81px;
+  --mc-embedded-inset: 12px;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
+  font-family: var(--font-mac);
+}
+
+.mc-embedded-presentation[data-embedded-menu-bar="false"] {
+  --mc-embedded-menu-height: 0px;
+}
+
+.mc-embedded-presentation[data-embedded-window-management="false"] {
+  --mc-embedded-dock-height: 0px;
+}
+
+.mc-embedded-presentation > .showcase-viewport,
+.mc-embedded-presentation > .showcase-viewport > .desktop-canvas {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.mc-embedded-presentation > .showcase-viewport > .desktop-canvas {
+  background: var(--window-surface);
+}
+
+.mac-window[data-embedded-window="true"] {
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+}

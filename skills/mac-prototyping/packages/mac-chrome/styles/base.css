@@ -103,10 +103,7 @@ img {
   height: max(750px, 100dvh);
   margin: 0 auto;
   overflow: hidden;
-  /* New-prototype hydration supplies the host's real Tahoe still. The
-     original abstract sheet remains a no-network fallback when that private
-     local asset has not been generated yet. */
-  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
+  --mc-wallpaper-default: none;
   background:
     linear-gradient(180deg, rgba(7, 14, 24, 0.04), rgba(7, 14, 24, 0.12)),
     var(--mc-wallpaper, var(--mc-wallpaper-default));

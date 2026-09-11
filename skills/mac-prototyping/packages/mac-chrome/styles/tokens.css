@@ -2,6 +2,12 @@
    and shadow in the chrome stylesheets resolves here. --brand carries product
    identity; --accent drives controls and focus rings. */
 
+:root,
+.mc-embedded-presentation {
+  --accent: #0a7aff;
+  --muted: #76797e;
+}
+
 :root {
   /* Identity */
   --brand: #34c759;
@@ -9,13 +15,11 @@
   --brand-soft: rgba(52, 199, 89, 0.13);
 
   /* Controls + focus */
-  --accent: #0a7aff;
   --accent-strong: #0863d2;
   --accent-soft: rgba(10, 122, 255, 0.14);
 
   /* Ink scale */
   --ink: #202124;
-  --muted: #76797e;
   --faint: #9a9da2;
   /* Foreground for toolbar/window chrome (softer than --ink) */
   --chrome-ink: #3e4146;

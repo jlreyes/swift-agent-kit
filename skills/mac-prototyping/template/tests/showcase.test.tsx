@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 
@@ -97,17 +97,25 @@ test("Mark as Read becomes disabled once showcase activity is caught up", async 
   const trigger = document.querySelector<HTMLElement>(".mc-menubar-trigger[aria-label='Showcase activity']");
   if (trigger === null) throw new Error("Showcase activity trigger was not rendered");
 
-  await user.click(trigger);
-  const markAsRead = screen.getByRole("button", { name: "Mark as Read" }) as HTMLButtonElement;
-  expect(markAsRead.disabled).toBe(false);
-  await user.click(markAsRead);
-  expect(screen.getByText("You’re all caught up.")).toBeDefined();
-  expect(markAsRead.disabled).toBe(true);
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const markAsRead = screen.getByRole("button", { name: "Mark as Read" });
+  expect(markAsRead.hasAttribute("disabled")).toBe(false);
+  await user.tab();
+  await waitFor(() => expect(document.activeElement).toBe(markAsRead));
+  await user.keyboard("{Enter}");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Mark as Read" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
   expect(screen.getByText("Showcase activity marked as read.")).toBeDefined();
 
-  await user.click(markAsRead);
-  expect(markAsRead.disabled).toBe(true);
-  expect(screen.getByText("Showcase activity marked as read.")).toBeDefined();
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const completedAction = screen.getByRole("button", { name: "Mark as Read" });
+  expect(screen.getByText("You’re all caught up.")).toBeDefined();
+  expect(completedAction.hasAttribute("disabled")).toBe(true);
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Mark as Read" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
 test("View menu and toolbar controls share sidebar and inspector visibility", async () => {
@@ -604,9 +612,10 @@ test("the Showcase menu mirrors source-list story selection", async () => {
   expect(sourceItem("Lists & Collections").getAttribute("aria-selected")).toBe("true");
 });
 
-test("the coverage map is unique and includes the complete runtime surface", () => {
+test("the coverage map includes the runtime surface apart from the separately tested embed wrapper", () => {
   expect(new Set(coveredExports).size).toBe(coveredExports.length);
-  expect([...coveredExports].sort()).toEqual(Object.keys(MacChrome).sort());
+  const embeddedPresentationExports = new Set(["MacEmbeddedPresentation"]);
+  expect([...coveredExports].sort()).toEqual(Object.keys(MacChrome).filter((name) => !embeddedPresentationExports.has(name)).sort());
   for (const exportName of [
     "MacDockAppIcon",
     "MacNavigationSplitView",
@@ -629,4 +638,48 @@ test("the coverage map is unique and includes the complete runtime surface", () 
   ]) {
     expect(coveredExports).toContain(exportName);
   }
+});
+
+
+test.each(["Finder", "Chooser", "Setup Assistant", "Chat"] as const)("single-window %s returns to its catalog trigger and retains the recipe", async (story) => {
+  const user = userEvent.setup();
+  render(<MacChrome.MacEmbeddedPresentation><ShowcaseDesktop singleWindow /></MacChrome.MacEmbeddedPresentation>);
+  await user.click(sourceItem(story));
+  const trigger = screen.getByRole("button", { name: "Open Example Window" });
+  act(() => trigger.focus());
+  await user.keyboard("{Enter}");
+  const recipe = screen.getByRole("region", { name: `${story} showcase` });
+  if (story === "Chat") {
+    fireEvent.change(within(recipe).getByRole("textbox", { name: "Message" }), { target: { value: "Retained draft" } });
+    expect((within(recipe).getByRole("textbox", { name: "Message" }) as HTMLTextAreaElement).value).toBe("Retained draft");
+  }
+  expect(screen.queryByRole("navigation", { name: "Showcase Dock" })).toBeNull();
+  expect(within(recipe).queryByRole("button", { name: "Close window" })).toBeNull();
+  await user.click(within(recipe).getByRole("button", { name: "Back to Catalog" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: `${story} showcase` })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
+  expect(screen.getByRole("main", { name: `${story} story` })).toBeDefined();
+  expect(sourceItem(story).getAttribute("aria-selected")).toBe("true");
+  await user.keyboard("{Enter}");
+  const reopened = screen.getByRole("region", { name: `${story} showcase` });
+  expect(reopened).toBe(recipe);
+  if (story === "Chat") expect((within(reopened).getByRole("textbox", { name: "Message" }) as HTMLTextAreaElement).value).toBe("Retained draft");
+});
+
+test("single-window Setup keeps step Back and returns focus after finishing", async () => {
+  const user = userEvent.setup();
+  render(<MacChrome.MacEmbeddedPresentation><ShowcaseDesktop singleWindow /></MacChrome.MacEmbeddedPresentation>);
+  await user.click(sourceItem("Setup Assistant"));
+  const trigger = screen.getByRole("button", { name: "Open Example Window" });
+  await user.click(trigger);
+  const setup = screen.getByRole("region", { name: "Setup Assistant showcase" });
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  expect(within(setup).queryByRole("button", { name: "Back to Catalog" })).toBeNull();
+  await user.click(within(setup).getByRole("button", { name: "Back" }));
+  expect(within(setup).getByRole("button", { name: "Back to Catalog" })).toBeDefined();
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Continue" }));
+  await user.click(within(setup).getByRole("button", { name: "Finish" }));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Setup Assistant showcase" })).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(trigger));
 });

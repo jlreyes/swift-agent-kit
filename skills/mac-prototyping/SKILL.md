@@ -20,6 +20,8 @@ lives in this skill directory:
   compose and adapt them; there is deliberately no wrapper CLI.
 - [references/mac-pattern-rubric.md](references/mac-pattern-rubric.md) —
   the macOS pattern checklist every surface is judged against.
+- [references/chat-preview.md](references/chat-preview.md) — build a bounded,
+  portable in-chat snapshot when HMR is not the review surface.
 - The `mac-design-audit` agent (bundled with this plugin) — pattern-based
   design review; convene it as described below.
 
@@ -27,6 +29,14 @@ Edit against a persistent `vinext dev` service and use HMR as the default
 prototype workflow. Keep its private shared URL open while changing source;
 ordinary edits do not need a build, restart, or manual refresh. The workflows
 also define the built-preview and service-worker boundaries.
+
+## Build an in-chat snapshot only when the host needs one
+
+Use HMR for ordinary prototype work. When a task explicitly needs a portable,
+bounded preview inside chat, read [the chat-preview reference](references/chat-preview.md).
+It owns the snapshot build contract, symbol-subset boundary, and acceptance
+checks. Do not treat a snapshot as a replacement for the development service
+or the design-review workflow below.
 
 ## Start or fork a prototype
 
@@ -92,6 +102,7 @@ copy a showcase layout or private component into product code.
 | Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
+| A fixed in-chat Mac presentation | `MacEmbeddedPresentation` | supplies a bounded stage for caller-composed window content; enable menu or managed-window behavior only when the prototype needs it |
 
 `MacNavigationSplitView` has either two columns (sidebar + detail) or three
 navigation columns (sidebar + content + detail). Its optional middle column
@@ -100,6 +111,13 @@ supplementary trailing pane; do not treat it as the third navigation column.
 When its panel defaults use compatible CSS units, the shared split view
 normalizes them for SSR. Use this primitive rather than assembling local panel
 layouts, so hydration does not shift its children.
+
+For an in-chat surface, start with `MacEmbeddedPresentation` as the bounded
+stage around caller-composed `WindowChrome` content. Its visual traffic lights
+are inert. Enable `menuBar` only for app menus supplied by a child
+`DesktopShell`, and `windowManagement` only when the prototype needs
+registry-owned close, minimize, restore, zoom, and Dock behavior;
+multiple-window and managed-desktop demos commonly need both.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;

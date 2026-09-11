@@ -1,0 +1,48 @@
+:root {
+  --second-consumer-highlight: rgb(90, 50, 170);
+  --second-consumer-motion: second-consumer-pulse;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+.second-consumer-content {
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.second-consumer-content p {
+  margin: 0;
+}
+
+.second-consumer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.second-consumer-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--second-consumer-highlight);
+  animation-name: var(--second-consumer-motion);
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+@keyframes second-consumer-pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .second-consumer-indicator {
+    animation: none;
+  }
+}

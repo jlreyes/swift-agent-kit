@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
@@ -403,17 +404,24 @@ export function DesktopShell({
   children,
 }: DesktopShellProps) {
   const windowManager = useOptionalMacWindowManager();
+  const embeddedPresentation = useEmbeddedPresentation();
+  const showMenuBar = embeddedPresentation?.menuBar ?? true;
+  const windowManagement = embeddedPresentation?.windowManagement ?? true;
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
-  const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
+  const modalFocusReturn = useMenuModalFocusReturn(showMenuBar && openMenuIndex !== null);
   const modalFocusReturnRef = useRef(modalFocusReturn);
   modalFocusReturnRef.current = modalFocusReturn;
   const openMenuIndexRef = useRef(openMenuIndex);
-  openMenuIndexRef.current = openMenuIndex;
+  openMenuIndexRef.current = showMenuBar ? openMenuIndex : null;
+  useEffect(() => {
+    if (!showMenuBar) setOpenMenuIndex(null);
+  }, [showMenuBar]);
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    if (date !== undefined && clock !== undefined) return;
+    if (!showMenuBar || date !== undefined && clock !== undefined) return;
 
+    setNow(new Date());
     let timer: number | undefined;
     function scheduleNextMinute() {
       const delay = 60_000 - (Date.now() % 60_000);
@@ -426,9 +434,9 @@ export function DesktopShell({
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [clock, date]);
+  }, [clock, date, showMenuBar]);
   useEffect(() => {
-    if (openMenuIndex === null) return;
+    if (!showMenuBar || openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest(".menu-left, .mc-menubar-menu-popover") === null) {
@@ -438,8 +446,9 @@ export function DesktopShell({
     }
     document.addEventListener("pointerdown", dismissFromOutside);
     return () => document.removeEventListener("pointerdown", dismissFromOutside);
-  }, [openMenuIndex]);
+  }, [openMenuIndex, showMenuBar]);
   useEffect(() => {
+    if (!showMenuBar) return;
     function moveFocusOutOfMenu(event: KeyboardEvent) {
       if (
         event.key !== "Tab"
@@ -466,7 +475,7 @@ export function DesktopShell({
     }
     document.addEventListener("keydown", moveFocusOutOfMenu, true);
     return () => document.removeEventListener("keydown", moveFocusOutOfMenu, true);
-  }, []);
+  }, [showMenuBar]);
   const canvasStyle: DesktopCanvasStyle | undefined = wallpaper
     ? { "--mc-wallpaper": wallpaperImageValue(wallpaper) }
     : undefined;
@@ -476,17 +485,25 @@ export function DesktopShell({
     { title: activeApplicationName, items: appMenuItems ?? defaultAppMenu(activeApplicationName) },
     ...menuItems.map(resolveMenu),
   ]
-    .map((menu, index) => windowManager === null
+    .map((menu, index) => windowManager === null || !windowManagement
       ? menu
       : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
+    .map((menu, index) => {
+      if (windowManagement) return menu;
+      const disabledCommands = index === 1
+        ? ["hide-app", "hide-others", "quit-app"]
+        : menu.title === "File" ? ["close-window"]
+          : menu.title === "Window" ? ["minimize", "zoom", "bring-all-to-front"] : [];
+      return { ...menu, items: menu.items.map((entry) => entry.kind === "action" && disabledCommands.includes(entry.id) && entry.onSelect === undefined && entry.href === undefined && entry.disabled === undefined ? { ...entry, disabled: true } : entry) };
+    })
     .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction));
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }
   return (
-    <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
+    <main className="showcase-viewport" data-mobile-review-mode={embeddedPresentation === null ? mobileReviewMode : undefined}>
       <div className="desktop-canvas" style={canvasStyle}>
-        <header className="mac-menu-bar">
+        {showMenuBar ? <header className="mac-menu-bar">
           <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((item, index) => (
               <MacMenu
@@ -520,7 +537,7 @@ export function DesktopShell({
             <span suppressHydrationWarning>{date ?? nativeDate(now)}</span>
             <span suppressHydrationWarning>{clock ?? nativeClock(now)}</span>
           </div>
-        </header>
+        </header> : null}
         {children}
       </div>
     </main>

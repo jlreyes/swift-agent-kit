@@ -8,6 +8,7 @@ import {
   type MacSourceListSection,
 } from "./navigation";
 import { SystemSymbol } from "./system-symbol";
+import { useEmbeddedForm } from "./embedded-form.ts";
 import { MacToolbar, ToolbarButton, ToolbarSearchBubble } from "./toolbar";
 import { TrafficLights, WindowChrome, type WindowFrame } from "./window";
 import "./styles/tokens.css";
@@ -130,6 +131,7 @@ export function ChatWindow({
   readonly onMinimize?: () => void;
   readonly onZoom?: () => void;
 }) {
+  const { onFormClick, requestSubmit } = useEmbeddedForm();
   const [uncontrolledSidebarVisible, setUncontrolledSidebarVisible] = useState(true);
   const isSidebarVisible = sidebarVisible ?? uncontrolledSidebarVisible;
   const [searchOpen, setSearchOpen] = useState(false);
@@ -238,16 +240,17 @@ export function ChatWindow({
                 : emptyTranscript}
             </div>
             <div className="mc-chat-composer-wrap">
-              <form className="mc-chat-composer" onSubmit={send}>
+              <form className="mc-chat-composer" onSubmit={send} onClick={onFormClick}>
                 {composer.accessory !== undefined ? composer.accessory : <span className="mc-chat-composer-spacer" />}
                 <textarea
                   value={composer.value}
                   rows={1}
                   onChange={(event) => composer.onChange(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                       event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
+                      const form = event.currentTarget.form;
+                      if (form !== null) requestSubmit(form);
                     }
                   }}
                   placeholder={composer.placeholder}

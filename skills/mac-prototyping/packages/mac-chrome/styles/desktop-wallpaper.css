@@ -1,0 +1,3 @@
+.desktop-canvas {
+  --mc-wallpaper-default: url("/mac-assets/wallpapers/tahoe.jpg"), url("./wallpaper.svg");
+}

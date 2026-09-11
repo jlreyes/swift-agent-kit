@@ -110,7 +110,9 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
         assert.match(glyph.fontFamily, /mac-chat-preview-symbols/);
         assert.equal(primary.background, 'rgb(10, 122, 255)');
         assert.equal(primary.color, 'rgb(255, 255, 255)');
-        return { glyph, primary };
+        const muted = await catalog.evaluate(element => getComputedStyle(element).getPropertyValue('--muted').trim());
+        assert.equal(muted, '#76797e');
+        return { glyph, primary, muted };
       }
       const initial = await palette();
       await refreshObservedHostTheme(frame);
@@ -138,8 +140,6 @@ const observations = await Promise.all(Object.entries({ chromium, webkit }).map(
     await check('command menu and interactive popover', async () => {
       await selectStory('Menus & Popovers');
       await catalog.getByRole('button', { name: 'Actions', exact: true }).click();
-      const mutedShortcut = frame.getByRole('menu', { name: 'Example actions' }).getByRole('menuitem', { name: /New Document/ }).locator('small');
-      assert.equal(await mutedShortcut.evaluate(element => getComputedStyle(element).color), 'rgb(118, 121, 126)');
       await frame.getByRole('menu', { name: 'Example actions' }).getByRole('menuitem', { name: /New Folder/ }).click();
       await catalog.getByText('New Folder selected', { exact: true }).waitFor();
       const trigger = catalog.getByRole('button', { name: 'Component information' });

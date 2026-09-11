@@ -15,6 +15,7 @@ import {
 } from "react-aria-components";
 
 import { SystemSymbol } from "./system-symbol.tsx";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import "./styles/tokens.css";
 import "./styles/popover.css";
 
@@ -169,11 +170,14 @@ export function MacMenu({
   readonly triggerClassName?: string;
 }) {
   const controlledState = isOpen === undefined ? {} : { isOpen };
+  const embeddedPresentation = useEmbeddedPresentation();
+  const portalContainer = embeddedPresentation?.portalContainer ?? undefined;
+  const portalReady = embeddedPresentation === null || portalContainer !== undefined;
   return (
     <div className={`mc-menu ${className}`.trim()} onPointerEnter={onTriggerPointerEnter}>
       <MenuTrigger {...controlledState} onOpenChange={onOpenChange}>
         <Button aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
-        <Popover isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+        {portalReady ? <Popover UNSTABLE_portalContainer={portalContainer} isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
           {/* MenuTrigger injects aria-labelledby (the trigger), which would
               outrank the label prop; blank it so `label` names the menu. */}
           <div className="mc-menu-key-scope" onKeyDown={onMenuKeyDown}>
@@ -185,7 +189,7 @@ export function MacMenu({
               {menuBlocks(items).flatMap(renderBlock)}
             </Menu>
           </div>
-        </Popover>
+        </Popover> : null}
       </MenuTrigger>
     </div>
   );
@@ -224,6 +228,9 @@ export function MacPopover({
   readonly triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const controlledState = isOpen === undefined ? {} : { isOpen };
+  const embeddedPresentation = useEmbeddedPresentation();
+  const portalContainer = embeddedPresentation?.portalContainer ?? undefined;
+  const portalReady = embeddedPresentation === null || portalContainer !== undefined;
   return (
     <DialogTrigger {...controlledState} onOpenChange={onOpenChange}>
       <Button
@@ -233,7 +240,8 @@ export function MacPopover({
       >
         {trigger}
       </Button>
-      <Popover
+      {portalReady ? <Popover
+        UNSTABLE_portalContainer={portalContainer}
         className={`mc-popover-surface ${className}`.trim()}
         data-popover-layout={layout}
         placement={placement}
@@ -246,7 +254,7 @@ export function MacPopover({
         >
           {children}
         </Dialog>
-      </Popover>
+      </Popover> : null}
     </DialogTrigger>
   );
 }

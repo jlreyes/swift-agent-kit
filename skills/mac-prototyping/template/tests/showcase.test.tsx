@@ -604,9 +604,10 @@ test("the Showcase menu mirrors source-list story selection", async () => {
   expect(sourceItem("Lists & Collections").getAttribute("aria-selected")).toBe("true");
 });
 
-test("the coverage map is unique and includes the complete runtime surface", () => {
+test("the coverage map includes the runtime surface apart from the separately tested embed wrapper", () => {
   expect(new Set(coveredExports).size).toBe(coveredExports.length);
-  expect([...coveredExports].sort()).toEqual(Object.keys(MacChrome).sort());
+  const embeddedPresentationExports = new Set(["MacEmbeddedPresentation"]);
+  expect([...coveredExports].sort()).toEqual(Object.keys(MacChrome).filter((name) => !embeddedPresentationExports.has(name)).sort());
   for (const exportName of [
     "MacDockAppIcon",
     "MacNavigationSplitView",

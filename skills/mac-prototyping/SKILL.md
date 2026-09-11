@@ -20,6 +20,8 @@ lives in this skill directory:
   compose and adapt them; there is deliberately no wrapper CLI.
 - [references/mac-pattern-rubric.md](references/mac-pattern-rubric.md) —
   the macOS pattern checklist every surface is judged against.
+- [references/chat-preview.md](references/chat-preview.md) — build a bounded,
+  portable in-chat snapshot when HMR is not the review surface.
 - The `mac-design-audit` agent (bundled with this plugin) — pattern-based
   design review; convene it as described below.
 
@@ -27,6 +29,14 @@ Edit against a persistent `vinext dev` service and use HMR as the default
 prototype workflow. Keep its private shared URL open while changing source;
 ordinary edits do not need a build, restart, or manual refresh. The workflows
 also define the built-preview and service-worker boundaries.
+
+## Build an in-chat snapshot only when the host needs one
+
+Use HMR for ordinary prototype work. When a task explicitly needs a portable,
+bounded preview inside chat, read [the chat-preview reference](references/chat-preview.md).
+It owns the snapshot build contract, symbol-subset boundary, and acceptance
+checks. Do not treat a snapshot as a replacement for the development service
+or the design-review workflow below.
 
 ## Start or fork a prototype
 
@@ -92,6 +102,7 @@ copy a showcase layout or private component into product code.
 | Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
+| A fixed in-chat Mac desktop presentation | `MacEmbeddedPresentation` | bounded stage with managed app/window lifecycle, Dock restoration, and optional menu bar |
 
 `MacNavigationSplitView` has either two columns (sidebar + detail) or three
 navigation columns (sidebar + content + detail). Its optional middle column

@@ -32,7 +32,7 @@ glyphs; close/minimize/zoom work) — see `WindowChrome` and `TrafficLights`.
 
 ## Exports (`index.ts`)
 
-Values: `DesktopShell`, `fixedDesktopReviewViewport`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
+Values: `DesktopShell`, `fixedDesktopReviewViewport`, `MacWindowManager`, `MacApp`, `MacAppDock`, `useMacWindowManager`, `MacEmbeddedPresentation`, `TrafficLights`, `useWindowDrag`, `WindowChrome`, `defaultDockItems`, `MacDock`, `MacDockAppIcon`, `SystemSymbol`, `MacToolbar`, `ToolbarButton`, `ToolbarCapsule`, `ToolbarGlyph`, `ToolbarSearchBubble`, `ToolbarToggle`, `MacDetailsMenu`, `MacMenu`, `MacPopover`, `MenuBarExtra`, `useModalFocusTrap`, `MacNavigationSplitView`, `MacInspector`, `MacSourceList`, `MacList`, `MacDisclosureGroup`, `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent`, `MacContentUnavailable`, `MacWindowStatusBar`, `MacAlert`, `MacSheet`, `Sheet` (legacy), `FinderWindow`, `finderKeyTarget`, `QuickLook`, `ChooserWindow`, `createStoredIdList`, `SetupAssistant`, `SetupHeading`, `ChatWindow`.
 Types: `DesktopShellProps`, `FixedDesktopReviewViewport`, `MenuBarMenu`, `MenuCommand`, `MobileReviewMode`, `MacAppDefinition`, `MacManagedApp`, `MacManagedWindow`, `MacWindowThumbnail`, `MacAppPresentation`, `MacWindowManagerValue`, `MacWindowState`, `WindowFrame`, `WindowMobilePresentation`, `WindowSize`, `DockIcon`, `DockIconSource`, `DockItem`, `MacDockAppIconProps`, `SystemSymbolName`, `ToolbarGlyphName`, `MenuAction`, `MenuEntry`, `MacPopoverContentInset`, `MacPopoverLayout`, `MenuPopoverConfig`, `MenuSpec`, `MacNavigationColumnSizing`, `MacNavigationSplitViewProps`, `MacInspectorProps`, `MacSourceListItem`, `MacSourceListSection`, `MacSourceListProps`, `MacListRow`, `MacListSection`, `MacButtonVariant`, `MacToggleStyle`, `MacSegment`, `MacAlertAction`, `MacAlertActionRole`, `MacAlertPresentationScope`, `MacDialogAction`, `MacDialogActionRole`, `FinderEntry`, `FinderSearch`, `FinderSelection`, `FinderViewMode`, `SidebarItem`, `SidebarSection`, `ChooserChoice`, `ChooserCommand`, `ChooserCommandSection`, `ChooserSecondaryGroup`, `StoredIdList`, `SetupStep`, `ChatAuthor`, `ChatComposer`, `ChatMessage`, `ChatRole`, `ChatSearch`, `Conversation`.
 
 The template's `/showcase` route is the canonical interactive catalog for
@@ -60,6 +60,7 @@ not the only way to build an app.
 | Product need | Public primitive | Notes |
 | --- | --- | --- |
 | Windowed or menu-bar app identity and lifecycle | `MacWindowManager` + `MacApp` + `MacAppDock` | `presentation="windowed"` gets Dock/window lifecycle; `presentation="menuBar"` composes a status item without a Dock tile. |
+| Fixed, bounded presentation embedded in chat | `MacEmbeddedPresentation` | Wraps the managed desktop; it does not enable dragging or resizing. |
 | Sidebar/detail or sidebar/list/detail navigation | `MacNavigationSplitView` | Two or three **navigation** columns. |
 | Supplementary metadata / settings | `MacInspector` | Separate trailing pane, not a third navigation column. |
 | Sidebar source list | `MacSourceList` | Controlled row selection, optional selectable titled sections, and controlled collapsible sections. |
@@ -75,6 +76,22 @@ SwiftUI. Tables, outline views, grid collections, and full SwiftUI
 parity are deferred until a reusable need proves them out. Liquid Glass is not
 an offered material mode; use the existing opaque or near-opaque tokenized
 materials.
+
+### MacEmbeddedPresentation
+maps to: a contained Mac desktop presentation; no direct SwiftUI counterpart.
+`MacEmbeddedPresentation({ children, height = 640, menuBar = true }: { readonly children: ReactNode; readonly height?: number; readonly menuBar?: boolean })`
+
+Use this as the outer boundary for a Mac surface embedded in a bounded host,
+such as a chat preview. It composes the existing `MacWindowManager`,
+`DesktopShell`, `MacApp`, and `MacAppDock` model, so traffic-light close and
+minimize state remain registry-owned and the Dock can restore the same window.
+It supplies fixed-flow presentation chrome: it does not offer dragging or
+resizing. `menuBar` controls whether the contained stage includes the menu
+bar; the green traffic light toggles its inset versus edge-fill presentation.
+
+Menus and popovers must use the presentation's scoped host so they remain
+inside the bounded surface. React Aria's modal isolation is still
+document-wide; do not claim that an iframe changes that behavior.
 
 ### DesktopShell
 maps to: the macOS menu bar + desktop (NSApplication main menu / NSStatusBar region); no single SwiftUI view — it is the app's stage, not a window.

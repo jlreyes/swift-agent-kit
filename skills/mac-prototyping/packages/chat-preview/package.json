@@ -1,0 +1,17 @@
+{
+  "name": "@swift-agent-kit/chat-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "exports": "./src/build.mjs",
+  "bin": { "mac-chat-preview": "./cli.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "dependencies": {
+    "acorn": "8.18.0",
+    "css-tree": "3.2.1",
+    "esbuild": "0.27.3",
+    "postcss": "8.5.26",
+    "terser": "5.50.0"
+  }
+}

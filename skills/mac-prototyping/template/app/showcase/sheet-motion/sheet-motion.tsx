@@ -6,7 +6,7 @@ import "./sheet-motion.css";
 
 const app: MacAppDefinition = { id: "sheet-motion", name: "Sheet Motion", icon: { kind: "systemSymbol", name: "doc.text", background: "var(--chrome-ink)", foreground: "var(--on-accent)" } };
 
-export function SheetMotion() {
+export function SheetMotion({ showcaseHref = "/showcase" }: { readonly showcaseHref?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState("project");
   const [result, setResult] = useState("No project created");
@@ -20,7 +20,7 @@ export function SheetMotion() {
         <p>Open a project, edit its name, visit Options, then return. The name stays in place until the sheet closes.</p>
         <MacButton ref={trigger} onPress={() => { setStep("project"); setOpen(true); }}>New Project…</MacButton>
         <output aria-live="polite">{result}</output>
-        <a href="/showcase">All components</a>
+        <a href={showcaseHref}>All components</a>
       </main>
       <MacSheet open={open} presentationKey={step} title={customize ? "Project Options" : "New Project"} fallbackFocusRef={trigger}
         initialFocusSelector="input" onClose={() => {}} actions={customize ? [

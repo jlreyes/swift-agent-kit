@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useOptionalMacWindowManager } from "./app.tsx";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { useModalFocusTrap } from "./modal-focus.ts";
 
 type MacWindowModalKind = "alert" | "sheet";
@@ -180,9 +181,9 @@ function registerModalLayer(owner: ModalOwner, layer: HTMLDivElement) {
 
 const windowSelector = ".mac-window";
 
-function managedKeyWindow(windowId: string | null): HTMLElement | null {
+function managedKeyWindow(windowId: string | null, root: Document | HTMLElement): HTMLElement | null {
   if (windowId === null) return null;
-  return [...document.querySelectorAll<HTMLElement>(".mac-window[data-window-id]")]
+  return [...root.querySelectorAll<HTMLElement>(".mac-window[data-window-id]")]
     .find((candidate) => candidate.dataset.windowId === windowId) ?? null;
 }
 
@@ -204,7 +205,9 @@ function resolveModalOwner({
   fallbackFocus,
   keyWindowId,
   presentationScope,
+  root,
 }: {
+  readonly root: Document | HTMLElement;
   readonly allowDesktopFallback: boolean;
   readonly anchor: HTMLElement | null;
   readonly fallbackFocus: HTMLElement | null;
@@ -212,10 +215,14 @@ function resolveModalOwner({
   readonly presentationScope: "automatic" | "desktop";
 }): ModalOwner | null {
   if (presentationScope === "automatic") {
-    const nearestWindow = fallbackFocus?.closest<HTMLElement>(windowSelector)
-      ?? anchor?.closest<HTMLElement>(windowSelector)
-      ?? managedKeyWindow(keyWindowId)
-      ?? document.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
+    function windowInRoot(element: HTMLElement | null) {
+      const candidate = element?.closest<HTMLElement>(windowSelector) ?? null;
+      return candidate !== null && root.contains(candidate) ? candidate : null;
+    }
+    const nearestWindow = windowInRoot(fallbackFocus)
+      ?? windowInRoot(anchor)
+      ?? managedKeyWindow(keyWindowId, root)
+      ?? root.querySelector<HTMLElement>('.mac-window[data-key-window="true"]');
     if (nearestWindow !== null) return { element: nearestWindow, scope: "window" };
   }
   if (!allowDesktopFallback) return null;
@@ -225,7 +232,7 @@ function resolveModalOwner({
   // accident. The body fallback also lets the primitive remain testable and
   // usable outside DesktopShell.
   return {
-    element: document.querySelector<HTMLElement>(".desktop-canvas") ?? document.body,
+    element: root.querySelector<HTMLElement>(".desktop-canvas") ?? (root instanceof HTMLElement ? root : document.body),
     scope: "desktop",
   };
 }
@@ -438,18 +445,20 @@ export function MacWindowModalHost({
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const manager = useOptionalMacWindowManager();
+  const embeddedPresentation = useEmbeddedPresentation();
   const [owner, setOwner] = useState<ModalOwner | null>(null);
 
   useLayoutEffect(() => {
-    if (!open || owner !== null) return;
+    if (!open || owner !== null || embeddedPresentation !== null && embeddedPresentation.portalContainer === null) return;
     setOwner(resolveModalOwner({
+      root: embeddedPresentation?.portalContainer ?? document,
       allowDesktopFallback,
       anchor: anchorRef.current,
       fallbackFocus: presentation.fallbackFocusRef?.current ?? null,
       keyWindowId: manager?.keyWindowId ?? null,
       presentationScope,
     }));
-  }, [allowDesktopFallback, manager?.keyWindowId, open, owner, presentation.fallbackFocusRef, presentationScope]);
+  }, [allowDesktopFallback, embeddedPresentation, manager?.keyWindowId, open, owner, presentation.fallbackFocusRef, presentationScope]);
 
   return <>
     <span ref={anchorRef} className="mc-window-modal-anchor" aria-hidden="true" />

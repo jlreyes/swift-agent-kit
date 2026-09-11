@@ -544,7 +544,7 @@ function MenusStory() {
   );
 }
 
-function PresentationStory() {
+function PresentationStory({ sheetMotionHref }: { readonly sheetMotionHref: string }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [presentationStatus, setPresentationStatus] = useState("No projects created.");
@@ -564,7 +564,7 @@ function PresentationStory() {
   return (
     <div className="showcase-story-pane">
       <StoryHeader title="Presentation and feedback" description="Use MacAlert for a short system decision, MacSheet for a scoped modal task, and MacWindowStatusBar for persistent window-local feedback." />
-      <a href="/showcase/sheet-motion">Try sequential sheet motion…</a>
+      <a href={sheetMotionHref}>Try sequential sheet motion…</a>
       <MacContentUnavailable
         icon={<SystemSymbol name="folder" />}
         title="No projects"
@@ -621,18 +621,19 @@ function CompositionStory({ story, onOpen }: { readonly story: StoryDefinition; 
   );
 }
 
-function StoryContent({ story, onOpenRecipe }: { readonly story: StoryDefinition; readonly onOpenRecipe: (id: RecipeId) => void }) {
+function StoryContent({ story, onOpenRecipe, sheetMotionHref }: { readonly story: StoryDefinition; readonly onOpenRecipe: (id: RecipeId) => void; readonly sheetMotionHref: string }) {
   if (story.id === "anatomy") return <AppAnatomyStory />;
   if (story.id === "window-toolbar") return <WindowToolbarStory />;
   if (story.id === "navigation") return <NavigationStory />;
   if (story.id === "collections") return <CollectionsStory />;
   if (story.id === "controls") return <ControlsStory />;
   if (story.id === "menus") return <MenusStory />;
-  if (story.id === "presentation") return <PresentationStory />;
+  if (story.id === "presentation") return <PresentationStory sheetMotionHref={sheetMotionHref} />;
   return <CompositionStory story={story} onOpen={onOpenRecipe} />;
 }
 
-function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible, query, sidebarVisible, status, onBack, onForward, onInspectorVisibleChange, onOpenRecipe, onQueryChange, onSelectStory, onSidebarVisibleChange }: {
+function CatalogWindow({ sheetMotionHref, activeStory, canGoBack, canGoForward, inspectorVisible, query, sidebarVisible, status, onBack, onForward, onInspectorVisibleChange, onOpenRecipe, onQueryChange, onSelectStory, onSidebarVisibleChange }: {
+  readonly sheetMotionHref: string;
   readonly activeStory: StoryDefinition;
   readonly canGoBack: boolean;
   readonly canGoForward: boolean;
@@ -723,7 +724,7 @@ function CatalogWindow({ activeStory, canGoBack, canGoForward, inspectorVisible,
                   }
                 />
                 <main className="showcase-story-content" data-showcase-story={activeStory.id} aria-label={`${activeStory.label} story`}>
-                  <StoryContent story={activeStory} onOpenRecipe={onOpenRecipe} />
+                  <StoryContent sheetMotionHref={sheetMotionHref} story={activeStory} onOpenRecipe={onOpenRecipe} />
                 </main>
                 <MacWindowStatusBar live="polite" trailing={`${stories.length} examples`}>{status}</MacWindowStatusBar>
               </div>
@@ -1018,24 +1019,30 @@ const showcaseApps = {
 
 const showcaseAppManifest: readonly MacAppDefinition[] = Object.values(showcaseApps);
 
-export function ShowcaseDesktop() {
+type ShowcaseDesktopProps = {
+  readonly sheetMotionHref?: string;
+  readonly initialSidebarVisible?: boolean;
+  readonly initialInspectorVisible?: boolean;
+};
+
+export function ShowcaseDesktop(props: ShowcaseDesktopProps = {}) {
   return (
     <MacWindowManager initialApps={showcaseAppManifest}>
-      <ManagedShowcaseDesktop />
+      <ManagedShowcaseDesktop {...props} />
     </MacWindowManager>
   );
 }
 
-function ManagedShowcaseDesktop() {
+function ManagedShowcaseDesktop({ sheetMotionHref = "/showcase/sheet-motion", initialSidebarVisible = true, initialInspectorVisible = true }: ShowcaseDesktopProps) {
   const windowManager = useMacWindowManager();
   const [storyHistory, setStoryHistory] = useState<readonly StoryId[]>(["anatomy"]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [catalogSidebarVisible, setCatalogSidebarVisible] = useState(true);
-  const [catalogInspectorVisible, setCatalogInspectorVisible] = useState(true);
+  const [catalogSidebarVisible, setCatalogSidebarVisible] = useState(initialSidebarVisible);
+  const [catalogInspectorVisible, setCatalogInspectorVisible] = useState(initialInspectorVisible);
   const [finderMode, setFinderMode] = useState<FinderViewMode>("icons");
-  const [finderSidebarVisible, setFinderSidebarVisible] = useState(true);
-  const [finderPreviewVisible, setFinderPreviewVisible] = useState(true);
-  const [chatSidebarVisible, setChatSidebarVisible] = useState(true);
+  const [finderSidebarVisible, setFinderSidebarVisible] = useState(initialSidebarVisible);
+  const [finderPreviewVisible, setFinderPreviewVisible] = useState(initialInspectorVisible);
+  const [chatSidebarVisible, setChatSidebarVisible] = useState(initialSidebarVisible);
   const [query, setQuery] = useState("");
   const [extraCount, setExtraCount] = useState(2);
   const [activityExtraOpen, setActivityExtraOpen] = useState(false);
@@ -1157,27 +1164,26 @@ function ManagedShowcaseDesktop() {
             <div className="showcase-extra-popover">
               <strong>Showcase activity</strong>
               <p>{extraCount === 0 ? "You’re all caught up." : `${extraCount} component notes are ready.`}</p>
-              <button
-                type="button"
+              <MacButton
+                variant="primary"
                 disabled={extraCount === 0}
-                onClick={() => {
+                onPress={() => {
                   if (extraCount === 0) return;
                   setExtraCount(0);
                   setStatus("Showcase activity marked as read.");
                 }}
               >
                 Mark as Read
-              </button>
-              <button
-                type="button"
+              </MacButton>
+              <MacButton
                 disabled={extraCount === 0}
-                onClick={() => {
+                onPress={() => {
                   setActivityExtraOpen(false);
                   setActivityAlertOpen(true);
                 }}
               >
                 Clear Activity…
-              </button>
+              </MacButton>
             </div>
           </MenuBarExtra>
           <MacAlert
@@ -1208,6 +1214,7 @@ function ManagedShowcaseDesktop() {
     >
       <MacApp {...showcaseApps.catalog}>
         <CatalogWindow
+          sheetMotionHref={sheetMotionHref}
           activeStory={activeStory}
           canGoBack={historyIndex > 0}
           canGoForward={historyIndex < storyHistory.length - 1}

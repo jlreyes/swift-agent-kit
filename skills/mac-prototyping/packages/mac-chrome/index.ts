@@ -1,4 +1,8 @@
 export {
+  MacEmbeddedPresentation,
+  type MacEmbeddedPresentationProps,
+} from "./embedded-presentation.tsx";
+export {
   DesktopShell,
   type DesktopShellProps,
   type MenuBarMenu,

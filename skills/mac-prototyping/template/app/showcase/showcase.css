@@ -438,14 +438,6 @@
   margin: 0;
 }
 
-.showcase-extra-popover button {
-  margin-top: 4px;
-  padding: 5px 8px;
-  border: 0;
-  border-radius: 5px;
-  color: #ffffff;
-  background: var(--accent);
-}
 
 .showcase-sheet-copy {
   margin: 0;

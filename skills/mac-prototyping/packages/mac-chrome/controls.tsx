@@ -16,6 +16,8 @@ import {
   type Selection,
 } from "react-aria-components";
 
+import { useEmbeddedForm } from "./embedded-form.ts";
+
 import "./styles/tokens.css";
 import "./styles/controls.css";
 
@@ -66,6 +68,7 @@ export function MacButton({
   readonly variant?: MacButtonVariant;
   readonly onPress?: () => void;
 }) {
+  const { onSubmitButtonClickCapture, onSubmitButtonPress } = useEmbeddedForm();
   return (
     <Button
       ref={ref}
@@ -73,7 +76,12 @@ export function MacButton({
       aria-label={ariaLabel}
       className={`mc-button mc-button-${variant} ${className}`.trim()}
       isDisabled={disabled}
-      onPress={onPress}
+      onPress={onSubmitButtonPress === undefined ? onPress : (event) => {
+        onPress?.();
+        onSubmitButtonPress(event.target);
+      }}
+      onClickCapture={onSubmitButtonClickCapture}
+      data-embedded-submit={onSubmitButtonPress !== undefined && type === "submit" ? "true" : undefined}
     >
       {children}
     </Button>
@@ -275,7 +283,8 @@ export function MacForm({
   readonly className?: string;
   readonly onSubmit?: FormEventHandler<HTMLFormElement>;
 }) {
-  return <form className={`mc-form ${className}`.trim()} aria-label={ariaLabel} onSubmit={onSubmit}>{children}</form>;
+  const { onFormClick, onFormKeyDown } = useEmbeddedForm();
+  return <form className={`mc-form ${className}`.trim()} aria-label={ariaLabel} onSubmit={onSubmit} onClick={onFormClick} onKeyDown={onFormKeyDown}>{children}</form>;
 }
 
 export function MacFormSection({

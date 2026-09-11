@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useOptionalMacWindowManager, type MacWindowManagerValue } from "./app.tsx";
 import { MacMenu, type MenuSpec } from "./menu";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import { SystemSymbol } from "./system-symbol";
 import "./styles/tokens.css";
@@ -403,6 +404,8 @@ export function DesktopShell({
   children,
 }: DesktopShellProps) {
   const windowManager = useOptionalMacWindowManager();
+  const embeddedPresentation = useEmbeddedPresentation();
+  const showMenuBar = embeddedPresentation?.menuBar ?? true;
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
@@ -412,7 +415,7 @@ export function DesktopShell({
   openMenuIndexRef.current = openMenuIndex;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    if (date !== undefined && clock !== undefined) return;
+    if (!showMenuBar || date !== undefined && clock !== undefined) return;
 
     let timer: number | undefined;
     function scheduleNextMinute() {
@@ -426,7 +429,7 @@ export function DesktopShell({
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [clock, date]);
+  }, [clock, date, showMenuBar]);
   useEffect(() => {
     if (openMenuIndex === null) return;
     function dismissFromOutside(event: PointerEvent) {
@@ -484,9 +487,9 @@ export function DesktopShell({
     return (index + offset + menus.length) % menus.length;
   }
   return (
-    <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
+    <main className="showcase-viewport" data-mobile-review-mode={embeddedPresentation === null ? mobileReviewMode : undefined}>
       <div className="desktop-canvas" style={canvasStyle}>
-        <header className="mac-menu-bar">
+        {showMenuBar ? <header className="mac-menu-bar">
           <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((item, index) => (
               <MacMenu
@@ -520,7 +523,7 @@ export function DesktopShell({
             <span suppressHydrationWarning>{date ?? nativeDate(now)}</span>
             <span suppressHydrationWarning>{clock ?? nativeClock(now)}</span>
           </div>
-        </header>
+        </header> : null}
         {children}
       </div>
     </main>

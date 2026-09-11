@@ -67,25 +67,38 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   const subscribers = new Set<() => void>();
   let snapshotRaw: string | null | undefined;
   let snapshot = empty;
+  let memoryRaw: string | null = null;
+  let storageUnavailable = false;
+
+  function fallBackToMemory(error: unknown) {
+    if (!(error instanceof DOMException)
+      || (error.name !== "SecurityError" && error.name !== "QuotaExceededError")) throw error;
+    storageUnavailable = true;
+  }
 
   function readRaw(): string | null {
-    if (typeof window === "undefined" || window.localStorage === undefined) return null;
+    if (storageUnavailable || typeof window === "undefined") return memoryRaw;
     try {
-      return window.localStorage.getItem(key);
-    } catch {
-      return null;
+      const storage = window.localStorage;
+      if (storage === undefined) storageUnavailable = true;
+      else memoryRaw = storage.getItem(key);
+    } catch (error) {
+      fallBackToMemory(error);
     }
+    return memoryRaw;
   }
 
   function parse(raw: string | null): readonly string[] {
     if (raw === null) return empty;
+    let value: unknown;
     try {
-      const value: unknown = JSON.parse(raw);
-      if (!Array.isArray(value)) return empty;
-      return value.filter((id): id is string => typeof id === "string" && isValid(id));
-    } catch {
+      value = JSON.parse(raw);
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
       return empty;
     }
+    if (!Array.isArray(value)) return empty;
+    return value.filter((id): id is string => typeof id === "string" && isValid(id));
   }
 
   // Snapshot identity is keyed on the raw string so useSyncExternalStore sees
@@ -93,8 +106,9 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   function browserSnapshot(): readonly string[] {
     const raw = readRaw();
     if (raw !== snapshotRaw) {
+      const parsed = parse(raw);
       snapshotRaw = raw;
-      snapshot = parse(raw);
+      snapshot = parsed;
     }
     return snapshot;
   }
@@ -118,11 +132,17 @@ export function createStoredIdList(key: string, isValid: (id: string) => boolean
   }
 
   function write(ids: readonly string[]) {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(ids));
-    } catch {
-      // Storage unavailable: state stays as-is; notify below re-reads it.
+    const raw = JSON.stringify(ids);
+    if (!storageUnavailable && typeof window !== "undefined") {
+      try {
+        const storage = window.localStorage;
+        if (storage === undefined) storageUnavailable = true;
+        else storage.setItem(key, raw);
+      } catch (error) {
+        fallBackToMemory(error);
+      }
     }
+    memoryRaw = raw;
     notify();
   }
 

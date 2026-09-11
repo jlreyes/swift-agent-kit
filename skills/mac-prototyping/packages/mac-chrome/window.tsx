@@ -4,6 +4,7 @@ import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactP
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useManagedWindowRegistration } from "./app.tsx";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import { macWindowViewTransitionName } from "./window-transition.ts";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -1052,6 +1053,7 @@ export function WindowChrome({
   readonly onDragOver?: (event: ReactDragEvent<HTMLElement>) => void;
   readonly onDrop?: (event: ReactDragEvent<HTMLElement>) => void;
 }) {
+  const embedded = useEmbeddedPresentation() !== null;
   const [hidden, setHidden] = useState(false);
   const [minimizing, setMinimizing] = useState(false);
   const [localZoomed, setLocalZoomed] = useState(false);
@@ -1075,13 +1077,13 @@ export function WindowChrome({
   const minimizeManagedWindow = manager?.minimizeWindow;
   const toggleManagedZoom = manager?.toggleZoom;
   const windowGeometry = useWindowGeometry({
-    draggable,
+    draggable: draggable && !embedded,
     dragHandleSelector,
-    enabled: !minimizing && !zoomed,
+    enabled: !minimizing && !zoomed && !embedded,
     inputSignature: windowGeometryInputSignature(authoredFrameStyle),
     minSize,
     preserveResponsiveFrame,
-    resizable,
+    resizable: resizable && !embedded,
     visible,
   });
   const controls = useMemo<WindowControls>(() => ({
@@ -1114,7 +1116,8 @@ export function WindowChrome({
   const retained = managed && !visible;
   if (!visible && !managed) return null;
 
-  const interactiveGeometryStyle = zoomed ? null : windowGeometry.geometryStyle;
+  const interactiveGeometryStyle = zoomed || embedded ? null : windowGeometry.geometryStyle;
+  const embeddedInset = zoomed ? "0px" : "var(--mc-embedded-inset)";
   const composedStyle: CSSProperties = {
     ...(zoomed
       ? { ...zoomedPlacement, ...style }
@@ -1122,6 +1125,19 @@ export function WindowChrome({
         ? authoredFrameStyle
         : withoutInteractiveFrameConstraints(authoredFrameStyle)),
     ...(interactiveGeometryStyle ?? undefined),
+    ...(embedded ? {
+      top: `calc(var(--mc-embedded-menu-height) + ${embeddedInset})`,
+      left: embeddedInset,
+      width: `calc(100% - ${embeddedInset} - ${embeddedInset})`,
+      height: `calc(100% - var(--mc-embedded-menu-height) - var(--mc-embedded-dock-height) - ${embeddedInset} - ${embeddedInset})`,
+      transform: "none",
+      minWidth: 0,
+      minHeight: 0,
+      maxWidth: "none",
+      maxHeight: "none",
+      right: "auto",
+      bottom: "auto",
+    } : undefined),
     ...(managedWindow === null ? undefined : { zIndex: managedWindow.zIndex }),
     ...(resolvedWindowId === null ? undefined : { viewTransitionName: macWindowViewTransitionName(resolvedWindowId) }),
   };
@@ -1144,9 +1160,10 @@ export function WindowChrome({
         inert={retained ? true : undefined}
         data-app-id={app?.id}
         data-key-window={managedWindow === null ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
-        data-mobile-presentation={mobilePresentation}
+        data-mobile-presentation={embedded ? undefined : mobilePresentation}
+        data-embedded-window={embedded ? "true" : undefined}
         data-window-id={retained ? undefined : resolvedWindowId ?? undefined}
-        data-window-resizable={resizable ? "true" : "false"}
+        data-window-resizable={resizable && !embedded ? "true" : "false"}
         data-window-state={managedWindow?.state}
         onPointerDownCapture={retained ? undefined : () => {
           // Interactive descendants such as React Aria collections may stop
@@ -1172,7 +1189,7 @@ export function WindowChrome({
         onDrop={retained ? undefined : onDrop}
       >
         {children}
-        {!retained && resizable && !zoomed && !minimizing ? resizeEdges.map((edge) => (
+        {!retained && resizable && !embedded && !zoomed && !minimizing ? resizeEdges.map((edge) => (
           <span
             aria-hidden="true"
             className={`mc-window-resize-handle mc-window-resize-${edge}`}

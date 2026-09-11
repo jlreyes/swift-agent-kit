@@ -1120,9 +1120,7 @@ export function WindowChrome({
   });
   const managed = manager !== null && resolvedWindowId !== null;
   const managedOpen = appRunning && (managedWindow?.state === "open" || (managedWindow === null && defaultOpen));
-  // Static presentation reveals content without mutating the retained app's
-  // lifecycle; switching back resumes the same managed state.
-  const visible = embedded || (managed ? managedOpen : !hidden);
+  const visible = managed ? managedOpen : !hidden;
   const zoomed = !embedded && (managedWindow?.zoomed ?? localZoomed);
   const showMinimizing = !embedded && minimizing;
   const authoredFrameStyle: CSSProperties = {
@@ -1224,14 +1222,14 @@ export function WindowChrome({
         data-window-id={retained ? undefined : resolvedWindowId ?? undefined}
         data-window-resizable={resizable && !embedded ? "true" : "false"}
         data-window-state={managedWindow?.state}
-        onPointerDownCapture={retained || embedded ? undefined : () => {
+        onPointerDownCapture={retained ? undefined : () => {
           // Interactive descendants such as React Aria collections may stop
           // pointer events during their own press handling. Window activation
           // is a frame-level behavior, so observe it before descendants can
           // consume the event.
           if (resolvedWindowId !== null) activateManagedWindow?.(resolvedWindowId);
         }}
-        onFocusCapture={retained || embedded ? undefined : () => {
+        onFocusCapture={retained ? undefined : () => {
           if (resolvedWindowId !== null && consumeKeyboardWindowFocusIntent?.()) {
             activateManagedWindow?.(resolvedWindowId);
           }

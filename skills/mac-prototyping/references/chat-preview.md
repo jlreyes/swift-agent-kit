@@ -113,10 +113,13 @@ node cli.mjs \
 All three wrappers accept the underlying presentation props, but the examples
 make their intended feature level explicit.
 
-`showcase-symbols.json` is intentionally `[]`: it asserts that this fixture
-needs no symbols beyond recognized literal names. Named object members and
-unbounded expressions require a complete JSON array with
-`--additional-symbols`; an undeclared runtime glyph is an error.
+`showcase-symbols.json` is intentionally `[]`: this wrapper declares no extra
+symbols beyond recognized literals. The builder does not infer component or
+lookup bindings. When dynamic construction can produce names such as
+`"chevron." + direction`, supply the complete set through
+`--additional-symbols`, for example `["chevron.left", "chevron.right"]`.
+Invalid explicit additions fail the build; a replacement lookup fails at
+runtime outside the packaged set.
 
 ## Verify the boundary
 

@@ -26,28 +26,29 @@ export function useEmbeddedForm() {
     form.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true, submitter: submitter ?? null }));
   }
 
-  function submitAfterActivation(form: HTMLFormElement, submitter: SubmitControl) {
+  function submitAfterActivation(form: HTMLFormElement, submitter: SubmitControl, event?: MouseEvent<Element>) {
     // Let the activating press commit before locally reproducing native validated submission.
     queueMicrotask(() => {
-      if (form.isConnected && submitter.isConnected) requestSubmit(form, submitter);
+      if (!event?.isDefaultPrevented() && form.isConnected && submitter.isConnected) requestSubmit(form, submitter);
     });
   }
 
   function onFormClick(event: MouseEvent<HTMLFormElement>) {
     const target = event.target instanceof Element ? event.target.closest("button,input") : null;
     if (!event.defaultPrevented && event.button === 0 && isSubmitControl(target) && target.form === event.currentTarget && !target.matches(":disabled")) {
-      event.preventDefault();
-      submitAfterActivation(event.currentTarget, target);
+      // Suppress browser navigation while leaving React's cancellation state
+      // available to consumer click handlers farther up the component tree.
+      event.nativeEvent.preventDefault();
+      submitAfterActivation(event.currentTarget, target, event);
     }
   }
 
-  function onSubmitButtonClickCapture(event: MouseEvent<Element>) {
+  function onSubmitButtonClick(event: MouseEvent<Element>) {
     const button = event.currentTarget;
-    if (isSubmitControl(button) && button.form !== null) event.preventDefault();
-  }
-
-  function onSubmitButtonPress(target: Element) {
-    if (isSubmitControl(target) && target.form !== null && !target.matches(":disabled")) submitAfterActivation(target.form, target);
+    if (!event.isDefaultPrevented() && isSubmitControl(button) && button.form !== null && !button.matches(":disabled")) {
+      event.nativeEvent.preventDefault();
+      submitAfterActivation(button.form, button);
+    }
   }
 
   function onFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
@@ -68,8 +69,7 @@ export function useEmbeddedForm() {
   return {
     onFormClick: embedded ? onFormClick : undefined,
     onFormKeyDown: embedded ? onFormKeyDown : undefined,
-    onSubmitButtonClickCapture: embedded ? onSubmitButtonClickCapture : undefined,
-    onSubmitButtonPress: embedded ? onSubmitButtonPress : undefined,
+    onSubmitButtonClick: embedded ? onSubmitButtonClick : undefined,
     requestSubmit,
   };
 }

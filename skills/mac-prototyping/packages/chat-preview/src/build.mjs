@@ -104,7 +104,7 @@ export async function buildPreview(options) {
     legalComments: 'inline', loader: mediaLoaders, plugins: [plugin], logLevel: 'silent',
   };
   const probe = await build({ ...settings, minify: false });
-  let symbolReport = { symbols: [], dynamic: [], automatic: [] };
+  let symbolReport = { symbols: [], automatic: [], collectionMode: 'recognized-literals-with-explicit-additions' };
   if (importsSymbols) {
     const originalSymbolist = projectRequire('symbolist');
     const probeScript = probe.outputFiles.find(file => file.path.endsWith('.js'))?.text;
@@ -138,8 +138,8 @@ export async function buildPreview(options) {
   return {
     output, root, authoredDiagnostics, runtimeDiagnostics, authoredNavigationUrls: [...navigationUrls], format: options.format ?? 'gzip', ...formatted.sizes,
     symbols: symbolReport.symbols.map(({ name }) => name), automaticSymbols: symbolReport.automatic,
-    dynamicSymbolExpressions: symbolReport.dynamic, fontBytes: font?.bytes ?? 0,
+    symbolCollectionMode: symbolReport.collectionMode, fontBytes: font?.bytes ?? 0,
     localSymbols: Boolean(options.localSymbols && !font && symbolReport.symbols.length), reactInstallations: [...reactRoots], contributors,
-    limitations: ['Static analysis conservatively includes recognized symbol literals. Unbounded computed names require an explicit complete additionalSymbols declaration.', 'JavaScript resource and API-call heuristics are advisory hints, not an isolation boundary. They can miss aliases and flag harmless application data. The delivery host owns runtime restrictions.', 'Deliver one preview per isolated document permitting inline scripts/styles and data images/fonts. CSS retains its document-level semantics. Use the host runtime policy; the fragment does not create a sandbox or enforce a network policy.'],
+    limitations: ['Symbol collection includes recognized literals and explicit additionalSymbols. Supply every full name computed only at runtime and exercise those states; the packaged lookup throws for names outside that set.', 'JavaScript resource and API-call heuristics are advisory hints, not an isolation boundary. They can miss aliases and flag harmless application data. The delivery host owns runtime restrictions.', 'Deliver one preview per isolated document permitting inline scripts/styles and data images/fonts. CSS retains its document-level semantics. Use the host runtime policy; the fragment does not create a sandbox or enforce a network policy.'],
   };
 }

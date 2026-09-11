@@ -82,6 +82,26 @@ describe("embedded presentation", () => {
     expect(screen.queryByRole("navigation", { name: "Dock" })).toBeNull();
   });
 
+  it("preserves consumer commands that use managed identifiers in the static menu bar", async () => {
+    const selected = vi.fn();
+    const dispatched = vi.fn();
+    render(<MacEmbeddedPresentation menuBar><DesktopShell appName="Notes" children={null} onMenuAction={dispatched} canPerformMenuAction={() => true} menuItems={[{ title: "Window", items: [
+      { kind: "action", id: "minimize", label: "Collapse section", onSelect: selected },
+      { kind: "action", id: "zoom", label: "Open zoom guide", href: "#zoom-guide" },
+      { kind: "action", id: "bring-all-to-front", label: "Show all sections", disabled: false },
+    ] }]} /></MacEmbeddedPresentation>);
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    const collapse = await screen.findByRole("menuitem", { name: "Collapse section" });
+    expect(collapse.getAttribute("aria-disabled")).not.toBe("true");
+    expect(screen.getByRole("menuitem", { name: "Open zoom guide" }).getAttribute("href")).toBe("#zoom-guide");
+    expect(screen.getByRole("menuitem", { name: "Show all sections" }).getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(collapse);
+    await waitFor(() => expect(selected).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Window" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Show all sections" }));
+    await waitFor(() => expect(dispatched).toHaveBeenCalledWith({ menu: "Window", id: "bring-all-to-front", label: "Show all sections" }));
+  });
+
   it("closes an open menu when hidden and restores the menu bar with every menu closed", async () => {
     const { rerender } = render(<EmbeddedDesktop menuBar />);
     fireEvent.click(screen.getByRole("button", { name: "Window" }));

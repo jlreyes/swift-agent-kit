@@ -92,6 +92,28 @@ describe("embedded local forms", () => {
     expect(submitted).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])("honors ancestor click capture cancellation with embedded=%s", async (embedded) => {
+    const submitted = vi.fn();
+    const cancelled = vi.fn();
+    const form = <div onClickCapture={(event) => { event.preventDefault(); cancelled(); }}><MacForm onSubmit={recordSubmission(submitted)}><MacButton type="submit">Cancelled save</MacButton></MacForm></div>;
+    render(embedded ? <MacEmbeddedPresentation>{form}</MacEmbeddedPresentation> : form);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelled save" }));
+    await Promise.resolve();
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(submitted).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("honors later ancestor click cancellation for native submitters with embedded=%s", async (embedded) => {
+    const submitted = vi.fn();
+    const cancelled = vi.fn();
+    const form = <div onClick={(event) => { event.preventDefault(); cancelled(); }}><MacForm onSubmit={recordSubmission(submitted)}><button type="submit">Cancelled save</button></MacForm></div>;
+    render(embedded ? <MacEmbeddedPresentation>{form}</MacEmbeddedPresentation> : form);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelled save" }));
+    await Promise.resolve();
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(submitted).not.toHaveBeenCalled();
+  });
+
   it("keeps ordinary forms on the native synchronous submit path", () => {
     const submitted = vi.fn();
     render(<MacForm onSubmit={recordSubmission(submitted)}><MacButton type="submit">Save</MacButton></MacForm>);

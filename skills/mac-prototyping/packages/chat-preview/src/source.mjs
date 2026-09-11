@@ -35,108 +35,21 @@ export function inspectSource(source, path, acorn) {
   });
   return { navigationUrls: [...navigationUrls], diagnostics };
 }
-function finiteStrings(node, bindings, visiting = new Set()) {
-  if (!node) return null;
-  if (node.type === 'Literal') return typeof node.value === 'string' ? [node.value] : null;
-  if (node.type === 'Identifier') {
-    if (visiting.has(node.name) || !bindings.has(node.name)) return null;
-    return finiteStrings(bindings.get(node.name), bindings, new Set([...visiting, node.name]));
-  }
-  if (node.type === 'ConditionalExpression') {
-    const a = finiteStrings(node.consequent, bindings, visiting);
-    const b = finiteStrings(node.alternate, bindings, visiting);
-    return a && b ? [...a, ...b] : null;
-  }
-  if (node.type === 'TemplateLiteral' && node.expressions.length === 0) return [node.quasis[0].value.cooked];
-  if (node.type === 'MemberExpression') {
-    let object = node.object;
-    if (object?.type !== 'ObjectExpression') return null;
-    if (object.properties.some(property => property.type !== 'Property' || property.kind !== 'init' || property.method)) return null;
-    const key = node.computed ? (node.property.type === 'Literal' ? node.property.value : null) : node.property.name;
-    const choices = key === null ? object.properties : [object.properties.findLast(property => !property.computed && propertyName(property.key) === key)].filter(Boolean);
-    if (object.properties.some(property => property.computed)) return null;
-    if (choices.length === 0) return null;
-    const values = choices.map(property => finiteStrings(property.value, bindings, visiting));
-    return values.every(Boolean) ? values.flat() : null;
-  }
-  return null;
-}
 export function collectSymbols(source, getSymbol, acorn, additionalSymbols) {
   if (additionalSymbols !== undefined && (!Array.isArray(additionalSymbols) || additionalSymbols.some(name => typeof name !== 'string'))) throw new Error('additionalSymbols must be an explicit array of possible dynamic symbol names.');
-  const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script', locations: true });
-  const bindings = new Map();
-  const declarations = new Map();
-  const assigned = new Set();
-  const componentAliases = new Set();
-  const aliasPairs = [];
-  const names = new Set();
-  const dynamic = [];
+  const ast = acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' });
+  const automatic = new Set();
   const valid = name => { const glyph = getSymbol(name); return typeof glyph === 'string' && glyph.length > 0; };
-  const bindPattern = pattern => {
-    if (!pattern) return;
-    if (pattern.type === 'Identifier') declarations.set(pattern.name, (declarations.get(pattern.name) ?? 0) + 1);
-    else if (pattern.type === 'RestElement') bindPattern(pattern.argument);
-    else if (pattern.type === 'AssignmentPattern') bindPattern(pattern.left);
-    else if (pattern.type === 'ArrayPattern') pattern.elements.forEach(bindPattern);
-    else if (pattern.type === 'ObjectPattern') pattern.properties.forEach(property => bindPattern(property.type === 'RestElement' ? property.argument : property.value));
-  };
   walk(ast, node => {
-    if (node.type === 'VariableDeclarator') {
-      bindPattern(node.id);
-      if (node.id.type === 'Identifier') {
-        bindings.set(node.id.name, node.init);
-        if (node.init?.type === 'Identifier') aliasPairs.push([node.id.name, node.init.name]);
-      }
-    }
-    if (['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'].includes(node.type)) {
-      bindPattern(node.id);
-      node.params.forEach(bindPattern);
-    }
-    if (node.type === 'CatchClause') bindPattern(node.param);
-    if (['ClassDeclaration', 'ClassExpression'].includes(node.type)) bindPattern(node.id);
-    if (node.type === 'Literal' && typeof node.value === 'string' && valid(node.value)) names.add(node.value);
-    if (node.type === 'Identifier' && /^SystemSymbol\d*$/.test(node.name)) componentAliases.add(node.name);
-    if (['AssignmentExpression', 'UpdateExpression'].includes(node.type)) {
-      let target = node.left ?? node.argument;
-      while (target?.type === 'MemberExpression') target = target.object;
-      if (target?.type === 'Identifier') assigned.add(target.name);
-      else walk(target, part => { if (part.type === 'Identifier') assigned.add(part.name); });
-    }
+    const name = node.type === 'Literal' ? node.value : node.type === 'TemplateLiteral' && node.expressions.length === 0 ? node.quasis[0].value.cooked : undefined;
+    if (typeof name === 'string' && valid(name)) automatic.add(name);
   });
-  for (const name of bindings.keys()) if (declarations.get(name) !== 1 || assigned.has(name)) bindings.delete(name);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const [alias, original] of aliasPairs) if (componentAliases.has(original) && !componentAliases.has(alias)) { componentAliases.add(alias); changed = true; }
-  }
-  const isSymbolComponent = node => node?.type === 'Identifier' && componentAliases.has(node.name);
-  const check = (expression, node) => {
-    const possible = finiteStrings(expression, bindings);
-    if (possible === null) { dynamic.push({ line: node.loc.start.line, expression: source.slice(expression?.start ?? node.start, expression?.end ?? node.end).slice(0, 180) }); return; }
-    for (const name of possible) {
-      if (!valid(name)) throw new Error(`Unknown statically named SystemSymbol: ${name}`);
-      names.add(name);
-    }
-  };
-  walk(ast, (node, ancestors) => {
-    if (node.type !== 'CallExpression') return;
-    if (isSymbolComponent(node.arguments[0])) {
-      const props = node.arguments[1];
-      if (props?.type !== 'ObjectExpression' || props.properties.some(property => property.type === 'SpreadElement' || property.computed)) { check(null, node); return; }
-      check(props.properties.findLast(property => propertyName(property.key) === 'name')?.value, node);
-    }
-    if (/^getSymbol\d*$/.test(node.callee?.name ?? '')) {
-      const enclosing = ancestors.findLast(ancestor => ['FunctionDeclaration', 'FunctionExpression'].includes(ancestor.type));
-      if (/^systemSymbolGlyph\d*$/.test(enclosing?.id?.name ?? '')) return;
-      check(node.arguments[0], node);
-    }
-  });
-  if (dynamic.length && additionalSymbols === undefined) throw new Error(`Unbounded SystemSymbol names need an explicit additionalSymbols array covering every runtime value. Dynamic expressions: ${dynamic.map(item => item.expression).join('; ')}`);
+  const names = new Set(automatic);
   for (const name of additionalSymbols ?? []) {
     if (!valid(name)) throw new Error(`Unknown symbol in additionalSymbols: ${name}`);
     names.add(name);
   }
-  return { symbols: [...names].sort().map(name => ({ name, glyph: getSymbol(name) })), dynamic, automatic: [...names].filter(name => !(additionalSymbols ?? []).includes(name)).sort() };
+  return { symbols: [...names].sort().map(name => ({ name, glyph: getSymbol(name) })), automatic: [...automatic].sort(), collectionMode: 'recognized-literals-with-explicit-additions' };
 }
 export function symbolModule(symbols) {
   const dictionary = Object.fromEntries(symbols.map(({ name, glyph }) => [name, glyph]));

@@ -3,37 +3,10 @@ import test from 'node:test';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { collectSymbols, inspectSource, diagnoseRuntimeCode } from '../src/source.mjs';
+import { inspectSource, diagnoseRuntimeCode } from '../src/source.mjs';
 import { buildPreview } from '../src/build.mjs';
 import { loadToolchain } from '../src/toolchain.mjs';
 const { acorn } = loadToolchain(process.env.MAC_PREVIEW_TOOLCHAIN);
-const glyphs = { folder: '\u{100215}', gearshape: '\u{1008CB}' };
-const getSymbol = name => Object.hasOwn(glyphs, name) ? glyphs[name] : undefined;
-const analyze = (source, additional) => collectSymbols(source, getSymbol, acorn, additional);
-
-test('shadowed icon-table parameters cannot inherit an outer finite binding', () => {
-  assert.throws(() => analyze('const icons={a:"folder"};function render(icons){jsx(SystemSymbol,{name:icons[selected]})}'), /additionalSymbols/);
-});
-test('shadowed scalar bindings conservatively require an explicit declaration', () => {
-  assert.throws(() => analyze('const icon="folder";function render(icon){jsx(SystemSymbol,{name:icon})}'), /additionalSymbols/);
-  assert.throws(() => analyze('const icon="folder";function render({icon}){jsx(SystemSymbol,{name:icon})}'), /additionalSymbols/);
-  assert.deepEqual(analyze('const icon="folder";jsx(SystemSymbol,{name:icon})').symbols, [{name:'folder',glyph:glyphs.folder}]);
-});
-test('alias mutation and function escape cannot prove a named table finite', () => {
-  for (const mutation of ['const alias=table;alias.a=runtimeName;', 'mutate(table);']) {
-    const code = `const table={a:"folder"};${mutation}jsx(SystemSymbol,{name:table[selected]});`;
-    assert.throws(() => analyze(code), /additionalSymbols/);
-    assert.deepEqual(analyze(code, ['gearshape']).symbols.map(item => item.name), ['folder','gearshape']);
-  }
-});
-test('duplicate name props follow the last property', () => {
-  assert.throws(() => analyze('jsx(SystemSymbol,{name:"folder",name:runtimeName})'), /additionalSymbols/);
-  assert.doesNotThrow(() => analyze('jsx(SystemSymbol,{name:runtimeName,name:"folder"})'));
-  assert.throws(() => analyze('jsx(SystemSymbol,{name:"folder",[key]:runtimeName})'), /additionalSymbols/);
-});
-test('component aliases stay conservatively recognized despite shadowing', () => {
-  assert.throws(() => analyze('const Icon=SystemSymbol;function other(){const Icon=Unrelated}jsx(Icon,{name:runtimeName})'), /additionalSymbols/);
-});
 test('authored sendBeacon calls produce advisory hints, including computed literal properties', () => {
   for (const code of ['navigator.sendBeacon(url,data)', 'navigator["sendBeacon"](url,data)']) { const {diagnostics}=inspectSource(code, 'fixture.js', acorn); assert.equal(diagnostics.length,1); assert.equal(diagnostics[0].severity,'advisory'); assert.equal(diagnostics[0].detail,'sendBeacon'); }
 });

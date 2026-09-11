@@ -17,23 +17,23 @@ const getSymbol = name => Object.hasOwn(glyphs, name) ? glyphs[name] : undefined
 
 function symbols(source, additional) { return collectSymbols(source, getSymbol, tools.acorn, additional); }
 
-test('collects both conditional states and finite symbol tables', () => {
-  const source = 'jsx(SystemSymbol,{name:({first:"folder",second:"gearshape"})[selected]});jsx(SystemSymbol,{name:open?"info.circle":"folder"});';
-  assert.deepEqual(symbols(source).symbols.map(item => item.name), ['folder', 'gearshape', 'info.circle']);
+test('collects recognized literals from tables, conditionals, and constant templates', () => {
+  const source = 'const table={first:"folder",second:"gearshape"};jsx(SystemSymbol,{name:table[selected]});jsx(SystemSymbol,{name:open?`info.circle`:"folder"});';
+  const report = symbols(source);
+  assert.deepEqual(report.symbols.map(item => item.name), ['folder', 'gearshape', 'info.circle']);
+  assert.deepEqual(report.automatic, ['folder', 'gearshape', 'info.circle']);
+  assert.equal(report.collectionMode, 'recognized-literals-with-explicit-additions');
 });
-test('named tables conservatively require a declaration even when initialized with literals', () => {
-  assert.throws(() => symbols('var table={one:"folder",two:"gearshape"};jsx(SystemSymbol,{name:table[selected]});'), /additionalSymbols/);
-  assert.deepEqual(symbols('var table={one:"folder",two:"gearshape"};jsx(SystemSymbol,{name:table[selected]});', []).symbols.map(item => item.name), ['folder','gearshape']);
-  assert.throws(() => symbols('var table={one:"folder"};table.extra=externalValue;jsx(SystemSymbol,{name:table[selected]});'), /additionalSymbols/);
+test('unrelated names and unbounded expressions do not trigger guessed symbol validation', () => {
+  const report = symbols('getSymbol("not-a-symbol");jsx(SystemSymbol,{...props});const table={one:"folder"};table.extra=externalValue;jsx(SystemSymbol,{name:table[selected]});');
+  assert.deepEqual(report.symbols, [{ name: 'folder', glyph: glyphs.folder }]);
 });
-test('unbounded symbols require an explicit dynamic declaration', () => {
-  assert.throws(() => symbols('jsx(SystemSymbol,{name:settings.icon});'), /additionalSymbols/);
-  assert.deepEqual(symbols('jsx(SystemSymbol,{name:settings.icon});', ['folder']).symbols, [{ name: 'folder', glyph: glyphs.folder }]);
-  assert.throws(() => symbols('jsx(SystemSymbol,{name:settings.icon});', ['unknown']), /Unknown symbol/);
-});
-test('static invalid symbols and spread props cannot silently pass', () => {
-  assert.throws(() => symbols('jsx(SystemSymbol,{name:"not-a-symbol"});'), /Unknown statically/);
-  assert.throws(() => symbols('jsx(SystemSymbol,{...props});'), /additionalSymbols/);
+test('explicit additions are validated and unioned without losing automatic provenance', () => {
+  const report = symbols('const icon="folder";', ['folder', 'gearshape', 'gearshape']);
+  assert.deepEqual(report.symbols.map(item => item.name), ['folder', 'gearshape']);
+  assert.deepEqual(report.automatic, ['folder']);
+  assert.throws(() => symbols('', ['unknown']), /Unknown symbol in additionalSymbols/);
+  for (const invalid of [null, 'folder', [1]]) assert.throws(() => symbols('', invalid), /additionalSymbols must be an explicit array/);
 });
 test('packaged dictionary preserves codepoints and rejects unknown dynamic names', async () => {
   const source = symbolModule([{ name: 'folder', glyph: glyphs.folder }]);
@@ -67,6 +67,39 @@ async function fixture(context, files) {
   await Promise.all(Object.entries(files).map(async ([name, contents]) => { await mkdir(dirname(join(directory, name)), { recursive: true }); await writeFile(join(directory, name), contents); }));
   return { directory, read: () => readFile(join(directory, 'preview.html'), 'utf8'), build: options => buildPreview({ entry: join(directory, 'preview.js'), output: join(directory, 'preview.html'), toolchain, format: 'raw', ...options }) };
 }
+function executeRawArtifact(html, globals = {}) {
+  const context = vm.createContext({ ...globals });
+  context.document = {
+    createElement: tag => ({ tag }),
+    head: { append() {} },
+    body: { append(node) { if (node.tag === 'script') vm.runInContext(node.textContent, context); } },
+  };
+  vm.runInContext(html.match(/<script>(.*)<\/script>/s)[1], context);
+  return context.fixtureResult;
+}
+const symbolistFixture = {
+  'node_modules/symbolist/package.json': '{"name":"symbolist","main":"index.cjs"}',
+  'node_modules/symbolist/index.cjs': 'const glyphs={folder:"fixture-folder","chevron.left":"fixture-left","chevron.right":"fixture-right"};exports.getSymbol=name=>Object.hasOwn(glyphs,name)?glyphs[name]:undefined;',
+};
+test('artifact preserves unrelated local getSymbol and SystemSymbol calls alongside imported Symbolist', async context => {
+  const item = await fixture(context, { ...symbolistFixture, 'preview.js': 'import {getSymbol as lookup} from "symbolist";function getSymbol(value){return "local:"+value}function SystemSymbol(props){return props.name}globalThis.fixtureResult=[lookup("folder"),getSymbol("not-a-symbol"),getSymbol(globalThis.dynamic),SystemSymbol({name:"application-value"}),SystemSymbol({name:globalThis.dynamic})];' });
+  const report = await item.build({ localSymbols: true });
+  assert.deepEqual(report.symbols, ['folder']);
+  assert.deepEqual(Array.from(executeRawArtifact(await item.read(), { dynamic: 'runtime-value' })), ['fixture-folder', 'local:not-a-symbol', 'local:runtime-value', 'application-value', 'runtime-value']);
+});
+test('artifact computed Symbolist names require full explicit names at the real runtime lookup', async context => {
+  const item = await fixture(context, { ...symbolistFixture, 'preview.js': 'import {getSymbol as lookup} from "symbolist";globalThis.fixtureResult=lookup("chevron."+globalThis.direction);' });
+  const report = await item.build({ localSymbols: true, additionalSymbols: ['chevron.left', 'chevron.right'] });
+  assert.deepEqual(report.symbols, ['chevron.left', 'chevron.right']);
+  assert.deepEqual(report.automaticSymbols, []);
+  const html = await item.read();
+  assert.equal(executeRawArtifact(html, { direction: 'left' }), 'fixture-left');
+  assert.equal(executeRawArtifact(html, { direction: 'right' }), 'fixture-right');
+  const omitted = await item.build({ localSymbols: true });
+  assert.deepEqual(omitted.symbols, []);
+  const withoutNames = await item.read();
+  for (const direction of ['left', 'right']) assert.throws(() => executeRawArtifact(withoutNames, { direction }), new RegExp('outside the packaged set: chevron\\.' + direction));
+});
 const script = 'import "./preview.css"; document.getElementById("mac-chat-preview").textContent="Fixture";';
 const pixel = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
 

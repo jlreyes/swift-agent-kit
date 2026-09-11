@@ -68,7 +68,7 @@ export function MacButton({
   readonly variant?: MacButtonVariant;
   readonly onPress?: () => void;
 }) {
-  const { onSubmitButtonClickCapture, onSubmitButtonPress } = useEmbeddedForm();
+  const { onSubmitButtonClick } = useEmbeddedForm();
   return (
     <Button
       ref={ref}
@@ -76,12 +76,9 @@ export function MacButton({
       aria-label={ariaLabel}
       className={`mc-button mc-button-${variant} ${className}`.trim()}
       isDisabled={disabled}
-      onPress={onSubmitButtonPress === undefined ? onPress : (event) => {
-        onPress?.();
-        onSubmitButtonPress(event.target);
-      }}
-      onClickCapture={onSubmitButtonClickCapture}
-      data-embedded-submit={onSubmitButtonPress !== undefined && type === "submit" ? "true" : undefined}
+      onPress={onPress}
+      onClick={onSubmitButtonClick}
+      data-embedded-submit={onSubmitButtonClick !== undefined && type === "submit" ? "true" : undefined}
     >
       {children}
     </Button>

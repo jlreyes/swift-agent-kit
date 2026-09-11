@@ -56,12 +56,13 @@ diagnostics that need browser verification.
 
 ## Symbols and runtime diagnostics
 
-The builder includes recognized literal symbol names. Named object members and
-unbounded expressions need every possible name through `additionalSymbols`,
-for example `additionalSymbols: ["folder", "gearshape"]`. An undeclared
-dynamic name fails at build time or, if it reaches the packaged lookup, at
-runtime. This prevents a small preview from silently carrying a full symbol
-dictionary.
+The builder packages the union of recognized valid string literals (including
+no-substitution template literals) and validated `additionalSymbols`, for
+example `additionalSymbols: ["chevron.left", "chevron.right"]`. It does not
+infer `getSymbol`/`SystemSymbol` bindings or prove that a dynamic expression is
+complete. Invalid explicit additions fail the build; a replacement lookup fails
+at runtime when a name is outside the packaged set. The result's
+`symbolCollectionMode` identifies this collection policy.
 
 `authoredDiagnostics` reports source-level hints and `runtimeDiagnostics`
 reports the same broad classes in the final minified bundle, including

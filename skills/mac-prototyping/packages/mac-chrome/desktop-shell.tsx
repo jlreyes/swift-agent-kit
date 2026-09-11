@@ -488,15 +488,15 @@ export function DesktopShell({
     .map((menu, index) => windowManager === null || !windowManagement
       ? menu
       : withManagedWindowCommands(menu, windowManager, onMenuAction, index === 1))
-    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction))
     .map((menu, index) => {
       if (windowManagement) return menu;
       const disabledCommands = index === 1
         ? ["hide-app", "hide-others", "quit-app"]
         : menu.title === "File" ? ["close-window"]
           : menu.title === "Window" ? ["minimize", "zoom", "bring-all-to-front"] : [];
-      return { ...menu, items: menu.items.map((entry) => entry.kind === "action" && disabledCommands.includes(entry.id) ? { ...entry, disabled: true, onSelect: undefined } : entry) };
-    });
+      return { ...menu, items: menu.items.map((entry) => entry.kind === "action" && disabledCommands.includes(entry.id) && entry.onSelect === undefined && entry.href === undefined && entry.disabled === undefined ? { ...entry, disabled: true } : entry) };
+    })
+    .map((menu) => withCommandTarget(menu, onMenuAction, canPerformMenuAction));
   function adjacentMenuIndex(index: number, offset: -1 | 1) {
     return (index + offset + menus.length) % menus.length;
   }

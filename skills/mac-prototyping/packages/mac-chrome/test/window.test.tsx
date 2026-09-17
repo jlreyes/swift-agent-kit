@@ -258,8 +258,12 @@ describe("WindowChrome geometry", () => {
     firePointer(windowElement, "pointermove", { clientX: 1_400, clientY: 100 });
     await flushAnimationFrame();
 
-    expect(windowElement.style.translate).toBe("230px 0px");
+    expect(windowElement.style.translate).toBe("190px 0px");
     expect(windowElement.style.transform).toBe("rotate(2deg)");
+
+    firePointer(windowElement, "pointermove", { clientX: -1_000, clientY: 1_000 });
+    await flushAnimationFrame();
+    expect(windowElement.style.translate).toBe("-76px 142px");
   });
 
   it("leaves touch gestures in the generic drag hook to the browser", async () => {
@@ -374,7 +378,7 @@ describe("WindowChrome geometry", () => {
   });
 
   it("rebases an active generic drag when its canvas shrinks", () => {
-    const layout = { left: 300, top: 50, width: 400, height: 300 };
+    const layout = { left: 300, top: 50, width: 400, height: 300, windowWidth: 300 };
     const queuedFrames = new Map<number, FrameRequestCallback>();
     let nextFrameId = 1;
     let notifyResize: () => void = () => undefined;
@@ -403,7 +407,7 @@ describe("WindowChrome geometry", () => {
         return new DOMRect(
           layout.left + 50 + Number.parseFloat(translateX),
           layout.top + 40 + Number.parseFloat(translateY),
-          300,
+          layout.windowWidth,
           200,
         );
       }
@@ -420,15 +424,20 @@ describe("WindowChrome geometry", () => {
     firePointer(handle, "pointerdown", { clientX: 400, clientY: 100 });
     firePointer(windowElement, "pointermove", { clientX: 600, clientY: 100 });
     act(() => queuedFrames.get(1)?.(0));
-    expect(windowElement.style.translate).toBe("200px 0px");
+    expect(windowElement.style.translate).toBe("190px 0px");
 
     layout.width = 300;
     act(() => notifyResize());
-    expect(windowElement.style.translate).toBe("130px 0px");
+    expect(windowElement.style.translate).toBe("100px 0px");
 
     firePointer(windowElement, "pointermove", { clientX: 590, clientY: 100 });
     act(() => queuedFrames.get(2)?.(0));
-    expect(windowElement.style.translate).toBe("120px 0px");
+    expect(windowElement.style.translate).toBe("90px 0px");
+
+    layout.windowWidth = 200;
+    layout.height = 400;
+    act(() => notifyResize());
+    expect(windowElement.style.translate).toBe("26px 0px");
   });
 
   it("applies the generic default frame, centered", () => {
@@ -1408,7 +1417,7 @@ describe("window dragging", () => {
     expect(windowElement.style.left).toBe(originalLeft);
   });
 
-  it("clamps dragging to the desktop canvas rather than the global viewport", async () => {
+  it("allows partial off-canvas dragging while retaining title reach inside the desktop", async () => {
     mockLayout({ ...standardLayout });
     const { container } = renderCanvasWindow();
     const windowElement = container.querySelector<HTMLElement>(".mac-window");
@@ -1420,15 +1429,43 @@ describe("window dragging", () => {
     firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
     firePointer(windowElement, "pointermove", { clientX: 5_000, clientY: 5_000 });
     await flushAnimationFrame();
-    expect(windowElement.style.left).toBe("276px");
-    expect(windowElement.style.top).toBe("112px");
+    expect(windowElement.style.left).toBe("616px");
+    expect(windowElement.style.top).toBe("480px");
     firePointer(windowElement, "pointerup", { clientX: 5_000, clientY: 5_000 });
 
     firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
     firePointer(windowElement, "pointermove", { clientX: -5_000, clientY: -5_000 });
     await flushAnimationFrame();
+    expect(windowElement.style.left).toBe("-12px");
+    expect(windowElement.style.top).toBe("28px");
+  });
+
+  it("preserves dragged placement through zoom restore and recovers when the canvas shrinks", async () => {
+    const layout = { ...standardLayout };
+    mockLayout(layout);
+    const { container, getByRole } = renderCanvasWindow({ withControls: true });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window")!;
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]")!;
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 650, clientY: 420 });
+    await flushAnimationFrame();
+    firePointer(windowElement, "pointerup", { clientX: 650, clientY: 420 });
+    expect(windowElement.style.left).toBe("550px");
+    expect(windowElement.style.top).toBe("400px");
+
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.left).toBe("550px");
+    expect(windowElement.style.top).toBe("400px");
+
+    layout.canvasWidth = 400;
+    layout.canvasHeight = 300;
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushNextTask();
     expect(windowElement.style.left).toBe("24px");
     expect(windowElement.style.top).toBe("28px");
+    expect(windowElement.style.width).toBe("352px");
+    expect(windowElement.style.height).toBe("184px");
   });
 
   it("raises a background managed window before resizing it", async () => {

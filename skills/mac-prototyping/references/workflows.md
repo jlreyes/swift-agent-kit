@@ -96,9 +96,12 @@ there, and render one `MacAppDock`. Multiple windows in the same app need
 explicit stable `windowId` values. The provider owns key-window focus,
 z-order, running state, traffic-light actions, Window-menu targeting, and
 Dock launch/restore; do not duplicate those with route-local active-window
-state or z-index counters. `WindowChrome` owns contained drag/resize geometry
-and recontains itself when its desktop canvas changes; use its `minSize` and
-`resizable` props, and never override `.mac-window` positioning from a recipe.
+state or z-index counters. `WindowChrome` owns drag/resize geometry: initial
+placement and zoom stay within the chrome reserves, while dragging may leave a
+window partially beyond the canvas or under the Dock; a canvas change retains
+an accepted background drag point or restores full containment when it caps
+the window's dimensions. Use its `minSize` and `resizable` props, and
+never override `.mac-window` positioning from a recipe.
 Managed minimize belongs to this registry too: it captures the actual window,
 uses a shared View Transition, and places a restorable preview in the Dock's
 separate `windows` group while the app tile stays running. Do not create a

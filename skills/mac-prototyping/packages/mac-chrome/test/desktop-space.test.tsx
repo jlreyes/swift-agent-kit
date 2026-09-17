@@ -111,4 +111,23 @@ describe("logical desktop coordinates", () => {
     expect(windowElement.style.width).toBe("700px");
     expect(windowElement.style.height).toBe("450px");
   });
+  it.each([0.25, 0.5, 0.8, 1, 1.25, 2])("keeps the grabbed title point reachable offscreen at scale %s", async (scale) => {
+    mockScale(scale);
+    const { container } = render(<DesktopShell appName="Test"><WindowChrome label="Recoverable" frame={{ left: 100, top: 80, width: 600, height: 400 }}><div data-window-drag-handle="">Title</div></WindowChrome></DesktopShell>);
+    const windowElement = container.querySelector<HTMLElement>(".mac-window");
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]");
+    if (windowElement === null || handle === null) throw new Error("Missing window");
+    const titleY = 50 + 96 * scale;
+    pointer(handle, "pointerdown", 30 + 400 * scale, titleY);
+    pointer(windowElement, "pointermove", 30 - 5000 * scale, titleY);
+    await frame();
+    pointer(windowElement, "pointerup", 30 - 5000 * scale, titleY);
+    expect(windowElement.style.left).toBe("-252px");
+    expect(Number.parseFloat(windowElement.style.left) + 300).toBe(48);
+    pointer(handle, "pointerdown", 30 + 48 * scale, titleY);
+    pointer(windowElement, "pointermove", 30 + 108 * scale, titleY);
+    await frame();
+    expect(windowElement.style.left).toBe("-192px");
+  });
+
 });

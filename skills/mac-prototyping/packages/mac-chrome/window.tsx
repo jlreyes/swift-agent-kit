@@ -197,6 +197,8 @@ export function useWindowDrag<T extends HTMLElement>(
   const windowRef = useRef<T>(null);
   const [offset, setOffset] = useState<WindowOffset>({ x: 0, y: 0 });
   const offsetRef = useRef(offset);
+  const dragPointRef = useRef<WindowOffset | null>(null);
+  const dragSizeRef = useRef<Pick<DOMRect, "width" | "height"> | null>(null);
   const dragRef = useRef<{
     readonly scale: ReturnType<typeof getElementScale>;
     readonly pointerId: number;
@@ -226,20 +228,34 @@ export function useWindowDrag<T extends HTMLElement>(
     });
   }
 
-  /* Keep at least 120px of the window reachable horizontally, the title bar
-     below the menu bar (24px), and above the Dock reserve (52px). The nearest
-     desktop canvas is the coordinate space; viewport bounds are only the
-     standalone fallback. */
+  /* Retain the grabbed titlebar point inside the nearest desktop canvas,
+     above the Dock; standalone windows use viewport bounds. */
   function clampedOffset(origin: WindowOffset, rect: DOMRect, x: number, y: number): WindowOffset {
     const element = windowRef.current;
     if (element === null) return origin;
     const bounds = elementContainmentRect(element);
-    const horizontalReach = Math.min(120, bounds.width / 2);
-    const [topInset, bottomInset] = proportionallyContractedInsets(bounds.height, 24, 52);
-    const minimumX = origin.x + bounds.left + horizontalReach - rect.right;
-    const maximumX = origin.x + bounds.right - horizontalReach - rect.left;
+    const horizontalReach = Math.min(160, rect.width, bounds.width / 2);
+    const [topInset, bottomInset] = proportionallyContractedInsets(bounds.height, 24, 84);
+    const titleReach = Math.min(32, rect.height, Math.max(0, bounds.height - topInset - bottomInset) / 2);
+    const dragSize = dragSizeRef.current;
+    if (dragSize !== null && (dragSize.width !== rect.width || dragSize.height !== rect.height)) {
+      const sideInset = Math.min(24, bounds.width / 4);
+      const minimumLeft = bounds.left + sideInset;
+      const maximumLeft = Math.max(minimumLeft, bounds.right - sideInset - rect.width);
+      const minimumTop = bounds.top + topInset;
+      const maximumTop = Math.max(minimumTop, bounds.bottom - bottomInset - rect.height);
+      return {
+        x: Math.min(Math.max(x, origin.x + minimumLeft - rect.left), origin.x + maximumLeft - rect.left),
+        y: Math.min(Math.max(y, origin.y + minimumTop - rect.top), origin.y + maximumTop - rect.top),
+      };
+    }
+    const pointX = Math.min(Math.max(dragPointRef.current?.x ?? rect.width / 2, 0), rect.width);
+    const pointY = Math.min(Math.max(dragPointRef.current?.y ?? 16, 0), rect.height);
+    const pointInset = Math.min(24, horizontalReach / 2);
+    const minimumX = origin.x + bounds.left + Math.max(horizontalReach - rect.width, pointInset - pointX) - rect.left;
+    const maximumX = origin.x + bounds.right - Math.max(horizontalReach, pointInset + pointX) - rect.left;
     const minimumY = origin.y + bounds.top + topInset - rect.top;
-    const maximumY = origin.y + bounds.bottom - bottomInset - rect.top;
+    const maximumY = Math.max(minimumY, origin.y + bounds.bottom - bottomInset - Math.max(titleReach, pointInset + pointY) - rect.top);
     return {
       x: Math.min(Math.max(x, minimumX), maximumX),
       y: Math.min(Math.max(y, minimumY), maximumY),
@@ -304,6 +320,9 @@ export function useWindowDrag<T extends HTMLElement>(
     if (target.closest("button, input, textarea, select, a, [role='button'], .traffic-lights, [data-no-window-drag]")) return;
     const element = windowRef.current;
     if (!element) return;
+    const rect = element.getBoundingClientRect();
+    dragPointRef.current = pointerDelta(element, event.clientX - rect.left, event.clientY - rect.top);
+    dragSizeRef.current = localWindowRect(element);
     dragRef.current = {
       scale: pointerScale(element),
       pointerId: event.pointerId,
@@ -450,6 +469,25 @@ function clampedGeometry(geometry: WindowGeometry, bounds: WindowBounds): Window
     top: Math.min(Math.max(geometry.top, bounds.top), bounds.bottom - height),
     width,
     height,
+  };
+}
+
+// Keep an actual background drag target reachable; the visible title strip may
+// be occupied by controls or an inspector.
+function reachableGeometry(geometry: WindowGeometry, bounds: WindowBounds, dragPoint: WindowOffset | null): WindowGeometry {
+  const sized = clampedGeometry(geometry, bounds);
+  if (sized.width !== geometry.width || sized.height !== geometry.height) return sized;
+  const horizontalReach = Math.min(160, sized.width, (bounds.right - bounds.left) / 2);
+  const titleReach = Math.min(32, sized.height, (bounds.bottom - bounds.top) / 2);
+  const pointX = Math.min(Math.max(dragPoint?.x ?? sized.width / 2, 0), sized.width);
+  const pointY = Math.min(Math.max(dragPoint?.y ?? 16, 0), sized.height);
+  const pointInset = Math.min(24, horizontalReach / 2);
+  const minimumLeft = Math.max(bounds.left + horizontalReach - sized.width, bounds.left + pointInset - pointX);
+  const maximumLeft = Math.min(bounds.right - horizontalReach, bounds.right - pointInset - pointX);
+  return {
+    ...sized,
+    left: Math.min(Math.max(geometry.left, minimumLeft), maximumLeft),
+    top: Math.min(Math.max(geometry.top, bounds.top), Math.max(bounds.top, Math.min(bounds.bottom - titleReach, bounds.bottom - pointInset - pointY))),
   };
 }
 
@@ -727,6 +765,8 @@ function useWindowGeometry({
   const windowRef = useRef<HTMLElement>(null);
   const [geometryState, setGeometryState] = useState<WindowGeometryState | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
+  const wasDraggedRef = useRef(false);
+  const dragPointRef = useRef<WindowOffset | null>(null);
   const normalizationRef = useRef<WindowGeometryNormalization>(identityGeometryNormalization);
   const inputSignatureRef = useRef(inputSignature);
   const interactionRef = useRef<WindowInteraction | null>(null);
@@ -817,6 +857,8 @@ function useWindowGeometry({
     if (inputSignatureRef.current !== inputSignature) {
       inputSignatureRef.current = inputSignature;
       geometryRef.current = null;
+      wasDraggedRef.current = false;
+      dragPointRef.current = null;
       normalizationRef.current = identityGeometryNormalization;
       cancelInteraction();
     }
@@ -838,7 +880,9 @@ function useWindowGeometry({
       const current = geometryRef.current;
       return current === null
         ? preserveResponsiveFrame ? null : captureGeometry(currentElement)
-        : clampedGeometry(current, context.bounds);
+        : wasDraggedRef.current
+          ? reachableGeometry(current, context.bounds, dragPointRef.current)
+          : clampedGeometry(current, context.bounds);
     }
 
     function commitContainment(next: WindowGeometry) {
@@ -915,6 +959,8 @@ function useWindowGeometry({
     const element = windowRef.current;
     const origin = geometryRef.current ?? (element === null ? null : captureGeometry(element));
     if (element === null || origin === null) return;
+    const rect = element.getBoundingClientRect();
+    dragPointRef.current = pointerDelta(element, event.clientX - rect.left, event.clientY - rect.top);
     interactionRef.current = {
       scale: pointerScale(element),
       kind: "drag",
@@ -989,7 +1035,9 @@ function useWindowGeometry({
        authoritative. Setting the ref now lets containment observe that
        ownership even before the scheduled React commit. */
     geometryRef.current = ownedInteraction.origin;
-    const containedOrigin = clampedGeometry(ownedInteraction.origin, context.bounds);
+    const containedOrigin = wasDraggedRef.current && ownedInteraction.kind === "drag"
+      ? reachableGeometry(ownedInteraction.origin, context.bounds, dragPointRef.current)
+      : clampedGeometry(ownedInteraction.origin, context.bounds);
     const activeInteraction = geometryEquals(ownedInteraction.origin, containedOrigin)
       ? ownedInteraction
       : {
@@ -1001,12 +1049,13 @@ function useWindowGeometry({
     interactionRef.current = { ...activeInteraction, lastX: event.clientX, lastY: event.clientY };
     const deltaX = (event.clientX - activeInteraction.startX) / context.scale.x;
     const deltaY = (event.clientY - activeInteraction.startY) / context.scale.y;
+    wasDraggedRef.current = activeInteraction.kind === "drag";
     const next = activeInteraction.kind === "drag"
-      ? clampedGeometry({
+      ? reachableGeometry({
           ...activeInteraction.origin,
           left: activeInteraction.origin.left + deltaX,
           top: activeInteraction.origin.top + deltaY,
-        }, context.bounds)
+        }, context.bounds, dragPointRef.current)
       : resizedGeometry(
           activeInteraction.origin,
           activeInteraction.edge ?? "se",
@@ -1014,7 +1063,7 @@ function useWindowGeometry({
           deltaY,
           context.bounds,
         );
-    scheduleGeometry(next);
+    scheduleGeometry(wasDraggedRef.current ? reachableGeometry(next, context.bounds, dragPointRef.current) : next);
   }
 
   function finishInteraction(event: ReactPointerEvent<HTMLElement>) {

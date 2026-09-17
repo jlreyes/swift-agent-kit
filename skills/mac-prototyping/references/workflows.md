@@ -80,7 +80,8 @@ Dock launch/restore; do not duplicate those with route-local active-window
 state or z-index counters. `WindowChrome` owns drag/resize geometry: initial
 placement and zoom stay within the chrome reserves, while dragging may leave a
 window partially beyond the canvas or under the Dock; a canvas change retains
-a reachable draggable title area. Use its `minSize` and `resizable` props, and
+an accepted background drag point or restores full containment when it caps
+the window's dimensions. Use its `minSize` and `resizable` props, and
 never override `.mac-window` positioning from a recipe.
 Managed minimize belongs to this registry too: it captures the actual window,
 uses a shared View Transition, and places a restorable preview in the Dock's

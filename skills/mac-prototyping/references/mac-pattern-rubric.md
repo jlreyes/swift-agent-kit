@@ -85,8 +85,8 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   window chrome is not an app window.
 - `WindowChrome` owns the geometry contract: click-to-front/key state,
   titlebar dragging that may leave a window partially beyond the canvas or
-  under the Dock, canvas-change reachability that retains an exposed draggable
-  title area, and all four edges plus four corners by default. Verify resizing,
+  under the Dock, canvas-change reachability that retains an accepted background
+  drag point, and all four edges plus four corners by default. Verify resizing,
   off-canvas dragging, and a smaller canvas; recipes may set `minSize` or
   `resizable={false}`, but must not replace `.mac-window` positioning or
   invent their own drag/resize layer.

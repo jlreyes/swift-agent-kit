@@ -107,7 +107,7 @@ mounted so closing or minimizing a window does not destroy its product state;
 `WindowChrome` registers itself with the enclosing app. It owns key-window
 focus, click-to-front, traffic lights, dragging that may leave a window
 partially beyond the canvas or under the Dock, canvas-change reachability that
-retains an exposed draggable title area, and the default eight-edge resize
+retains an accepted background drag point, and the default eight-edge resize
 affordances. Multiple windows
 in one app must have distinct stable `windowId` values; the single-window
 default is `${appId}:main`. Use `resizable` and `minSize` on `WindowChrome`
@@ -238,8 +238,8 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   canvas with `%`, not `vw`/`vh`; the shell contracts below its 1200px
   reference width and an initial window must be wholly visible without
   horizontal scrolling. Interactive dragging may leave a window partially
-  beyond the canvas or under the Dock, while a canvas shrink keeps a draggable
-  title area reachable.
+beyond the canvas or under the Dock, while a canvas shrink keeps an accepted
+background drag point reachable.
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,

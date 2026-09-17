@@ -409,6 +409,26 @@ function clampedGeometry(geometry: WindowGeometry, bounds: WindowBounds): Window
   };
 }
 
+function reachableGeometry(geometry: WindowGeometry, bounds: WindowBounds): WindowGeometry {
+  const sized = clampedGeometry(geometry, bounds);
+  const horizontalReach = Math.min(160, sized.width, (bounds.right - bounds.left) / 2);
+  const titleReach = Math.min(32, sized.height, (bounds.bottom - bounds.top) / 2);
+  return {
+    ...sized,
+    left: Math.min(Math.max(geometry.left, bounds.left + horizontalReach - sized.width), bounds.right - horizontalReach),
+    top: Math.min(Math.max(geometry.top, bounds.top), bounds.bottom - titleReach),
+  };
+}
+
+function reachableResizeBounds(origin: WindowGeometry, bounds: WindowBounds): WindowBounds {
+  return {
+    ...bounds,
+    left: Math.min(bounds.left, origin.left),
+    right: Math.max(bounds.right, origin.left + origin.width),
+    bottom: Math.max(bounds.bottom, origin.top + origin.height),
+  };
+}
+
 function resizedGeometry(
   origin: WindowGeometry,
   edge: WindowResizeEdge,
@@ -681,6 +701,7 @@ function useWindowGeometry({
   const windowRef = useRef<HTMLElement>(null);
   const [geometryState, setGeometryState] = useState<WindowGeometryState | null>(null);
   const geometryRef = useRef<WindowGeometry | null>(null);
+  const wasDraggedRef = useRef(false);
   const normalizationRef = useRef<WindowGeometryNormalization>(identityGeometryNormalization);
   const inputSignatureRef = useRef(inputSignature);
   const interactionRef = useRef<WindowInteraction | null>(null);
@@ -767,6 +788,7 @@ function useWindowGeometry({
     if (inputSignatureRef.current !== inputSignature) {
       inputSignatureRef.current = inputSignature;
       geometryRef.current = null;
+      wasDraggedRef.current = false;
       normalizationRef.current = identityGeometryNormalization;
       cancelInteraction();
     }
@@ -788,7 +810,9 @@ function useWindowGeometry({
       const current = geometryRef.current;
       return current === null
         ? preserveResponsiveFrame ? null : captureGeometry(currentElement)
-        : clampedGeometry(current, context.bounds);
+        : wasDraggedRef.current
+          ? reachableGeometry(current, context.bounds)
+          : clampedGeometry(current, context.bounds);
     }
 
     function commitContainment(next: WindowGeometry) {
@@ -933,7 +957,9 @@ function useWindowGeometry({
        authoritative. Setting the ref now lets containment observe that
        ownership even before the scheduled React commit. */
     geometryRef.current = ownedInteraction.origin;
-    const containedOrigin = clampedGeometry(ownedInteraction.origin, context.bounds);
+    const containedOrigin = wasDraggedRef.current
+      ? reachableGeometry(ownedInteraction.origin, context.bounds)
+      : clampedGeometry(ownedInteraction.origin, context.bounds);
     const activeInteraction = geometryEquals(ownedInteraction.origin, containedOrigin)
       ? ownedInteraction
       : {
@@ -945,8 +971,9 @@ function useWindowGeometry({
     interactionRef.current = { ...activeInteraction, lastX: event.clientX, lastY: event.clientY };
     const deltaX = event.clientX - activeInteraction.startX;
     const deltaY = event.clientY - activeInteraction.startY;
+    if (activeInteraction.kind === "drag") wasDraggedRef.current = true;
     const next = activeInteraction.kind === "drag"
-      ? clampedGeometry({
+      ? reachableGeometry({
           ...activeInteraction.origin,
           left: activeInteraction.origin.left + deltaX,
           top: activeInteraction.origin.top + deltaY,
@@ -956,9 +983,9 @@ function useWindowGeometry({
           activeInteraction.edge ?? "se",
           deltaX,
           deltaY,
-          context.bounds,
+          wasDraggedRef.current ? reachableResizeBounds(activeInteraction.origin, context.bounds) : context.bounds,
         );
-    scheduleGeometry(next);
+    scheduleGeometry(wasDraggedRef.current ? reachableGeometry(next, context.bounds) : next);
   }
 
   function finishInteraction(event: ReactPointerEvent<HTMLElement>) {

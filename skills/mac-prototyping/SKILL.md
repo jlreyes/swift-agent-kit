@@ -105,8 +105,10 @@ Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;
 `MacAppDock` launches, restores, and activates from the same registry.
 `WindowChrome` registers itself with the enclosing app. It owns key-window
-focus, click-to-front, traffic lights, contained dragging, ResizeObserver
-recontainment, and the default eight-edge resize affordances. Multiple windows
+focus, click-to-front, traffic lights, dragging that may leave a window
+partially beyond the canvas or under the Dock, canvas-change reachability that
+retains an exposed draggable title area, and the default eight-edge resize
+affordances. Multiple windows
 in one app must have distinct stable `windowId` values; the single-window
 default is `${appId}:main`. Use `resizable` and `minSize` on `WindowChrome`
 instead of recipe-local geometry. Every full-window recipe composes it and
@@ -231,10 +233,13 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   once.
 - **Chrome earns its controls.** Reusable toolbar commands have matching
   functional menu commands. The current app appears as a running Dock item;
-  default windows remain clear of the menu bar and Dock, including at small
-  viewports. Size explicit frames against the desktop canvas with `%`, not
-  `vw`/`vh`; the shell contracts below its 1200px reference width and an
-  initial window must be wholly visible without horizontal scrolling.
+  initial and zoomed windows remain within the menu-bar and Dock reserves,
+  including at small viewports. Size explicit frames against the desktop
+  canvas with `%`, not `vw`/`vh`; the shell contracts below its 1200px
+  reference width and an initial window must be wholly visible without
+  horizontal scrolling. Interactive dragging may leave a window partially
+  beyond the canvas or under the Dock, while a canvas shrink keeps a draggable
+  title area reachable.
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,

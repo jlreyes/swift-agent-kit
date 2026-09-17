@@ -1408,7 +1408,7 @@ describe("window dragging", () => {
     expect(windowElement.style.left).toBe(originalLeft);
   });
 
-  it("clamps dragging to the desktop canvas rather than the global viewport", async () => {
+  it("allows partial off-canvas dragging while retaining title reach inside the desktop", async () => {
     mockLayout({ ...standardLayout });
     const { container } = renderCanvasWindow();
     const windowElement = container.querySelector<HTMLElement>(".mac-window");
@@ -1420,15 +1420,47 @@ describe("window dragging", () => {
     firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
     firePointer(windowElement, "pointermove", { clientX: 5_000, clientY: 5_000 });
     await flushAnimationFrame();
-    expect(windowElement.style.left).toBe("276px");
-    expect(windowElement.style.top).toBe("112px");
+    expect(windowElement.style.left).toBe("616px");
+    expect(windowElement.style.top).toBe("480px");
     firePointer(windowElement, "pointerup", { clientX: 5_000, clientY: 5_000 });
 
     firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
     firePointer(windowElement, "pointermove", { clientX: -5_000, clientY: -5_000 });
     await flushAnimationFrame();
-    expect(windowElement.style.left).toBe("24px");
+    expect(windowElement.style.left).toBe("-316px");
     expect(windowElement.style.top).toBe("28px");
+  });
+
+  it("preserves an off-canvas placement through resize, zoom restore, and canvas shrink", async () => {
+    const layout = { ...standardLayout };
+    mockLayout(layout);
+    const { container, getByRole } = renderCanvasWindow({ withControls: true });
+    const windowElement = container.querySelector<HTMLElement>(".mac-window")!;
+    const handle = container.querySelector<HTMLElement>("[data-window-drag-handle]")!;
+    firePointer(handle, "pointerdown", { clientX: 200, clientY: 100 });
+    firePointer(windowElement, "pointermove", { clientX: 650, clientY: 420 });
+    await flushAnimationFrame();
+    firePointer(windowElement, "pointerup", { clientX: 650, clientY: 420 });
+    expect(windowElement.style.left).toBe("550px");
+    expect(windowElement.style.top).toBe("400px");
+
+    await resizeFrom(windowElement, "w", 20, 0);
+    expect(windowElement.style.left).toBe("570px");
+    expect(windowElement.style.top).toBe("400px");
+    expect(windowElement.style.width).toBe("480px");
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    fireEvent.click(getByRole("button", { name: "Zoom window" }));
+    expect(windowElement.style.left).toBe("570px");
+    expect(windowElement.style.top).toBe("400px");
+
+    layout.canvasWidth = 400;
+    layout.canvasHeight = 300;
+    act(() => window.dispatchEvent(new Event("resize")));
+    await flushNextTask();
+    expect(windowElement.style.left).toBe("216px");
+    expect(windowElement.style.top).toBe("180px");
+    expect(windowElement.style.width).toBe("352px");
+    expect(windowElement.style.height).toBe("184px");
   });
 
   it("raises a background managed window before resizing it", async () => {

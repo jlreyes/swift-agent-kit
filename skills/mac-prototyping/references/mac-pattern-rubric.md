@@ -84,10 +84,12 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   lights, even inside a catalog. A composition preview without draggable
   window chrome is not an app window.
 - `WindowChrome` owns the geometry contract: click-to-front/key state,
-  contained titlebar dragging, ResizeObserver recontainment, and all four
-  edges plus four corners by default. Verify resizing and a smaller canvas;
-  recipes may set `minSize` or `resizable={false}`, but must not replace
-  `.mac-window` positioning or invent their own drag/resize layer.
+  titlebar dragging that may leave a window partially beyond the canvas or
+  under the Dock, canvas-change reachability that retains an exposed draggable
+  title area, and all four edges plus four corners by default. Verify resizing,
+  off-canvas dragging, and a smaller canvas; recipes may set `minSize` or
+  `resizable={false}`, but must not replace `.mac-window` positioning or
+  invent their own drag/resize layer.
 - A split-view resize must not surface a ResizeObserver overlay or console
   error. The shared compatibility adapter defers/coalesces only panel-group
   observations; do not intercept browser error events in product code.
@@ -96,13 +98,15 @@ Contents: [Toolbar](#toolbar-anatomy) · [Windows](#window-roles--chrome) ·
   marketing page, not a Mac window.
 - Never mix window models in one surface (template chooser + Settings
   list-detail + marketing hero + wizard footer is the classic collision).
-- Default placement: horizontally centered, biased slightly above vertical
-  center, title bar below the menu bar and clear of the Dock; a window
-  flush to a canvas edge, under chrome, or off-center at rest is a
-  placement defect — verify with live geometry at normal and small viewports,
-  never from the code. The initial frame must fit the actual desktop canvas
-  without horizontal page scrolling; custom frame formulas use canvas-relative
-  `%`, not `vw`/`vh`.
+- Default placement: initial windows are horizontally centered and biased
+  slightly above vertical center, with the title bar below the menu bar and
+  clear of the Dock; zoom remains within those reserves. A window flush to a
+  canvas edge, under chrome, or off-center at rest is a placement defect.
+  Interactive dragging may place a window partially beyond the canvas or under
+  the Dock. Verify initial, zoomed, dragged, and smaller-canvas geometry live
+  at normal and small viewports, never from code. The initial frame must fit
+  the actual desktop canvas without horizontal page scrolling; custom frame
+  formulas use canvas-relative `%`, not `vw`/`vh`.
 
 ## Composition & split-view semantics
 

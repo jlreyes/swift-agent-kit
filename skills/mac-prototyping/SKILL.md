@@ -20,6 +20,8 @@ lives in this skill directory:
   compose and adapt them; there is deliberately no wrapper CLI.
 - [references/mac-pattern-rubric.md](references/mac-pattern-rubric.md) —
   the macOS pattern checklist every surface is judged against.
+- [references/chat-preview.md](references/chat-preview.md) — build a bounded,
+  portable in-chat snapshot when HMR is not the review surface.
 - The `mac-design-audit` agent (bundled with this plugin) — pattern-based
   design review; convene it as described below.
 
@@ -27,6 +29,14 @@ Edit against a persistent `vinext dev` service and use HMR as the default
 prototype workflow. Keep its private shared URL open while changing source;
 ordinary edits do not need a build, restart, or manual refresh. The workflows
 also define the built-preview and service-worker boundaries.
+
+## Build an in-chat snapshot only when the host needs one
+
+Use HMR for ordinary prototype work. When a task explicitly needs a portable,
+bounded preview inside chat, read [the chat-preview reference](references/chat-preview.md).
+It owns the snapshot build contract, symbol-subset boundary, and acceptance
+checks. Do not treat a snapshot as a replacement for the development service
+or the design-review workflow below.
 
 ## Start or fork a prototype
 
@@ -87,11 +97,12 @@ copy a showcase layout or private component into product code.
 | Sectioned sidebar navigation | `MacSourceList` | `List(.sidebar)` / source list |
 | Selectable rows | `MacList` | `List` |
 | Collapsible grouped detail | `MacDisclosureGroup` | `DisclosureGroup` |
-| Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
+| Buttons, fields, toggles, segmented choices, forms | `MacButton`, `MacTextField`, `MacSearchField`, `MacToggle`, `MacSegmentedControl`, `MacControlGroup`, `MacForm`, `MacFormSection`, `MacLabeledContent` | standard AppKit / SwiftUI controls |
 | No-content state | `MacContentUnavailable` | `ContentUnavailableView` |
 | Window-local status and system decisions | `MacWindowStatusBar`, `MacAlert`, `MacSheet` | window status area, `.alert`, `.sheet` |
 | Commands and anchored choices | `MacMenu`, `MacDetailsMenu`, `MacPopover` | `NSMenu` / `NSPopover` |
 | A complete Finder, chooser, setup flow, or chat window | `FinderWindow`, `ChooserWindow`, `SetupAssistant`, `ChatWindow` | recipes composed above the primitives |
+| A fixed in-chat Mac presentation | `MacEmbeddedPresentation` | supplies a bounded stage for caller-composed window content; enable menu or managed-window behavior only when the prototype needs it |
 
 `MacNavigationSplitView` has either two columns (sidebar + detail) or three
 navigation columns (sidebar + content + detail). Its optional middle column
@@ -100,6 +111,33 @@ supplementary trailing pane; do not treat it as the third navigation column.
 When its panel defaults use compatible CSS units, the shared split view
 normalizes them for SSR. Use this primitive rather than assembling local panel
 layouts, so hydration does not shift its children.
+
+For an in-chat surface, start with `MacEmbeddedPresentation` as the bounded
+stage around caller-composed `WindowChrome` content. Its visual traffic lights
+are inert. Enable `menuBar` only for app menus supplied by a child
+`DesktopShell`, and `windowManagement` only when the prototype needs
+registry-owned close, minimize, restore, zoom, and Dock behavior;
+multiple-window and managed-desktop demos commonly need both.
+
+With the default `windowManagement={false}`, the embedded fixed-window
+presentation takes precedence: a child `DesktopShell.displaySize` does not
+create a managed logical desktop. Enable window management before selecting a
+custom logical display for an embedded desktop.
+
+`DesktopShell` defaults to a 1440×900 logical CSS-point desktop, the documented
+scaled mode for an M1 MacBook Air. It is neither the panel's 2560×1600 raster
+resolution nor a claim that this is the most common Mac. Pass a custom
+`displaySize` for another logical desktop or `"viewport"` to opt into the
+responsive viewport stage. The full-page shell preserves its existing `100dvh`
+height constraint when fitting the logical desktop; an embedded presentation
+uses its explicit height. Saved window geometry stays in logical points. DPR, browser page zoom, and
+visual-viewport pinch zoom are presentation/input concerns, not alternate
+desktop sizes. Use percentages and container-relative layout inside the
+logical canvas; do not use `vw`, `vh`, or `window.innerWidth` as desktop
+dimensions. If a zoom or presentation-scale change occurs during a split-panel
+pointer drag, release and start the gesture again: its stale anchor is
+cancelled. This browser behavior does not establish physical macOS
+display-setting behavior, which is untested.
 
 Use the managed app layer for every multi-window desktop. `MacApp` stays
 mounted so closing or minimizing a window does not destroy its product state;
@@ -219,7 +257,12 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   `Sheet` is compatibility-only; `SetupHeading` is recipe artwork, not a
   general dialog API. Keep `MacSheet` and its calling ancestors mounted for
   presentation motion; control `open` and use `presentationKey` to request a
-  replacement.
+  replacement. Choose its `compact`/`wide`/`large` logical size, body inset
+  and scrolling deliberately; use `headerAccessory` for a compact search or
+  other header control. Put optional secondary actions in the action's
+  `placement: "leading"`; keep the primary/default and semantic trailing
+  actions trailing. A `MacList` in a sheet may use `escapeKeyBehavior="none"`
+  to keep its selection and let Escape reach the sheet's Cancel action.
 - **One disclosure contract.** Use `MacDisclosureGroup` for grouped detail and
   `MacSourceList` for navigable sidebar sections. The shared indicator is a
   `SystemSymbol`; source-list section headers are structural by default. A
@@ -235,11 +278,11 @@ slow to work on (a 9,400-line globals.css with 1,094 hard-coded colors):
   functional menu commands. The current app appears as a running Dock item;
   initial and zoomed windows remain within the menu-bar and Dock reserves,
   including at small viewports. Size explicit frames against the desktop
-  canvas with `%`, not `vw`/`vh`; the shell contracts below its 1200px
-  reference width and an initial window must be wholly visible without
+  canvas with `%` or container-relative layout, not `vw`/`vh` or
+  `window.innerWidth`; an initial window must be wholly visible without
   horizontal scrolling. Interactive dragging may leave a window partially
-beyond the canvas or under the Dock, while a canvas shrink keeps an accepted
-background drag point reachable.
+  beyond the canvas or under the Dock, while a canvas shrink keeps an accepted
+  background drag point reachable.
 - **One app/window lifecycle.** A desktop with multiple simulated apps uses
   `MacWindowManager`, `MacApp`, managed `WindowChrome`, and `MacAppDock`.
   Click-to-front, key-window state, close/minimize/zoom, Window-menu commands,

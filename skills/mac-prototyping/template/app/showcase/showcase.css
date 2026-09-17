@@ -1,4 +1,5 @@
 .showcase-catalog-window {
+  container: showcase-window / inline-size;
   overflow: hidden;
   color: var(--text);
   background: var(--content-surface);
@@ -438,14 +439,6 @@
   margin: 0;
 }
 
-.showcase-extra-popover button {
-  margin-top: 4px;
-  padding: 5px 8px;
-  border: 0;
-  border-radius: 5px;
-  color: #ffffff;
-  background: var(--accent);
-}
 
 .showcase-sheet-copy {
   margin: 0;
@@ -591,11 +584,7 @@
   font-size: 12px;
 }
 
-@media (max-width: 900px) {
-  .showcase-component-inspector {
-    width: 220px !important;
-  }
-
+@container showcase-window (max-width: 900px) {
   .showcase-two-up {
     grid-template-columns: 1fr;
   }

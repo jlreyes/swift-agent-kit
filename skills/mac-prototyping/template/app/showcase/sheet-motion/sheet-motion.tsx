@@ -1,18 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { DesktopShell, MacApp, MacAppDock, MacButton, MacSheet, MacTextField, MacToolbar, MacWindowManager, TrafficLights, WindowChrome, type MacAppDefinition } from "../../../lib/mac-chrome/index.ts";
+import { DesktopShell, MacApp, MacAppDock, MacButton, MacSheet, MacTextField, MacToolbar, MacWindowManager, TrafficLights, WindowChrome, type MacAppDefinition, type MacDisplaySize } from "../../../lib/mac-chrome/index.ts";
 import "./sheet-motion.css";
 
 const app: MacAppDefinition = { id: "sheet-motion", name: "Sheet Motion", icon: { kind: "systemSymbol", name: "doc.text", background: "var(--chrome-ink)", foreground: "var(--on-accent)" } };
 
-export function SheetMotion() {
+export function SheetMotion({ displaySize, showcaseHref = "/showcase" }: { readonly displaySize?: MacDisplaySize | "viewport"; readonly showcaseHref?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState("project");
   const [result, setResult] = useState("No project created");
   const trigger = useRef<HTMLButtonElement>(null);
   const customize = step === "options";
-  return <MacWindowManager initialApps={[app]}><DesktopShell appName="Sheet Motion">
+  return <MacWindowManager initialApps={[app]}><DesktopShell appName="Sheet Motion" displaySize={displaySize}>
     <MacApp {...app}><WindowChrome windowId="sheet-motion:main" label="Sheet Motion" frame={{ width: 740, height: 530 }} minSize={{ width: 480, height: 360 }}>
       <MacToolbar leading={<TrafficLights />} title="Sheet Motion" />
       <main className="sheet-motion-main">
@@ -20,7 +20,7 @@ export function SheetMotion() {
         <p>Open a project, edit its name, visit Options, then return. The name stays in place until the sheet closes.</p>
         <MacButton ref={trigger} onPress={() => { setStep("project"); setOpen(true); }}>New Project…</MacButton>
         <output aria-live="polite">{result}</output>
-        <a href="/showcase">All components</a>
+        <a href={showcaseHref}>All components</a>
       </main>
       <MacSheet open={open} presentationKey={step} title={customize ? "Project Options" : "New Project"} fallbackFocusRef={trigger}
         initialFocusSelector="input" onClose={() => {}} actions={customize ? [

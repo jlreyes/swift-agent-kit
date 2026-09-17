@@ -14,6 +14,7 @@ export type MacDialogAction = {
   readonly id: string;
   readonly label: string;
   readonly role?: MacDialogActionRole;
+  readonly placement?: "leading" | "trailing";
   /** Default-key prominence and behavior are independent of semantic role. */
   readonly isDefault?: boolean;
   readonly disabled?: boolean;
@@ -54,24 +55,32 @@ function DialogActions({ actions, onClose }: {
     onClose();
   }
 
+  function renderAction(action: CompatibleDialogAction) {
+    const isDefault = actionIsDefault(action);
+    const isDestructive = action.role === "destructive";
+    const variant: MacButtonVariant = isDefault ? "primary" : isDestructive ? "destructive" : "regular";
+    return (
+      <MacButton
+        key={action.id}
+        className={`mc-dialog-action${isDefault ? " mc-dialog-action-default" : ""}${isDestructive ? " mc-dialog-action-destructive" : ""}${action.role === "cancel" ? " mc-dialog-action-cancel" : ""}`}
+        variant={variant}
+        disabled={action.disabled}
+        onPress={() => perform(action)}
+      >
+        {action.label}
+      </MacButton>
+    );
+  }
+
+  const leadingActions = actions.filter((action) => action.placement === "leading");
+  if (leadingActions.length === 0) {
+    return <div className="mc-dialog-actions">{orderedActions(actions).map(renderAction)}</div>;
+  }
+  const trailingActions = actions.filter((action) => action.placement !== "leading");
   return (
-    <div className="mc-dialog-actions">
-      {orderedActions(actions).map((action) => {
-        const isDefault = actionIsDefault(action);
-        const isDestructive = action.role === "destructive";
-        const variant: MacButtonVariant = isDefault ? "primary" : isDestructive ? "destructive" : "regular";
-        return (
-          <MacButton
-            key={action.id}
-            className={`mc-dialog-action${isDefault ? " mc-dialog-action-default" : ""}${isDestructive ? " mc-dialog-action-destructive" : ""}${action.role === "cancel" ? " mc-dialog-action-cancel" : ""}`}
-            variant={variant}
-            disabled={action.disabled}
-            onPress={() => perform(action)}
-          >
-            {action.label}
-          </MacButton>
-        );
-      })}
+    <div className="mc-dialog-actions mc-dialog-actions-separated">
+      <div className="mc-dialog-actions-group mc-dialog-actions-leading">{leadingActions.map(renderAction)}</div>
+      <div className="mc-dialog-actions-group mc-dialog-actions-trailing">{orderedActions(trailingActions).map(renderAction)}</div>
     </div>
   );
 }
@@ -93,21 +102,29 @@ function performAndClose(action: CompatibleDialogAction | undefined, onClose: ()
  */
 export function MacSheet({
   actions,
+  bodyScroll = "automatic",
   children,
+  contentInset = "standard",
   fallbackFocusRef,
+  headerAccessory,
   initialFocusSelector,
   onClose,
   open,
   presentationKey,
+  size = "compact",
   title,
 }: {
   readonly actions: readonly MacDialogAction[];
+  readonly bodyScroll?: "automatic" | "contained";
   readonly children: ReactNode;
+  readonly contentInset?: "standard" | "none";
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
+  readonly headerAccessory?: ReactNode;
   readonly initialFocusSelector?: string;
   readonly onClose: () => void;
   readonly open: boolean;
   readonly presentationKey?: string;
+  readonly size?: "compact" | "wide" | "large";
   readonly title: string;
 }) {
   const identity = useId();
@@ -122,7 +139,7 @@ export function MacSheet({
     <MacWindowModalHost
       ariaDescribedBy={bodyId}
       ariaLabelledBy={titleId}
-      className="mc-sheet"
+      className={`mc-sheet mc-sheet-${size}`}
       fallbackFocusRef={fallbackFocusRef}
       initialFocusSelector={resolvedInitialFocus}
       kind="sheet"
@@ -132,8 +149,11 @@ export function MacSheet({
       presentationKey={presentationKey}
       role="dialog"
     >
-      <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
-      <div className="mc-sheet-body" id={bodyId}>{children}</div>
+      <header className={`mc-sheet-header${headerAccessory != null ? " mc-sheet-header-with-accessory" : ""}`}>
+        <h2 id={titleId}>{title}</h2>
+        {headerAccessory != null ? <div className="mc-sheet-header-accessory">{headerAccessory}</div> : null}
+      </header>
+      <div className={`mc-sheet-body${bodyScroll === "contained" ? " mc-sheet-body-contained" : ""}${contentInset === "none" ? " mc-sheet-body-flush" : ""}`} id={bodyId}>{children}</div>
       <footer className="mc-sheet-footer"><DialogActions actions={actions} onClose={onClose} /></footer>
     </MacWindowModalHost>
   );

@@ -10,6 +10,7 @@ import {
   ListBoxItem,
   ListBoxSection,
   type Key,
+  type ListBoxProps,
   type Selection,
 } from "react-aria-components";
 
@@ -125,6 +126,7 @@ export function MacList({
   ariaLabel,
   className = "",
   emptyState = "No items",
+  escapeKeyBehavior = "clearSelection",
   selectedId,
   sections,
   onSelectionChange,
@@ -132,6 +134,7 @@ export function MacList({
   readonly ariaLabel: string;
   readonly className?: string;
   readonly emptyState?: ReactNode;
+  readonly escapeKeyBehavior?: ListBoxProps<MacListRow>["escapeKeyBehavior"];
   readonly selectedId: string | null;
   readonly sections: readonly MacListSection[];
   readonly onSelectionChange: (id: string | null) => void;
@@ -169,6 +172,7 @@ export function MacList({
       className={`mc-list ${className}`.trim()}
       selectionMode="single"
       selectionBehavior="replace"
+      escapeKeyBehavior={escapeKeyBehavior}
       selectedKeys={selectedId === null ? new Set<Key>() : new Set<Key>([selectedId])}
       onSelectionChange={handleSelectionChange}
       renderEmptyState={() => <div className="mc-list-empty">{emptyState}</div>}

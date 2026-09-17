@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref, type RefObject } from "react";
 import {
   Button,
   Dialog,
@@ -12,11 +12,112 @@ import {
   MenuTrigger,
   Popover,
   Separator,
+  type PopoverProps,
 } from "react-aria-components";
 
 import { SystemSymbol } from "./system-symbol.tsx";
+import { getVisibleDesktopBounds, useDesktopSpace, viewportPointToLocal } from "./desktop-space.tsx";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
 import "./styles/tokens.css";
 import "./styles/popover.css";
+
+type AnchoredPopoverProps = PopoverProps & {
+  readonly placement: "bottom start" | "bottom end";
+  readonly triggerRef: RefObject<HTMLButtonElement | null>;
+};
+
+type PopoverGeometry = {
+  readonly left: number;
+  readonly top: number;
+  readonly maxHeight: number;
+  readonly maxWidth: number;
+};
+
+function DesktopPopover({ placement, offset = 6, triggerRef, ...props }: AnchoredPopoverProps) {
+  const desktop = useDesktopSpace();
+  const embedded = useEmbeddedPresentation();
+  const canvas = desktop?.canvas ?? null;
+  const logical = desktop?.displaySize != null;
+  const portalContainer = logical ? canvas ?? undefined : embedded?.portalContainer ?? canvas ?? undefined;
+  const portalReady = logical ? canvas !== null
+    : embedded !== null ? embedded.portalContainer !== null : desktop === null || canvas !== null;
+  const [overlay, setOverlay] = useState<HTMLElement | null>(null);
+  const [geometry, setGeometry] = useState<PopoverGeometry | null>(null);
+
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+    if (!logical || canvas === null || overlay === null || trigger === null) return;
+    const update = () => {
+      const rect = trigger.getBoundingClientRect();
+      const start = viewportPointToLocal(canvas, { x: rect.left, y: rect.top });
+      const end = viewportPointToLocal(canvas, { x: rect.right, y: rect.bottom });
+      const visible = getVisibleDesktopBounds(canvas);
+      const horizontalPadding = Math.min(8, (visible.right - visible.left) / 2);
+      const verticalPadding = Math.min(8, (visible.bottom - visible.top) / 2);
+      const bounds = {
+        left: visible.left + horizontalPadding,
+        right: visible.right - horizontalPadding,
+        top: visible.top + verticalPadding,
+        bottom: visible.bottom - verticalPadding,
+      };
+      const maxWidth = bounds.right - bounds.left;
+      const below = Math.max(0, bounds.bottom - Math.max(bounds.top, end.y + offset));
+      const above = Math.max(0, Math.min(bounds.bottom, start.y - offset) - bounds.top);
+      const flip = overlay.offsetHeight > below && above > below;
+      const maxHeight = flip ? above : below;
+      const height = Math.min(overlay.offsetHeight, maxHeight);
+      const leading = getComputedStyle(trigger).direction === "rtl" ? placement === "bottom end" : placement === "bottom start";
+      const width = Math.min(overlay.offsetWidth, maxWidth);
+      const left = Math.min(Math.max(bounds.left, leading ? start.x : end.x - width), bounds.right - width);
+      const top = Math.min(Math.max(bounds.top, flip ? start.y - offset - height : end.y + offset), bounds.bottom - height);
+      setGeometry((current) => current?.left === left && current.top === top && current.maxHeight === maxHeight && current.maxWidth === maxWidth
+        ? current : { left, top, maxHeight, maxWidth });
+    };
+    update();
+    const resize = new ResizeObserver(update);
+    resize.observe(trigger);
+    resize.observe(overlay);
+    resize.observe(canvas);
+    // A window can move without changing the trigger's layout dimensions.
+    const ancestors = new MutationObserver(update);
+    let ancestor: HTMLElement | null = trigger;
+    while (ancestor !== null) {
+      ancestors.observe(ancestor, { attributes: true, attributeFilter: ["style", "class"] });
+      if (ancestor === canvas) break;
+      ancestor = ancestor.parentElement;
+    }
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      resize.disconnect();
+      ancestors.disconnect();
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [canvas, desktop?.revision, logical, offset, overlay, placement, triggerRef]);
+
+  if (!portalReady) return null;
+  // React Aria mixes viewport trigger rects with layout overlay sizes under
+  // transforms. Keep its focus/dismissal semantics but position in canvas units.
+  const style: (CSSProperties & { readonly "--mc-popover-available-height"?: string; readonly "--mc-popover-available-width"?: string }) | undefined = logical ? {
+    position: "absolute",
+    left: geometry?.left ?? 0,
+    top: geometry?.top ?? 0,
+    bottom: "auto",
+    maxHeight: geometry?.maxHeight,
+    maxWidth: geometry?.maxWidth,
+    "--mc-popover-available-height": geometry === null ? undefined : `${geometry.maxHeight}px`,
+    "--mc-popover-available-width": geometry === null ? undefined : `${geometry.maxWidth}px`,
+  } : undefined;
+  return <Popover {...props} ref={setOverlay} triggerRef={triggerRef}
+    UNSTABLE_portalContainer={portalContainer} placement={placement} offset={offset}
+    shouldUpdatePosition={!logical} style={style} />;
+}
 
 export interface MenuAction {
   readonly kind: "action";
@@ -169,11 +270,12 @@ export function MacMenu({
   readonly triggerClassName?: string;
 }) {
   const controlledState = isOpen === undefined ? {} : { isOpen };
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <div className={`mc-menu ${className}`.trim()} onPointerEnter={onTriggerPointerEnter}>
       <MenuTrigger {...controlledState} onOpenChange={onOpenChange}>
-        <Button aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
-        <Popover isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
+        <Button ref={triggerRef} aria-label={triggerLabel} className={`mc-menu-trigger ${triggerClassName}`.trim()}>{trigger}</Button>
+        <DesktopPopover triggerRef={triggerRef} isNonModal={popover?.nonModal} placement={popover?.placement ?? "bottom end"} offset={popover?.offset ?? 7}>
           {/* MenuTrigger injects aria-labelledby (the trigger), which would
               outrank the label prop; blank it so `label` names the menu. */}
           <div className="mc-menu-key-scope" onKeyDown={onMenuKeyDown}>
@@ -185,7 +287,7 @@ export function MacMenu({
               {menuBlocks(items).flatMap(renderBlock)}
             </Menu>
           </div>
-        </Popover>
+        </DesktopPopover>
       </MenuTrigger>
     </div>
   );
@@ -224,16 +326,23 @@ export function MacPopover({
   readonly triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const controlledState = isOpen === undefined ? {} : { isOpen };
+  const localTriggerRef = useRef<HTMLButtonElement>(null);
+  const setTrigger = useCallback((element: HTMLButtonElement | null) => {
+    localTriggerRef.current = element;
+    if (typeof triggerRef === "function") return triggerRef(element);
+    if (triggerRef !== undefined && triggerRef !== null) triggerRef.current = element;
+  }, [triggerRef]);
   return (
     <DialogTrigger {...controlledState} onOpenChange={onOpenChange}>
       <Button
-        ref={triggerRef}
+        ref={setTrigger}
         aria-label={label}
         className={`mc-popover-trigger ${triggerClassName}`.trim()}
       >
         {trigger}
       </Button>
-      <Popover
+      <DesktopPopover
+        triggerRef={localTriggerRef}
         className={`mc-popover-surface ${className}`.trim()}
         data-popover-layout={layout}
         placement={placement}
@@ -246,7 +355,7 @@ export function MacPopover({
         >
           {children}
         </Dialog>
-      </Popover>
+      </DesktopPopover>
     </DialogTrigger>
   );
 }

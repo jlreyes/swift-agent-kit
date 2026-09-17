@@ -4,11 +4,15 @@ import { createRoot } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
+import { DesktopSpaceFrame } from "../desktop-space.tsx";
 import { MacDock, MacDockAppIcon } from "../dock.tsx";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 it("normalizes asset and generated app icons onto the same canvas", async () => {
   const container = document.createElement("div");
@@ -319,6 +323,116 @@ it("fits landscape, portrait, and wide minimized windows inside stable thumbnail
   expect(thumbnails[0]?.style.viewTransitionName).toBe("mc-window-project");
   expect(thumbnails[0]?.querySelector("img")?.getAttribute("src")).toContain("data:image/png");
 
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+
+it.each([1, 0.5, 0.8])("anchors and contains Dock labels in the logical canvas at measured scale %s", async (initialScale) => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  let scale = initialScale;
+  vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
+  vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(3);
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function offsetWidth(this: HTMLElement) {
+    return this.classList.contains("p0-mac-dock") ? 600 : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("desktop-canvas")) return new DOMRect(100, 0, 600 * scale, 900 * scale);
+    if (this.classList.contains("p0-mac-dock")) return new DOMRect(100, 600 * scale, 600 * scale, 67 * scale);
+    if (this.classList.contains("p0-dock-scroll")) return new DOMRect(100, 568 * scale, 600 * scale, 105 * scale);
+    if (this.classList.contains("p0-dock-tooltip")) return new DOMRect(0, 0, 400 * scale, 22 * scale);
+    if (this.getAttribute("aria-label") === "First") return new DOMRect(100, 608 * scale, 52 * scale, 52 * scale);
+    if (this.getAttribute("aria-label") === "Last") return new DOMRect(100 + 548 * scale, 608 * scale, 52 * scale, 52 * scale);
+    return new DOMRect();
+  });
+  await act(async () => root.render(
+    <DesktopSpaceFrame displaySize={{ width: 600, height: 900 }}>
+      <MacDock items={[
+        { id: "first", label: "First", icon: "/first.png" },
+        { id: "last", label: "Last", icon: "/last.png" },
+      ]} />
+    </DesktopSpaceFrame>,
+  ));
+  const first = container.querySelector<HTMLButtonElement>("[aria-label='First']");
+  const last = container.querySelector<HTMLButtonElement>("[aria-label='Last']");
+  if (first === null || last === null) throw new Error("Expected Dock items");
+  await act(async () => fireEvent.pointerEnter(first));
+  const tooltip = container.querySelector<HTMLElement>(".p0-dock-tooltip");
+  if (tooltip === null) throw new Error("Expected Dock tooltip");
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(208);
+  expect(Number.parseFloat(tooltip.style.maxWidth)).toBeCloseTo(584);
+  await act(async () => fireEvent.pointerEnter(last));
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(392);
+  expect(tooltip.dataset.visible).toBe("true");
+
+  scale = initialScale / 2;
+  await act(async () => fireEvent(window, new Event("resize")));
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(392);
+  expect(Number.parseFloat(tooltip.style.maxWidth)).toBeCloseTo(584);
+  await act(async () => root.unmount());
+  container.remove();
+});
+
+
+it.each([1, 0.5])("clamps Dock labels to a panned visual viewport at logical scale %s", async (scale) => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const viewport = Object.assign(new EventTarget(), {
+    offsetLeft: 100 + 150 * scale,
+    offsetTop: 0,
+    width: 300 * scale,
+    height: 900 * scale,
+  });
+  vi.stubGlobal("visualViewport", viewport);
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function offsetHeight(this: HTMLElement) {
+    if (this.classList.contains("p0-mac-dock")) return 67;
+    return this.classList.contains("desktop-canvas") ? 900 : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function offsetWidth(this: HTMLElement) {
+    return this.classList.contains("p0-mac-dock") || this.classList.contains("desktop-canvas") ? 600 : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    if (this.classList.contains("desktop-canvas")) return new DOMRect(100, 0, 600 * scale, 900 * scale);
+    if (this.classList.contains("p0-mac-dock")) return new DOMRect(100, 600 * scale, 600 * scale, 67 * scale);
+    if (this.classList.contains("p0-dock-scroll")) return new DOMRect(100, 568 * scale, 600 * scale, 105 * scale);
+    if (this.classList.contains("p0-dock-tooltip")) return new DOMRect(0, 0, 400 * scale, 22 * scale);
+    if (this.getAttribute("aria-label") === "Application") return new DOMRect(100 + 374 * scale, 608 * scale, 52 * scale, 52 * scale);
+    return new DOMRect();
+  });
+  await act(async () => root.render(
+    <DesktopSpaceFrame displaySize={{ width: 600, height: 900 }}>
+      <MacDock items={[{ id: "app", label: "Application", icon: "/app.png" }]} />
+    </DesktopSpaceFrame>,
+  ));
+  const button = container.querySelector<HTMLButtonElement>("[aria-label='Application']");
+  if (button === null) throw new Error("Expected Dock item");
+  await act(async () => fireEvent.pointerEnter(button));
+  const tooltip = container.querySelector<HTMLElement>(".p0-dock-tooltip");
+  if (tooltip === null) throw new Error("Expected Dock tooltip");
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(300);
+  expect(Number.parseFloat(tooltip.style.maxWidth)).toBeCloseTo(284);
+
+  viewport.offsetLeft = 100 + 250 * scale;
+  await act(async () => viewport.dispatchEvent(new Event("scroll")));
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(400);
+  viewport.width = 200 * scale;
+  await act(async () => viewport.dispatchEvent(new Event("resize")));
+  expect(Number.parseFloat(tooltip.style.left)).toBeCloseTo(350);
+  expect(Number.parseFloat(tooltip.style.maxWidth)).toBeCloseTo(184);
+  expect(Number.parseFloat(tooltip.style.top)).toBeCloseTo(-24);
+
+  viewport.offsetTop = 590 * scale;
+  viewport.height = 200 * scale;
+  await act(async () => viewport.dispatchEvent(new Event("resize")));
+  expect(Number.parseFloat(tooltip.style.top)).toBeCloseTo(69);
+  expect(tooltip.style.bottom).toBe("auto");
+  viewport.height = 80 * scale;
+  await act(async () => viewport.dispatchEvent(new Event("resize")));
+  expect(Number.parseFloat(tooltip.style.top)).toBeCloseTo(40);
+  expect(Number.parseFloat(tooltip.style.maxHeight)).toBeCloseTo(64);
   await act(async () => root.unmount());
   container.remove();
 });

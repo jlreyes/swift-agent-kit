@@ -1,4 +1,8 @@
 export {
+  MacEmbeddedPresentation,
+  type MacEmbeddedPresentationProps,
+} from "./embedded-presentation.tsx";
+export {
   DesktopShell,
   type DesktopShellProps,
   type MenuBarMenu,
@@ -87,6 +91,7 @@ export {
   MacLabeledContent,
   MacSegmentedControl,
   MacTextField,
+  MacSearchField,
   MacToggle,
   type MacButtonVariant,
   type MacSegment,
@@ -134,3 +139,14 @@ export {
   type ChatSearch,
   type Conversation,
 } from "./chat-window.tsx";
+
+export {
+  macBookAirM1DisplaySize,
+  useDesktopSpace,
+  getElementScale,
+  viewportPointToLocal,
+  viewportDeltaToLocal,
+  type MacDisplaySize,
+  type DesktopSpace,
+  type DesktopPoint,
+} from "./desktop-space.tsx";

@@ -57,9 +57,9 @@ it("keeps arbitrary content popovers on an explicit inset and layout contract", 
   expect(dialog).toMatch(/overscroll-behavior:\s*contain/);
   expect(compact).toMatch(/padding:\s*10px/);
   expect(flush).toMatch(/padding:\s*0/);
-  expect(surface).toMatch(/max-height:\s*min\(var\(--available-height, calc\(100vh - 16px\)\), calc\(100vh - 16px\)\)/);
+  expect(surface).toMatch(/max-height:\s*var\(--mc-popover-available-height,/);
   expect(surface).toMatch(/overflow:\s*hidden/);
-  expect(menu).toMatch(/max-height:\s*392px/);
+  expect(menu).toMatch(/max-height:\s*min\(392px, var\(--mc-popover-available-height, 392px\)\)/);
   expect(menu).toMatch(/overflow:\s*auto/);
   expect(popover).toContain('.mc-popover-surface[data-popover-layout="status"]');
 });
@@ -75,8 +75,8 @@ it("uses the same 13px system type contract for the 24px menu bar", () => {
   expect(menuBar).toMatch(/font-size:\s*var\(--font-size-menu\)/);
   expect(menuBar).toMatch(/line-height:\s*var\(--line-height-menu\)/);
   expect(appName).toMatch(/font-weight:\s*var\(--font-weight-semibold\)/);
-  expect(menuPopover).toMatch(/min-width:\s*min\(224px, calc\(100vw - 16px\)\)/);
+  expect(menuPopover).toMatch(/min-width:\s*min\(224px, var\(--mc-popover-available-width, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)\)/);
   expect(menuPopover).not.toMatch(/min-width:\s*224px/);
-  expect(menuPopover).toMatch(/max-width:\s*min\(340px, calc\(100vw - 16px\)\)/);
+  expect(menuPopover).toMatch(/max-width:\s*min\(340px, var\(--mc-popover-available-width, calc\(var\(--mc-display-width, 100vw\) - 16px\)\)\)/);
   expect(menuPopover).not.toMatch(/max-width:\s*340px/);
 });

@@ -316,3 +316,76 @@ it("refreshes stored ids for localStorage.clear but ignores unrelated storage ke
   }
   container.remove();
 });
+
+it.each(["getter", "getItem", "setItem"] as const)("retains reactive stored IDs in memory when localStorage %s is denied", async (deniedOperation) => {
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const values = new Map<string, string>([["denied-storage", JSON.stringify(["seed"])]]);
+  const storage: Storage = {
+    clear: () => values.clear(),
+    getItem: (key) => {
+      if (deniedOperation === "getItem") throw new DOMException("Storage access denied", "SecurityError");
+      return values.get(key) ?? null;
+    },
+    key: (index) => [...values.keys()][index] ?? null,
+    get length() { return values.size; },
+    removeItem: (key) => { values.delete(key); },
+    setItem: () => { throw new DOMException("Storage writes denied", "QuotaExceededError"); },
+  };
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    get() {
+      if (deniedOperation === "getter") throw new DOMException("Opaque origin has no storage", "SecurityError");
+      return storage;
+    },
+  });
+  const store = createStoredIdList("denied-storage");
+  const initial = deniedOperation === "setItem" ? ["seed"] : [];
+  try {
+    expect(store.read()).toEqual(initial);
+    await act(async () => root.render(<StoredIdsProbe store={store} />));
+    expect(container.textContent).toBe(initial.join(","));
+    await act(async () => { store.add("alpha"); store.add("alpha"); store.add("beta"); });
+    expect(store.read()).toEqual([...initial, "alpha", "beta"]);
+    expect(container.textContent).toBe([...initial, "alpha", "beta"].join(","));
+    await act(async () => store.remove("alpha"));
+    expect(store.read()).toEqual([...initial, "beta"]);
+    expect(container.textContent).toBe([...initial, "beta"].join(","));
+    const snapshot = store.read();
+    expect(store.read()).toBe(snapshot);
+    await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: null })));
+    expect(store.read()).toEqual([...initial, "beta"]);
+    expect(container.textContent).toBe([...initial, "beta"].join(","));
+    expect(values.get("denied-storage")).toBe(JSON.stringify(["seed"]));
+  } finally {
+    await act(async () => root.unmount());
+    if (originalLocalStorage === undefined) Reflect.deleteProperty(window, "localStorage");
+    else Object.defineProperty(window, "localStorage", originalLocalStorage);
+    container.remove();
+  }
+});
+
+it("propagates unexpected storage accessor and ID validator errors", () => {
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  const accessorError = new Error("Broken storage adapter");
+  try {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() { throw accessorError; },
+    });
+    expect(() => createStoredIdList("unexpected-error").read()).toThrow(accessorError);
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: { getItem: () => JSON.stringify(["alpha"]) },
+    });
+    const validatorError = new Error("Broken ID validator");
+    const store = createStoredIdList("unexpected-error", () => { throw validatorError; });
+    expect(() => store.read()).toThrow(validatorError);
+    expect(() => store.read()).toThrow(validatorError);
+  } finally {
+    if (originalLocalStorage === undefined) Reflect.deleteProperty(window, "localStorage");
+    else Object.defineProperty(window, "localStorage", originalLocalStorage);
+  }
+});

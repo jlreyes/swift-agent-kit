@@ -380,3 +380,78 @@ describe("MacInspector", () => {
     expect(separator.getAttribute("aria-valuenow")).toBe("230");
   });
 });
+
+
+it.each([1, 0.5, 0.8])("resizes an inspector in logical units at measured scale %s", (scale) => {
+  vi.spyOn(window, "devicePixelRatio", "get").mockReturnValue(3);
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function offsetWidth(this: HTMLElement) {
+    return this.classList.contains("mc-inspector") ? Number.parseFloat(this.style.width) : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    return this.classList.contains("mc-inspector")
+      ? new DOMRect(100, 0, this.offsetWidth * scale, 500 * scale)
+      : new DOMRect();
+  });
+  const onWidthChange = vi.fn();
+  render(<MacInspector defaultWidth={260} onWidthChange={onWidthChange}>Metadata</MacInspector>);
+  const separator = screen.getByRole("separator", { name: "Resize Inspector" });
+  const inspector = screen.getByRole("complementary", { name: "Inspector" });
+
+  fireEvent(separator, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 500 }));
+  fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 500 - 40 * scale }));
+  fireEvent(separator, new MouseEvent("pointerup", { bubbles: true }));
+  expect(inspector.style.width).toBe("300px");
+  expect(onWidthChange).toHaveBeenLastCalledWith(300);
+  expect(separator.getAttribute("aria-valuenow")).toBe("300");
+
+  fireEvent.keyDown(separator, { key: "ArrowLeft" });
+  expect(inspector.style.width).toBe("310px");
+  fireEvent.keyDown(separator, { key: "End" });
+  expect(inspector.style.width).toBe("360px");
+  fireEvent.keyDown(separator, { key: "Home" });
+  expect(inspector.style.width).toBe("220px");
+});
+
+it.each([1, 0.5])("reports a CSS inspector width in logical units at measured scale %s", (scale) => {
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function offsetWidth(this: HTMLElement) {
+    return this.classList.contains("mc-inspector") ? 300 : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    return this.classList.contains("mc-inspector")
+      ? new DOMRect(100, 0, 300 * scale, 500 * scale)
+      : new DOMRect();
+  });
+  const onWidthChange = vi.fn();
+  render(<MacInspector width="50%" onWidthChange={onWidthChange}>Metadata</MacInspector>);
+  const separator = screen.getByRole("separator", { name: "Resize Inspector" });
+  expect(separator.getAttribute("aria-valuenow")).toBe("300");
+  fireEvent.keyDown(separator, { key: "ArrowRight" });
+  expect(onWidthChange).toHaveBeenLastCalledWith(290);
+});
+
+
+it("cancels an inspector gesture when its host scale changes and accepts a fresh gesture", () => {
+  let scale = 1;
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function offsetWidth(this: HTMLElement) {
+    if (this.dataset.inspectorHost !== undefined) return 1000;
+    return this.classList.contains("mc-inspector") ? Number.parseFloat(this.style.width) : 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+    return new DOMRect(0, 0, this.offsetWidth * scale, 500 * scale);
+  });
+  render(<div data-inspector-host=""><MacInspector defaultWidth={260}>Metadata</MacInspector></div>);
+  const separator = screen.getByRole("separator", { name: "Resize Inspector" });
+  const inspector = screen.getByRole("complementary", { name: "Inspector" });
+  fireEvent(separator, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 500 }));
+  fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 480 }));
+  expect(inspector.style.width).toBe("280px");
+  scale = 0.5;
+  fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 460 }));
+  fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 440 }));
+  expect(inspector.style.width).toBe("280px");
+  fireEvent(separator, new MouseEvent("pointerup", { bubbles: true }));
+  fireEvent(separator, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 400 }));
+  fireEvent(separator, new MouseEvent("pointermove", { bubbles: true, clientX: 390 }));
+  fireEvent(separator, new MouseEvent("pointerup", { bubbles: true }));
+  expect(inspector.style.width).toBe("300px");
+});

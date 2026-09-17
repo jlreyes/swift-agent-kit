@@ -35,10 +35,29 @@ package's own scaffolding must not land inside a consumer (a nested
 ```sh
 # --delete-excluded: excluded stale files must not survive re-vendoring (found live).
 rsync -a --delete --delete-excluded --exclude node_modules --exclude test \
-  --exclude package.json --exclude pnpm-lock.yaml \
+  --exclude package.json --exclude pnpm-lock.yaml --exclude pnpm-workspace.yaml \
   --exclude tsconfig.json --exclude vitest.config.ts \
   "$SKILL_DIR"/packages/mac-chrome/ ~/Prototypes/$name/lib/mac-chrome/
 ```
+
+The template's `pnpm-workspace.yaml` points at the mirrored stub asset under
+`lib/mac-chrome/patches/`; re-vendoring replaces that stub with the canonical
+patch. Each consumer keeps its own `pnpm-workspace.yaml`. Merge this entry into
+its top-level `patchedDependencies` map after re-vendoring, preserving any
+existing entries, then run `pnpm install`:
+
+```yaml
+patchedDependencies:
+  react-resizable-panels@4.12.2: lib/mac-chrome/patches/react-resizable-panels@4.12.2.patch
+```
+
+The vendored directory carries a mirrored patch asset; the consumer workspace
+is the place pnpm resolves it. The patch fixes only the split panel's rendered
+viewport pointer-delta denominator under a transformed logical desktop. It
+cancels an active gesture when the measured render-to-logical scale changes,
+not when nested or simultaneous resizing changes a logical extent. It does not
+change panel constraints or add/change a dependency version. See the patch
+README for its removal criterion.
 
 Hydrate local private assets before running the prototype. This copies and
 converts local system app, folder, and Trash icons and extracts the actual
@@ -95,6 +114,25 @@ then restore it and verify removal. Resize a split-view window and shrink then
 reset the viewport; the shared adapter must prevent ResizeObserver overlays
 and console errors without suppressing unrelated errors.
 
+`DesktopShell` defaults to a 1440×900 logical CSS-point desktop, the supported
+scaled mode documented for an M1 MacBook Air. It is not the 2560×1600 physical
+panel or a prevalence claim. Set a custom `displaySize` for another logical
+desktop, or `displaySize="viewport"` for responsive layout. Keep window frames
+and layout in logical points; DPR, browser page zoom, and visual-viewport pinch
+zoom affect presentation or input conversion. Use canvas percentages and
+container-relative rules instead of `vw`, `vh`, or `window.innerWidth`.
+
+When checking a scaled desktop, distinguish page zoom from visual-viewport
+pinch zoom and confirm drag/resize, split panels, menus, modals, Dock tooltips,
+and minimized thumbnails remain attached to their logical owner. Host resizing
+may change presentation fit but must not rewrite saved logical frames. An
+in-flight split-panel pointer gesture cancels when its measured display scale
+changes; release and begin a new drag after zoom or scale changes. Nested or
+simultaneous split resizing continues normally.
+
+These are browser presentation contracts. They do not establish behavior when
+physical macOS display settings change; that platform case has not been tested.
+
 Choose `MacApp presentation="windowed"` for an ordinary Dock app, or
 `presentation="menuBar"` with `MenuBarExtra` for a status-item app. Use
 `MacAlert presentationScope="desktop"` for a menu-bar app's system decision;
@@ -119,6 +157,18 @@ navigation. Source-list headers are structural and disclosure-only by default.
 A titled section may explicitly become a controlled navigation target with
 `selectable: true` and `selectedSectionId` / `onSectionSelectionChange`; its
 disclosure remains a separate action.
+
+Use `MacSearchField` for a generic controlled search input: provide an
+accessible name (or a visible label), preserve its input ref when needed, and
+handle `onSubmit` for Enter. Its magnifier and clear affordance are built in;
+clearing returns focus to the input. Escape clears an editable nonempty query
+before a containing sheet can cancel; read-only and disabled fields do not
+clear. For an attached task, `MacSheet` provides `compact` (420), `wide` (700),
+and `large` (960) logical-width caps, `contentInset`, `bodyScroll`, and
+`headerAccessory`. Use `MacDialogAction.placement="leading"` for secondary
+actions; trailing actions retain their semantic/default ordering. A sheet list
+can use `escapeKeyBehavior="none"` to pass Escape to Cancel while retaining
+selection.
 
 ## Fork an existing prototype
 

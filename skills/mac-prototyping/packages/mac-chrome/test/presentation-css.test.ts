@@ -10,6 +10,17 @@ function rule(selector: string): string | undefined {
 }
 
 describe("presentation anatomy", () => {
+  it("caps each sheet size to its owner and lets contained bodies delegate scrolling", () => {
+    expect(rule(".mc-sheet")).toMatch(/width:\s*min\(420px, calc\(100% - 32px\)\)/);
+    expect(rule(".mc-sheet-wide")).toMatch(/width:\s*min\(700px, calc\(100% - 32px\)\)/);
+    expect(rule(".mc-sheet-large")).toMatch(/width:\s*min\(960px, calc\(100% - 32px\)\)/);
+    expect(rule(".mc-sheet-body-contained")).toMatch(/overflow:\s*hidden/);
+    expect(rule(".mc-sheet-body-contained")).toMatch(/display:\s*flex/);
+    expect(rule(".mc-sheet-body-flush")).toMatch(/padding:\s*0/);
+    expect(rule(".mc-sheet-header-with-accessory")).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule(".mc-dialog-actions-separated")).toMatch(/flex-wrap:\s*wrap/);
+  });
+
   it("keeps MacSheet compact with standard owned-region insets", () => {
     expect(rule(".mc-sheet-header")).toMatch(/padding:\s*18px 22px 7px/);
     expect(rule(".mc-sheet-body")).toMatch(/padding:\s*0 22px 18px/);

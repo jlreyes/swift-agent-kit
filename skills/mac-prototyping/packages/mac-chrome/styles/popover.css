@@ -12,9 +12,9 @@
 .mc-menu-popover {
   display: grid;
   width: max-content;
-  min-width: 220px;
-  max-width: min(300px, calc(100vw - 16px));
-  max-height: 392px;
+  min-width: min(220px, var(--mc-popover-available-width, 220px));
+  max-width: min(300px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
+  max-height: min(392px, var(--mc-popover-available-height, 392px));
   overflow: auto;
   padding: 4px 6px;
   border: 0.5px solid var(--popover-border);
@@ -149,7 +149,7 @@
 .mc-popover-surface {
   z-index: 100;
   box-sizing: border-box;
-  max-height: min(var(--available-height, calc(100vh - 16px)), calc(100vh - 16px));
+  max-height: var(--mc-popover-available-height, min(var(--available-height, calc(var(--mc-display-height, 100vh) - 16px)), calc(var(--mc-display-height, 100vh) - 16px)));
   overflow: hidden;
   border: 0.5px solid var(--popover-border);
   border-radius: var(--radius-popover);
@@ -221,7 +221,7 @@
 }
 
 .mc-details-menu-popover {
-  width: min(264px, calc(100vw - 16px));
+  width: min(264px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
 }
 
 .mc-details-menu-popover .mc-popover-dialog {
@@ -331,7 +331,7 @@
 }
 
 .mc-popover-surface[data-popover-layout="status"] {
-  width: min(280px, calc(100vw - 16px));
+  width: min(280px, var(--mc-popover-available-width, calc(var(--mc-display-width, 100vw) - 16px)));
 }
 
 .mc-popover-surface[data-popover-layout="status"] .mc-popover-dialog {

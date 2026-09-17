@@ -7,6 +7,7 @@ import {
   FieldError,
   Input,
   Label,
+  SearchField,
   Switch,
   Text,
   TextField,
@@ -15,6 +16,9 @@ import {
   type Key,
   type Selection,
 } from "react-aria-components";
+
+import { SystemSymbol } from "./system-symbol.tsx";
+import { useEmbeddedForm } from "./embedded-form.ts";
 
 import "./styles/tokens.css";
 import "./styles/controls.css";
@@ -66,6 +70,7 @@ export function MacButton({
   readonly variant?: MacButtonVariant;
   readonly onPress?: () => void;
 }) {
+  const { onSubmitButtonClick } = useEmbeddedForm();
   return (
     <Button
       ref={ref}
@@ -74,6 +79,8 @@ export function MacButton({
       className={`mc-button mc-button-${variant} ${className}`.trim()}
       isDisabled={disabled}
       onPress={onPress}
+      onClick={onSubmitButtonClick}
+      data-embedded-submit={onSubmitButtonClick !== undefined && type === "submit" ? "true" : undefined}
     >
       {children}
     </Button>
@@ -130,6 +137,54 @@ export function MacTextField({
       {description !== undefined ? <Text className="mc-field-description" slot="description">{description}</Text> : null}
       {errorMessage !== undefined ? <FieldError className="mc-field-error">{errorMessage}</FieldError> : null}
     </TextField>
+  );
+}
+
+export function MacSearchField({
+  ariaLabel,
+  className = "",
+  disabled = false,
+  label,
+  placeholder,
+  readOnly = false,
+  ref,
+  value,
+  onChange,
+  onSubmit,
+}: {
+  readonly ariaLabel?: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly label?: ReactNode;
+  readonly placeholder?: string;
+  readonly readOnly?: boolean;
+  readonly ref?: Ref<HTMLInputElement>;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly onSubmit?: (value: string) => void;
+}) {
+  const hasVisibleLabel = isRenderableTextFieldLabel(label);
+  return (
+    <SearchField
+      aria-label={hasVisibleLabel ? undefined : ariaLabel}
+      className={`mc-search-field ${className}`.trim()}
+      isDisabled={disabled}
+      isReadOnly={readOnly}
+      value={value}
+      onChange={onChange}
+      onSubmit={onSubmit}
+    >
+      {({ isEmpty }) => (
+        <>
+          {hasVisibleLabel ? <Label className="mc-field-label">{label}</Label> : null}
+          <div className="mc-search-control">
+            <span className="mc-search-icon" aria-hidden="true"><SystemSymbol name="magnifyingglass" size={13} /></span>
+            <Input ref={ref} className="mc-search-input" placeholder={placeholder} />
+            {!isEmpty && !readOnly ? <Button className="mc-search-clear"><SystemSymbol name="xmark.circle.fill" size={13} /></Button> : null}
+          </div>
+        </>
+      )}
+    </SearchField>
   );
 }
 
@@ -275,7 +330,8 @@ export function MacForm({
   readonly className?: string;
   readonly onSubmit?: FormEventHandler<HTMLFormElement>;
 }) {
-  return <form className={`mc-form ${className}`.trim()} aria-label={ariaLabel} onSubmit={onSubmit}>{children}</form>;
+  const { onFormClick, onFormKeyDown } = useEmbeddedForm();
+  return <form className={`mc-form ${className}`.trim()} aria-label={ariaLabel} onSubmit={onSubmit} onClick={onFormClick} onKeyDown={onFormKeyDown}>{children}</form>;
 }
 
 export function MacFormSection({

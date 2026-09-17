@@ -6,6 +6,8 @@
 // vendoring. Advanced window dragging, visual transitions, and screenshot-
 // thumbnail machinery remain exclusive to the real package.
 import { Fragment, cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type DragEvent as ReactDragEvent, type FormEventHandler, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from "react";
+import { useEmbeddedPresentation } from "./embedded-presentation.tsx";
+import { DesktopSpaceFrame, macBookAirM1DisplaySize, type MacDisplaySize } from "./desktop-space.tsx";
 import { useMenuModalFocusReturn } from "./menu-modal-focus.ts";
 import {
   Button,
@@ -13,6 +15,10 @@ import {
   DialogTrigger,
   Header,
   ListBox,
+  Input,
+  Label,
+  SearchField,
+  type ListBoxProps,
   ListBoxItem,
   ListBoxSection,
   Menu,
@@ -453,6 +459,7 @@ function framePlacement(frame: WindowFrame | undefined, defaultSize: WindowSize)
 
 export interface DesktopShellProps {
   readonly appName: string;
+  readonly displaySize?: MacDisplaySize | "viewport";
   /** Plain standard titles get native defaults in the real package. */
   readonly menuItems?: readonly (string | MenuBarMenu)[];
   readonly appleMenuItems?: MenuSpec;
@@ -595,10 +602,12 @@ export function DesktopShell({
   clock,
   menuBarExtras,
   mobileReviewMode,
+  displaySize = macBookAirM1DisplaySize,
   wallpaper,
   children,
 }: DesktopShellProps) {
   const windowManager = useContext(StubManagerContext);
+  const embedded = useEmbeddedPresentation();
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
   const modalFocusReturn = useMenuModalFocusReturn(openMenuIndex !== null);
@@ -672,9 +681,8 @@ export function DesktopShell({
     ? ({ "--mc-wallpaper": stubWallpaperSource(wallpaper) } as CSSProperties)
     : undefined;
   return (
-    <main className="showcase-viewport" data-mobile-review-mode={mobileReviewMode}>
-      <div className="desktop-canvas" style={canvasStyle}>
-        <header className="mac-menu-bar">
+    <DesktopSpaceFrame displaySize={embedded?.windowManagement === false || displaySize === "viewport" ? null : displaySize} mobileReviewMode={mobileReviewMode} canvasStyle={canvasStyle} constrainedHeight={embedded?.height}>
+        <header className="mac-menu-bar" hidden={embedded?.menuBar === false}>
           <div ref={menuBarRef} className="menu-left" onPointerDownCapture={modalFocusReturn.onPointerDownCapture} onFocusCapture={modalFocusReturn.onFocusCapture}>
             {menus.map((menu, index) => (
               <MacMenu
@@ -709,8 +717,7 @@ export function DesktopShell({
           </div>
         </header>
         {children}
-      </div>
-    </main>
+    </DesktopSpaceFrame>
   );
 }
 
@@ -1085,8 +1092,9 @@ export function TrafficLights({ disabled = false, onClose, onMinimize, onZoom }:
   readonly onZoom?: () => void;
 } = {}) {
   const controls = useContext(StubWindowControlsContext);
+  const inert = disabled || useEmbeddedPresentation()?.windowManagement === false;
   function control(kind: "close" | "minimize" | "zoom", label: string, action: (() => void) | undefined) {
-    return disabled || action === undefined
+    return inert || action === undefined
       ? <span className={`traffic-${kind}`} />
       : <button type="button" className={`traffic-${kind}`} aria-label={label} onClick={action} />;
   }
@@ -1128,6 +1136,8 @@ export function WindowChrome({
   readonly onZoom?: () => void;
 }) {
   const manager = useContext(StubManagerContext);
+  const embedded = useEmbeddedPresentation()?.windowManagement === false;
+  const hasOpened = useRef(false);
   const app = useContext(StubAppContext);
   const windowRef = useRef<HTMLElement>(null);
   const [geometry, setGeometry] = useState<StubWindowGeometry | null>(null);
@@ -1198,11 +1208,14 @@ export function WindowChrome({
     if (element?.hasPointerCapture?.(event.pointerId)) element.releasePointerCapture?.(event.pointerId);
   }
 
-  if (!visible) return null;
+  if (visible) hasOpened.current = true;
+  if (!visible && !hasOpened.current) return null;
   const windowStyle: CSSProperties = {
     ...framePlacement(frame, defaultSize),
     ...style,
     ...(managedWindow?.zoomed || geometry === null ? undefined : geometry),
+    ...(embedded ? { top: "calc(var(--mc-embedded-menu-height) + var(--mc-embedded-inset))", left: "var(--mc-embedded-inset)", width: "calc(100% - 2 * var(--mc-embedded-inset))", height: "calc(100% - var(--mc-embedded-menu-height) - 2 * var(--mc-embedded-inset))" } : undefined),
+    ...(!visible ? { display: "none" } : undefined),
     zIndex: managedWindow?.zIndex ?? style?.zIndex,
     viewTransitionName: resolvedWindowId === null ? undefined : `mc-window-${resolvedWindowId.replaceAll(":", "-3a-")}`,
   };
@@ -1214,9 +1227,12 @@ export function WindowChrome({
         aria-label={label}
         data-app-id={app?.id}
         data-key-window={managedWindow === undefined ? undefined : managedWindow.isKeyWindow ? "true" : "false"}
-        data-mobile-presentation={mobilePresentation}
+        hidden={!visible}
+        inert={!visible}
+        data-embedded-window={embedded ? "true" : undefined}
+        data-mobile-presentation={embedded ? undefined : mobilePresentation}
         data-window-id={resolvedWindowId ?? undefined}
-        data-window-resizable={resizable ? "true" : "false"}
+        data-window-resizable={resizable && !embedded ? "true" : "false"}
         data-window-state={managedWindow?.state}
         onPointerDownCapture={() => { if (resolvedWindowId !== null) manager?.activateWindow(resolvedWindowId); }}
         onFocusCapture={() => {
@@ -1228,7 +1244,7 @@ export function WindowChrome({
         style={windowStyle}
       >
         {children}
-        {resizable && !managedWindow?.zoomed ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} onPointerDown={(event) => beginResize(edge, event)} />) : null}
+        {resizable && !embedded && !managedWindow?.zoomed ? stubResizeEdges.map((edge) => <span aria-hidden="true" className={`mc-window-resize-handle mc-window-resize-${edge}`} data-window-resize-handle={edge} key={edge} onPointerDown={(event) => beginResize(edge, event)} />) : null}
       </section>
     </StubWindowControlsContext.Provider>
   );
@@ -1592,6 +1608,7 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
   readonly onAppActivate?: (appId: string) => void;
 }) {
   const manager = useMacWindowManager();
+  const embedded = useEmbeddedPresentation();
   const appIds = new Set(manager.apps.map((app) => app.id));
   const unmanagedItems = extraItems.filter((item) => !appIds.has(item.id));
   function appDockItem(app: MacManagedApp): DockItem {
@@ -1622,7 +1639,7 @@ export function MacAppDock({ extraItems = [], label = "Dock", onAppActivate }: {
     ...manager.apps.filter((app) => app.presentation === "windowed" && app.dockGroup === "places").map(appDockItem),
     ...unmanagedItems.filter((item) => item.group !== "apps"),
   ];
-  return <MacDock items={items} label={label} />;
+  return embedded?.windowManagement === false ? null : <MacDock items={items} label={label} />;
 }
 
 export function MenuBarExtra({ badge, children, icon, isOpen, label, onOpenChange, triggerRef }: {
@@ -2145,10 +2162,11 @@ function stubAccessibleTitleLabel(explicit: string | undefined, derived: string,
   return stubNonEmptyLabel(explicit) ?? stubNonEmptyLabel(derived) ?? stubNonEmptyLabel(fallback) ?? "Section";
 }
 
-export function MacList({ ariaLabel, className = "", emptyState = "No items", selectedId, sections, onSelectionChange }: {
+export function MacList({ ariaLabel, className = "", emptyState = "No items", escapeKeyBehavior, selectedId, sections, onSelectionChange }: {
   readonly ariaLabel: string;
   readonly className?: string;
   readonly emptyState?: ReactNode;
+  readonly escapeKeyBehavior?: ListBoxProps<MacListRow>["escapeKeyBehavior"];
   readonly selectedId: string | null;
   readonly sections: readonly MacListSection[];
   readonly onSelectionChange: (id: string | null) => void;
@@ -2186,6 +2204,7 @@ export function MacList({ ariaLabel, className = "", emptyState = "No items", se
       className={`mc-list ${className}`.trim()}
       selectionMode="single"
       selectionBehavior="replace"
+      escapeKeyBehavior={escapeKeyBehavior}
       selectedKeys={selectedId === null ? new Set<Key>() : new Set<Key>([selectedId])}
       onSelectionChange={handleSelectionChange}
       renderEmptyState={() => <div className="mc-list-empty">{emptyState}</div>}
@@ -2266,6 +2285,54 @@ export function MacTextField({ ariaLabel, autoComplete, className = "", descript
       {description !== undefined ? <small className="mc-field-description">{description}</small> : null}
       {errorMessage !== undefined ? <small className="mc-field-error">{errorMessage}</small> : null}
     </label>
+  );
+}
+
+export function MacSearchField({
+  ariaLabel,
+  className = "",
+  disabled = false,
+  label,
+  placeholder,
+  readOnly = false,
+  ref,
+  value,
+  onChange,
+  onSubmit,
+}: {
+  readonly ariaLabel?: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly label?: ReactNode;
+  readonly placeholder?: string;
+  readonly readOnly?: boolean;
+  readonly ref?: Ref<HTMLInputElement>;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly onSubmit?: (value: string) => void;
+}) {
+  const hasVisibleLabel = stubNormalizeAccessibleTitle(label).renderable;
+  return (
+    <SearchField
+      aria-label={hasVisibleLabel ? undefined : ariaLabel}
+      className={`mc-search-field ${className}`.trim()}
+      isDisabled={disabled}
+      isReadOnly={readOnly}
+      value={value}
+      onChange={onChange}
+      onSubmit={onSubmit}
+    >
+      {({ isEmpty }) => (
+        <>
+          {hasVisibleLabel ? <Label className="mc-field-label">{label}</Label> : null}
+          <div className="mc-search-control">
+            <span className="mc-search-icon" aria-hidden="true"><SystemSymbol name="magnifyingglass" size={13} /></span>
+            <Input ref={ref} className="mc-search-input" placeholder={placeholder} />
+            {!isEmpty && !readOnly ? <Button className="mc-search-clear"><SystemSymbol name="xmark.circle.fill" size={13} /></Button> : null}
+          </div>
+        </>
+      )}
+    </SearchField>
   );
 }
 
@@ -3233,6 +3300,7 @@ export type MacDialogAction = {
   readonly id: string;
   readonly label: string;
   readonly role?: MacDialogActionRole;
+  readonly placement?: "leading" | "trailing";
   readonly isDefault?: boolean;
   readonly disabled?: boolean;
   readonly onPress?: () => void;
@@ -3257,42 +3325,63 @@ function stubPerformAndClose(action: StubDialogAction | undefined, onClose: () =
   onClose();
 }
 
-function StubDialogActions({ actions, onClose }: { readonly actions: readonly StubDialogAction[]; readonly onClose: () => void }) {
-  const ordered = actions
+function orderedActions(actions: readonly StubDialogAction[]): readonly StubDialogAction[] {
+  return actions
     .map((action, index) => ({ action, index }))
     .sort((left, right) => {
       const priority = (action: StubDialogAction) => stubActionIsDefault(action) ? 2 : action.role === "cancel" ? 1 : 0;
       return priority(left.action) - priority(right.action) || left.index - right.index;
     })
     .map(({ action }) => action);
+}
+
+function StubDialogActions({ actions, onClose }: {
+  readonly actions: readonly StubDialogAction[];
+  readonly onClose: () => void;
+}) {
+  function perform(action: StubDialogAction) {
+    if (action.disabled === true) return;
+    action.onPress?.();
+    onClose();
+  }
+
+  function renderAction(action: StubDialogAction) {
+    const isDefault = stubActionIsDefault(action);
+    const isDestructive = action.role === "destructive";
+    const variant: MacButtonVariant = isDefault ? "primary" : isDestructive ? "destructive" : "regular";
+    return (
+      <MacButton
+        key={action.id}
+        className={`mc-dialog-action${isDefault ? " mc-dialog-action-default" : ""}${isDestructive ? " mc-dialog-action-destructive" : ""}${action.role === "cancel" ? " mc-dialog-action-cancel" : ""}`}
+        variant={variant}
+        disabled={action.disabled}
+        onPress={() => perform(action)}
+      >
+        {action.label}
+      </MacButton>
+    );
+  }
+
+  const leadingActions = actions.filter((action) => action.placement === "leading");
+  if (leadingActions.length === 0) {
+    return <div className="mc-dialog-actions">{orderedActions(actions).map(renderAction)}</div>;
+  }
+  const trailingActions = actions.filter((action) => action.placement !== "leading");
   return (
-    <div className="mc-dialog-actions">
-      {ordered.map((action) => {
-        const isDefault = stubActionIsDefault(action);
-        const isDestructive = action.role === "destructive";
-        return (
-          <MacButton
-            key={action.id}
-            className={`mc-dialog-action${isDefault ? " mc-dialog-action-default" : ""}${isDestructive ? " mc-dialog-action-destructive" : ""}${action.role === "cancel" ? " mc-dialog-action-cancel" : ""}`}
-            variant={isDefault ? "primary" : isDestructive ? "destructive" : "regular"}
-            disabled={action.disabled}
-            onPress={() => {
-              if (action.disabled === true) return;
-              action.onPress?.();
-              onClose();
-            }}
-          >
-            {action.label}
-          </MacButton>
-        );
-      })}
+    <div className="mc-dialog-actions mc-dialog-actions-separated">
+      <div className="mc-dialog-actions-group mc-dialog-actions-leading">{leadingActions.map(renderAction)}</div>
+      <div className="mc-dialog-actions-group mc-dialog-actions-trailing">{orderedActions(trailingActions).map(renderAction)}</div>
     </div>
   );
 }
 
-export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSelector, onClose, open, title }: {
+export function MacSheet({ actions, bodyScroll = "automatic", children, contentInset = "standard", fallbackFocusRef, headerAccessory, initialFocusSelector, onClose, open, size = "compact", title }: {
   readonly actions: readonly MacDialogAction[];
   readonly children: ReactNode;
+  readonly bodyScroll?: "automatic" | "contained";
+  readonly contentInset?: "standard" | "none";
+  readonly headerAccessory?: ReactNode;
+  readonly size?: "compact" | "wide" | "large";
   readonly fallbackFocusRef?: RefObject<HTMLElement | null>;
   readonly initialFocusSelector?: string;
   readonly onClose: () => void;
@@ -3308,7 +3397,7 @@ export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSele
     ?? (defaultAction === undefined ? ".mc-dialog-action-cancel:not([disabled]), .mc-dialog-action:not([disabled])" : ".mc-dialog-action-default:not([disabled])");
   return (
     <StubWindowModalHost
-      className="mc-sheet"
+      className={`mc-sheet mc-sheet-${size}`}
       role="dialog"
       ariaLabelledBy={titleId}
       ariaDescribedBy={bodyId}
@@ -3319,8 +3408,8 @@ export function MacSheet({ actions, children, fallbackFocusRef, initialFocusSele
       onDefault={defaultAction === undefined ? undefined : () => stubPerformAndClose(defaultAction, onClose)}
       open={open}
     >
-      <header className="mc-sheet-header"><h2 id={titleId}>{title}</h2></header>
-      <div className="mc-sheet-body" id={bodyId}>{children}</div>
+      <header className={`mc-sheet-header${headerAccessory != null ? " mc-sheet-header-with-accessory" : ""}`}><h2 id={titleId}>{title}</h2>{headerAccessory != null ? <div className="mc-sheet-header-accessory">{headerAccessory}</div> : null}</header>
+      <div className={`mc-sheet-body${bodyScroll === "contained" ? " mc-sheet-body-contained" : ""}${contentInset === "none" ? " mc-sheet-body-flush" : ""}`} id={bodyId}>{children}</div>
       <footer className="mc-sheet-footer"><StubDialogActions actions={actions} onClose={onClose} /></footer>
     </StubWindowModalHost>
   );

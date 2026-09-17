@@ -23,6 +23,7 @@ import {
 } from "react-aria-components";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
+import { getElementScale, useDesktopSpace, viewportDeltaToLocal } from "./desktop-space.tsx";
 import { DisclosureIndicator } from "./disclosure-indicator.tsx";
 import "./styles/tokens.css";
 import "./styles/navigation.css";
@@ -280,6 +281,8 @@ type InspectorDrag = {
   readonly pointerId: number;
   readonly startX: number;
   readonly startWidth: number;
+  readonly scaleElement: HTMLElement;
+  readonly scale: number;
 };
 
 /**
@@ -298,6 +301,7 @@ export function MacInspector({
   maxWidth = 360,
   onWidthChange,
 }: MacInspectorProps) {
+  const desktopSpace = useDesktopSpace();
   const normalizedMinimum = Math.min(minWidth, maxWidth);
   const normalizedMaximum = Math.max(minWidth, maxWidth);
   const [uncontrolledWidth, setUncontrolledWidth] = useState(() =>
@@ -327,7 +331,7 @@ export function MacInspector({
     if (element === null) return;
     const measuredElement = element;
     function measure() {
-      const nextWidth = measuredElement.getBoundingClientRect().width;
+      const nextWidth = measuredElement.getBoundingClientRect().width / getElementScale(measuredElement).x;
       if (nextWidth <= 0) return;
       setMeasurement((current) =>
         current?.key === currentMeasurementKey && current.width === nextWidth
@@ -342,7 +346,10 @@ export function MacInspector({
   }, [measurementKey, visible]);
 
   function currentWidth(): number {
-    const measuredWidth = inspectorRef.current?.getBoundingClientRect().width ?? 0;
+    const element = inspectorRef.current;
+    const measuredWidth = element === null
+      ? 0
+      : element.getBoundingClientRect().width / getElementScale(element).x;
     return measuredWidth > 0 ? measuredWidth : (reportedWidth ?? uncontrolledWidth);
   }
 
@@ -354,10 +361,16 @@ export function MacInspector({
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || event.isPrimary === false) return;
+    const element = inspectorRef.current;
+    if (element === null) return;
+    const parent = element.parentElement;
+    const scaleElement = desktopSpace?.canvas ?? (parent && parent.offsetWidth > 0 ? parent : element);
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startWidth: currentWidth(),
+      scaleElement,
+      scale: getElementScale(scaleElement).x,
     };
     event.preventDefault();
     if (typeof event.currentTarget.setPointerCapture === "function") {
@@ -368,8 +381,15 @@ export function MacInspector({
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     if (drag === null || drag.pointerId !== event.pointerId) return;
+    if (Math.abs(getElementScale(drag.scaleElement).x - drag.scale) > 0.000001) {
+      finishPointerResize(event);
+      return;
+    }
     // The inspector trails the content, so moving its leading edge left grows it.
-    resizeTo(drag.startWidth + drag.startX - event.clientX);
+    const element = inspectorRef.current;
+    if (element === null) return;
+    const delta = viewportDeltaToLocal(element, { x: drag.startX - event.clientX, y: 0 });
+    resizeTo(drag.startWidth + delta.x);
   }
 
   function finishPointerResize(event: ReactPointerEvent<HTMLDivElement>) {

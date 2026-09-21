@@ -5,13 +5,16 @@ description: >-
   Testing and restructuring existing Swift Testing tests around newer
   features. Use when asked to modernize, migrate, or convert tests; not
   for writing brand-new tests, running tests, or XCUI automation (which
-  cannot migrate). (Content extracted from your local Xcode on install.)
+  cannot migrate). Legacy compatibility name for Xcode 27's canonical
+  modernize-tests skill. (Content materialized from your local Xcode on
+  install.)
 metadata:
   stub: "true"
+  official_name: modernize-tests
   content: Apple-authored; extracted locally from Xcode by scripts/extract-apple-skills.sh
 ---
 
-# test-modernizer (stub)
+# test-modernizer (legacy alias stub)
 
 > **Not yet extracted.** This is a stub. The real skill is Apple-authored
 > content that ships inside Xcode; Apple's license doesn't permit

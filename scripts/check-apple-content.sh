@@ -1,7 +1,7 @@
 #!/bin/bash
-# SessionStart hook: nudge (agent + user) until Apple content is extracted.
+# SessionStart hook: refresh after Xcode upgrades or an incomplete installation.
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-if [ ! -f "$ROOT/skills/.apple-content-extracted" ]; then
-  echo "swift-agent-kit: Apple's ten Xcode skills are stubs until extracted from your local Xcode (Apple's license doesn't permit redistributing them). Run: \"$ROOT/scripts/extract-apple-skills.sh\" (needs Xcode 27+, ~5s). The kit's own skills (swift-standards, apple-docs, xcode-tools, apple-api-updates routing) work now. This notice disappears after extraction."
+if ! "$ROOT/skills/apple-api-updates/scripts/extract-apple-skills.sh" --check >/dev/null 2>&1; then
+  echo "swift-agent-kit: Apple's 16 skill entries need local extraction or refresh for the selected Xcode build. Run: \"$ROOT/scripts/extract-apple-skills.sh\" (requires Xcode 27). The kit's own skills work now. Extraction preserves the kit's aliases and adds Apple's supporting references and API guides."
 fi
 exit 0

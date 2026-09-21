@@ -3,8 +3,11 @@
 Format: **verdict** (when Claude Code should/shouldn't reach for it), then
 only nuances you can't learn from the tool's own schema — read the schema
 too; Xcode 27's schemas are good and this file doesn't repeat them.
-Observed on Xcode 27.0 beta (27A5194q) across two audit passes, ~190 live
-calls. Timings come from the tools' own `elapsedTime` where available.
+The detailed observations below were made on Xcode 27.0 beta (27A5194q)
+across two audit passes, ~190 live calls. They remain useful as dated beta
+observations, not release guarantees. The Xcode 27.0 (27A266a) warm headless
+schema is the current contract; use it when it differs. Timings come from the
+tools' own `elapsedTime` where available.
 
 Contents: §Workspace · §Files · §Diagnostics/build · §Snippets/tests ·
 §Run/debug/console · §Previews · §Settings/config · §Localization · §Device ·
@@ -12,7 +15,28 @@ Contents: §Workspace · §Files · §Diagnostics/build · §Snippets/tests ·
 
 ## §Workspace
 
-**XcodeListWindows** — USE once at bootstrap. Output is plain text inside
+### Xcode 27 headless workspace path
+
+**XcodeListWorkspaces** — USE to discover headless workspaces. Its live
+schema can return handles such as `workspace1`; project tools accept that
+handle or an absolute path as optional `workspaceIdentifier`.
+
+**XcodeOpenWorkspace / XcodeCloseWorkspace** — USE to establish or release a
+headless workspace. Opening a project may initiate the signed agent and folder
+approval flow. Do not substitute a UI launch merely to obtain a legacy tab
+identifier.
+
+**XcodeListTemplates / XcodeNewProject / XcodeNewTarget / XcodeListTargets**
+— USE only for their named project-lifecycle task. Create a project from a
+template and then open its workspace before project-scoped work. `XcodeListTargets`
+does not include Swift-package products or synthetic targets.
+
+**XcodeListTestPlans / XcodeSwitchTestPlan** — USE when a task explicitly
+needs a test plan. Selecting a plan persists in the scheme, so report the
+side effect to the user.
+
+**XcodeListWindows** — beta UI-attached observation: USE once at bootstrap
+only if this tool is exposed. Output is plain text inside
 `message` (`* tabIdentifier: windowtab2, workspacePath: …`), one line per
 window — regex it, there are no structured fields. Multiple windows: match
 on `workspacePath`.
@@ -28,11 +52,12 @@ re-selects are quiet no-ops (verified).
 Only for changing device class; otherwise read the active destination from
 a switch-tool response.
 
-**XcodeGetCurrentFile** — USE only to answer "what is the user looking at /
-editing?" — the one capability with no native equivalent.
+**XcodeGetCurrentFile** — beta UI-attached observation: USE only when
+exposed to answer "what is the user looking at / editing?" — the one
+capability with no native equivalent.
 `{"isEditable":false}` = no editor focus. Remote MCP edits never change it.
 
-**XcodeListNavigatorIssues** — USE after a build for a cross-file sweep
+**XcodeListNavigatorIssues** — beta UI-attached observation: USE after a build for a cross-file sweep
 including package-resolution/workspace issues (which GetBuildLog lacks);
 `vitality:"fresh"|"stale"` tells you whether an issue predates the last
 build. Defaults to `severity:"error"` — pass `"warning"` or it looks empty
@@ -193,10 +218,11 @@ creates `<Target>.entitlements` + sets `CODE_SIGN_ENTITLEMENTS`.
 
 ## §Localization
 
-All four tools' schemas demand `xcode-integration:*` skills that don't
-exist outside Xcode — every tool works fine without them (verified); the
-vendored `translation`/`translation-coordinator` skills are the
-equivalents.
+Historical schemas reference `xcode-integration:*` translation skills. Xcode
+27 now exports the official translation skills, while this kit adapts their
+namespace for its plugin and flat-skill layouts. Use the installed kit skill
+names and the live tool schema; translation tools do not depend on a literal
+historical namespace match.
 
 **LocalizationPlanner** — CAUTION, a mutating re-extraction, not a
 read-only planner: preparing a locale rewrote the existing catalog
@@ -217,14 +243,20 @@ attribution (file/line/column), usage hints, plural cases. Unique data.
 native-editing the .xcstrings JSON: they maintain the state machine and
 extraction sync.
 
-## §Device (iOS Simulator 27.0+ only — verified live)
+## §Device (June beta iOS-Simulator observation)
 
 Requires an iOS 27+ simulator runtime; with only older runtimes every
 StartSession fails fast ("Supported: iOS [Simulator] 27.0+"), and Mac is
 explicitly unsupported (probed: "My Mac" → refused). Full verified pass:
 9 calls, ~3.4 min wall including all captures.
 
-**DeviceInteractionStartSession** — ~15–25s against a booted device.
+**DeviceInteractionStartWorkspaceSession** — Xcode 27 headless path for a
+project run and device interaction. Supply the workspace selector and read
+the live schema for device selection. It supersedes the workspace-bound part
+of the beta setup flow below.
+
+**DeviceInteractionStartSession** — beta observation: this session is
+workspace-free and cannot build or install. ~15–25s against a booted device.
 Returns `{deviceIsSimulator, deviceUUID, interactionSessionKey,
 skillToTrigger, summary}`. The session key is NOT server-generated — it's
 your own `sessionIdentifier` echoed back. **Recently-used identifiers are

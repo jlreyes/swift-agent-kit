@@ -18,16 +18,18 @@ description: >-
 license: Apple-copyrighted reference content; private personal use only — do not redistribute.
 metadata:
   author: jlreyes
-  source: Xcode 27.0 beta (27A5194q) — IDEIntelligenceChat.framework AdditionalDocumentation
+  source: Xcode 27.0 (27A266a) — IDEIntelligenceChat.framework AdditionalDocumentation; the 20 guides from the prior local extraction matched the release copies byte-for-byte
 ---
 
 # Apple API Updates
 
 These reference guides were written and published by Apple (shipped inside
-Xcode for model-context injection). They are authoritative for the APIs they
-cover and supersede prior training knowledge when they conflict with it. Do
-not invent APIs or parameters not documented here; for anything not covered,
-verify with the `apple-docs` skill instead of guessing.
+Xcode for model-context injection). The 20 guides from the prior local
+extraction match the installed Xcode 27.0 release copies byte-for-byte. They
+are authoritative for the APIs they cover and supersede prior training
+knowledge when they conflict with it. Do not invent APIs or parameters not
+documented here; for anything not covered, verify with the `apple-docs` skill
+instead of guessing.
 
 Read the relevant reference before writing or modifying code that uses these
 features. Each file is self-contained.
@@ -38,7 +40,11 @@ toolbar overflow (`visibilityPriority`, `ToolbarOverflowMenu`,
 (`ReadableDocument`/`WritableDocument`), `alert`/`confirmationDialog(item:)`,
 swipe actions outside `List`, `reorderable()`, AsyncImage caching, or the
 `@State` macro migration — read the `swiftui-whats-new-27` skill's references
-first.
+first. For a document-based app using the new `Document`, `DocumentReader`,
+or `DocumentWriter` APIs, load
+`building-document-based-swiftui-applications`; existing
+`ReadableDocument`/`WritableDocument` guidance remains valid where its APIs
+apply.
 
 ## References
 

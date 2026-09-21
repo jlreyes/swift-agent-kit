@@ -4,8 +4,9 @@ description: >-
   Apple's implementation guide for Dynamic Type support on iOS: UIKit
   and SwiftUI patterns, common mistakes, Large Content Viewer, and a
   testing checklist. Use when adding or fixing Dynamic Type / text-size
-  accessibility support. (Content extracted from your local Xcode on
-  install.)
+  accessibility support. This implementation entry complements Xcode 27's
+  accessibility-dynamic-type-specialist audit skill. (Content materialized
+  from your local Xcode on install.)
 metadata:
   stub: "true"
   content: Apple-authored; extracted locally from Xcode by scripts/extract-apple-skills.sh

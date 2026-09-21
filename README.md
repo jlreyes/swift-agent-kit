@@ -15,22 +15,22 @@ tooling badly. This kit bundles the fixes.
    code, SwiftData actor misuse.
 2. **Provides *all* the documentation** (`apple-docs` + `apple-api-updates`)
    — teaches the agent to fetch what it doesn't know instead of guessing:
-   exact signatures and availability from your installed SDK (with a real
-   falsification check — zero grep hits means the API doesn't exist), DocC
+   exact signatures and availability from your selected SDK (with a
+   falsification check after checking module, platform, and headers), DocC
    prose and code examples, the HIG, WWDC transcripts, Swift Evolution, and
    Apple's API-update guides — plus when each beats Xcode's built-in
    `DocumentationSearch` (measured, not guessed: semantic search can never
    say "no such API").
-3. **Exposes Xcode's built-in skills** — installs Apple's ten Xcode 27
-   agent skills by extracting them from *your* Xcode (Apple's license
-   doesn't permit shipping them — that's a workaround, not a feature), with
-   guidance on when to use them and when not to (e.g. the SDK-27 SwiftUI
-   pack supersedes the 26-era toolbar guide).
+3. **Exposes Xcode's built-in skills** — materializes the 15 Apple Xcode 27
+   skills from *your* Xcode, while retaining this kit's Dynamic Type
+   implementation guide. Apple’s license doesn't permit shipping that
+   content, so the installer uses your local Xcode as the source and keeps
+   the kit’s short, portable trigger descriptions.
 4. **Drives Xcode as a worker** (`xcode-tools`) — build, test, debug (a
    real lldb into the running app), render previews, and tap through the
    simulator over Xcode's MCP server, with a division-of-labor guide built
    from ~190 live probe calls: which jobs belong to the agent's native
-   tools, which to Xcode's 47 MCP tools, which to the CLI.
+   tools, which to Xcode's dynamically discovered MCP tools, which to the CLI.
 5. **Makes Instruments programmable** — embeds
    [instruments-analyzer](https://github.com/jlreyes/instruments-analyzer)
    (auto-installed; vendored via git subtree): export `.trace` files to
@@ -84,14 +84,30 @@ bodies are cached per session, and agents can't run slash commands, so the
 agent will answer from the extracted files directly and ask you to reload.
 Re-run the script after Xcode or plugin updates.
 
-Wire up Xcode's MCP server (one-time; Xcode must be running when a session
-starts for its tools to enumerate):
+Wire up Xcode's MCP server (one-time):
 
 ```bash
 claude mcp add --scope user xcode-tools \
-  --env DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-  -- /Applications/Xcode-beta.app/Contents/Developer/usr/bin/mcpbridge
+  -- xcrun mcpbridge
 ```
+
+For Codex:
+
+```bash
+codex mcp add xcode-tools -- xcrun mcpbridge
+```
+
+Xcode 27’s MCP service can start on demand in headless mode. Check its state
+with `xcrun mcp-server status`. When service setup is authorized, enable it
+with `sudo xcrun mcp-server enable` using normal admin approval; do not alter
+permission grants outside the authorized scope or use
+`--unsafe-always-allow-all-agents` by default. Opening a workspace may request
+scoped permission for the signed agent and its directory.
+
+The materializer refuses to write Apple content into a Git checkout. Run it
+from an installed copy of the kit; for a disposable local copy, pass
+`--skills-dir <separate-skills-directory>` to
+`extract-apple-skills.sh`.
 
 Recommended companions:
 
@@ -112,7 +128,7 @@ Recommended companions:
 | `skills/xcode-tools/` | Xcode MCP operating guide + per-tool verdicts (ours, MIT) |
 | `skills/apple-api-updates/` | Routing wrapper + the extraction script (`scripts/extract-apple-skills.sh`) |
 | `skills/instruments-analyzer/` | Instruments → DuckDB trace analysis (embedded upstream, MIT) |
-| `skills/<ten Apple skills>/` | Stubs with our trigger descriptions until extracted |
+| `skills/<Apple skills>/` | Stubs with our trigger descriptions until materialized from Xcode |
 | `scripts/`, `hooks/` | Plugin-root wrapper + SessionStart nudge (Claude Code route) |
 
 ## Licensing
@@ -125,9 +141,15 @@ containing Apple-authored skill bodies will be closed.
 
 ## Maintenance
 
-- Built against Xcode 27.0 beta (27A5194q); the operating guide and routing
-  rules are empirical and will drift as betas rev — re-extract after Xcode
-  updates.
+- Built against Xcode 27.0 (27A266a), refreshed from the June beta baseline
+  (27A5194q). The operating guide retains dated beta observations where they
+  have not been re-run; re-materialize skills and refresh MCP inventory after
+  Xcode updates.
+- [Xcode 27 compatibility](docs/xcode-27-compatibility.md) records the
+  release schema, skill parity, and the limits of the local verification.
+- Installer fixtures: `python3 -m unittest discover -s tests -v`. With Xcode
+  27 installed, `python3 tests/verify_local_xcode.py` also materializes both
+  supported layouts in temporary directories and checks their local parity.
 - Updating a skills.sh install: `npx skills add` does NOT refresh skill
   directories that already exist — remove the kit's skill dirs from
   `~/.agents/skills/` (or your agent's skills dir) first, then re-add and

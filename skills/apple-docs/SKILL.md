@@ -1,20 +1,13 @@
 ---
 name: apple-docs
 description: >-
-  Looks up real, current Apple/Swift documentation to supplement model
-  knowledge — SwiftUI/UIKit/Foundation API signatures and availability, full
-  API-reference prose and code examples, the Human Interface Guidelines, WWDC
-  session transcripts, Swift Evolution proposals, and Apple's curated
-  per-framework what's-new changelogs for any OS release. Use for ANY
-  question about a specific Apple or Swift API or symbol — explaining how it
-  works, showing code examples, confirming it exists, getting its exact
-  signature and availability, or checking recent APIs that may post-date
-  training data. Use it even while working inside a Swift project: questions
-  about an Apple API are answered from Apple's docs, not the repo. For
-  iOS/macOS 26 adoption guides (Liquid Glass etc.) see apple-api-updates;
-  for SDK-27 SwiftUI changes see swiftui-whats-new-27. Uses only built-in
-  tools (Grep against the local Xcode SDK; WebSearch + WebFetch against
-  Apple's DocC JSON, the HIG, WWDC videos, and Swift Evolution).
+  Look up current Apple and Swift documentation for API signatures,
+  availability, explanations, examples, HIG guidance, WWDC transcripts,
+  Swift Evolution, and framework changelogs. Use for a specific Apple or
+  Swift API, including recent APIs: verify symbols in the selected SDK and
+  fetch prose from Apple. For iOS/macOS 26 adoption guides use
+  apple-api-updates; for SDK-27 SwiftUI use swiftui-whats-new-27; for new
+  Document-based SwiftUI apps use building-document-based-swiftui-applications.
 ---
 
 # Apple & Swift Documentation Lookup
@@ -37,7 +30,7 @@ isn't available this session, use `rg` (or `grep -r`) via Bash with the same fla
 `mcp__xcode-tools__*` exist), its `DocumentationSearch` adds one capability
 this skill lacks: **semantic discovery** — "what's the API for X" when you
 don't know the symbol name — over API reference, HIG, AND tutorials, indexed
-from the installed Xcode (so it matches the beta SDK you compile against).
+from the installed Xcode.
 Division of labor, verified empirically:
 - *Don't know the name / conceptual / HIG* → `DocumentationSearch`
   (use its `frameworks` filter; ~30KB/query).
@@ -51,27 +44,30 @@ Division of labor, verified empirically:
 - Exact-symbol queries in DocumentationSearch rank *related* pages above the
   symbol's own page, then degrade to noise below ~0.6 score — treat the tail
   as filler.
-- No Xcode running / no MCP → this skill covers everything except semantic
-  discovery (substitute: `WebSearch` scoped to developer.apple.com).
+- No MCP connection → this skill covers everything except semantic discovery
+  (substitute: `WebSearch` scoped to developer.apple.com). Xcode 27 can serve
+  MCP headlessly, so an open Xcode window is not a prerequisite.
 
 ## Recipes
 
 ### 1. Exact signature / availability / does a specific API exist → local SDK grep
-Apple ships every public declaration in the SDK's Swift module interfaces — local, offline, an
-exact match for the Xcode you compile against. (This returns *signatures*, not prose or examples —
-for those use recipe 2.)
+Apple ships many public Swift declarations in SDK module interfaces — local,
+offline, and matched to the selected Xcode. This returns *signatures*, not
+prose or examples; use recipe 2 for those.
 
 Search with the **Grep tool** if available, else `rg` via Bash (identical flags):
 - pattern: the symbol, e.g. `func glassEffect`
-- path: `/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks` (a stable symlink to the active SDK — grep it directly, no `xcrun` needed)
-- **Multiple Xcodes installed?** Grep the SDK of the Xcode the project BUILDS with — for beta-SDK work substitute `Xcode-beta.app` in the path, or availability answers will be a major version stale (e.g. an iOS 27 API shows zero hits in 26.x's SDK, which reads as "doesn't exist").
+- path: the active Xcode's `Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks` directory. Obtain its developer directory with `xcode-select -p`, or use the project's explicit `DEVELOPER_DIR`; append the platform path to that directory.
+- **Multiple Xcodes installed?** Grep the SDK of the Xcode the project BUILDS with. An SDK mismatch can turn a real recent API into a false zero-hit result.
 - glob: `*.swiftinterface`
 - **`-B 3`** (Grep tool: `-B: 3`) — the `@available(...)` lines sit *directly above* the declaration, so one pass gets signature **and** availability; don't re-search for `@available`.
 
 Symbols live in their *defining* module (`glassEffect` → **SwiftUICore**, which SwiftUI re-exports),
 so grep the whole Frameworks dir. Interfaces ship per-arch, so each decl appears ~twice — ignore
-dupes. **Never `Read` a whole `.swiftinterface` file (they're 1–2 MB), and never hand-write
-multiline regexes — always plain grep.**
+dupes. A zero hit is strong evidence only after checking the selected SDK,
+defining module, platform, and the relevant Objective-C headers when the API
+is not Swift-imported. **Never `Read` a whole `.swiftinterface` file (they're
+1–2 MB), and never hand-write multiline regexes — always plain grep.**
 
 **Is a *specific* API new in 26 / since when?** Grep its name with `-B 3` (above) — the `@available`
 line answers it. For a *full list* of what's new in a framework, **don't grep the SDK** — use the
@@ -88,7 +84,10 @@ samples, and tables for you. Fetch each URL **once** (ask for everything you nee
 - **Human Interface Guidelines:** `https://developer.apple.com/tutorials/data/design/human-interface-guidelines/<topic>.json` — e.g. `…/materials.json` (note the `design/…` slug — no `documentation/` segment for HIG). Topic slugs aren't always 1:1: **Liquid Glass guidance lives on `materials.json`**, not `liquid-glass.json`. If a guessed slug 404s, `WebSearch developer.apple.com/design` to find the right page instead of guessing again.
 - **Framework index / "what APIs are in X":** `…/tutorials/data/documentation/<framework>.json` — its `topicSections` list the members.
 - **What's NEW in a framework** (best for "what changed in iOS/macOS 26"): `https://developer.apple.com/tutorials/data/documentation/Updates/<Framework>.json` — e.g. `Updates/SwiftUI.json`. Apple's curated "what's new," grouped by release; the **June-2025** section = iOS/macOS 26. One WebFetch beats grepping thousands of `@available` lines.
-- Do NOT WebFetch `developer.apple.com/documentation/…` (the human page) — it's a JS shell with no content. Always use the `tutorials/data/…json` URL.
+- Prefer the `tutorials/data/…json` URL for structured DocC. Some public
+  documentation pages also expose a useful `.md` representation; fetch that
+  when it is available. Do not rely on the JavaScript HTML shell as the source
+  of page content.
 
 ### 3. WWDC sessions — find by topic, then read → WebSearch + WebFetch
 - **Find sessions:** `WebSearch "WWDC <topic>"` (optionally `allowed_domains: ["developer.apple.com"]`). Apple's session pages are well-indexed, so this reliably surfaces the relevant sessions across *all* years (2015→latest). E.g. "WWDC SwiftUI scroll performance" → *Demystify SwiftUI performance* (wwdc2023/10160) and *Optimize SwiftUI performance with Instruments* (wwdc2025/306); "WWDC Instruments time profiler" → the 2016 *Time Profiler* / *System Trace in Depth* sessions and the 2025 CPU/Processor-Trace ones. Results include the `…/videos/play/wwdc<year>/<id>/` URL.
@@ -102,11 +101,15 @@ samples, and tables for you. Fetch each URL **once** (ask for everything you nee
 ### 5. iOS 26 design/adoption guides (Liquid Glass, AlarmKit, FoundationModels…) → apple-api-updates skill
 These Apple adoption guides are vendored in this plugin's `apple-api-updates`
 skill (references indexed by topic) — use that skill directly. Fallback if it's
-unavailable: grep `pattern` = your topic, `path` =
-`/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation` (substitute `Xcode-beta.app` for the beta), then Read the matching `*.md`.
+unavailable: grep `pattern` = your topic in the active Xcode's
+`PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation`
+directory (derived from `xcode-select -p`), then Read the matching `*.md`.
 
 ## Notes
-- Prefer **Grep (local SDK)** for "exists / signature / since-when" — instant, offline, exact. Prefer **WebFetch (DocC JSON)** for understanding — prose, examples, HIG.
+- Prefer **Grep (local SDK)** for candidate signatures and availability, then
+  check module/platform/header coverage before treating a zero hit as absence.
+  Prefer **WebFetch (DocC JSON or public `.md`)** for understanding — prose,
+  examples, and HIG.
 - **Can't find it / not sure where it lives?** `WebSearch` scoped to `developer.apple.com` (videos, docs, sample code, and forums are all well-indexed), then WebFetch the best result. This is the general fallback for anything the recipes above don't cover.
 - Advanced (only if you need exact structured fields rather than rendered prose): the DocC JSON has `.abstract`, `.primaryContentSections`, `.topicSections`, and a `.references` map (resolve inline `{"type":"reference","identifier":…}` fragments against it). You can `curl <url> | jq` those directly — but WebFetch already does this rendering, so reach for jq only when you need something specific.
 - These supplement, not replace, your knowledge — use them on anything recent or when you're unsure.

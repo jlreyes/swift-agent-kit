@@ -7,13 +7,16 @@ description: >-
   adoption strategy for existing C code, compiler build settings and
   modes, and runtime debugging of bounds violations. Use when reading,
   writing, reviewing, or debugging C code that uses or wants to adopt
-  -fbounds-safety. (Content extracted from your local Xcode on install.)
+  -fbounds-safety. Legacy compatibility name for Xcode 27's canonical
+  adopt-c-bounds-safety skill. (Content materialized from your local Xcode
+  on install.)
 metadata:
   stub: "true"
+  official_name: adopt-c-bounds-safety
   content: Apple-authored; extracted locally from Xcode by scripts/extract-apple-skills.sh
 ---
 
-# c-bounds-safety (stub)
+# c-bounds-safety (legacy alias stub)
 
 > **Not yet extracted.** This is a stub. The real skill is Apple-authored
 > content that ships inside Xcode; Apple's license doesn't permit

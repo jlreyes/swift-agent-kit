@@ -1,5 +1,7 @@
 .DS_Store
 node_modules/
+__pycache__/
+*.pyc
 # Extraction state — never committed
 .apple-content-extracted
 skills/.apple-content-extracted

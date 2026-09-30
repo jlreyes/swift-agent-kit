@@ -1,13 +1,50 @@
 ---
 name: swift-standards
 description: >-
-  House Swift coding standards, in force for all Swift work — Swift 6 strict
-  concurrency, the Observation framework (@Observable/@State), SwiftUI
-  performance and invalidation discipline, reactive-over-imperative state,
-  SwiftUI preview pitfalls, SwiftData actor-safety, and Apple's agent
-  conventions. Load whenever writing, editing, reviewing, or refactoring any
-  Swift (.swift) code, SwiftUI view, Swift test, or SwiftPM package — not
-  only when debugging or reviewing.
+  House Swift coding standards — Swift 6 strict concurrency, the Observation
+  framework (@Observable/@State), SwiftUI performance,
+  reactive-over-imperative state, SwiftUI preview pitfalls, SwiftData
+  actor-safety, and Apple's agent conventions. WHEN TO LOAD: before writing
+  or editing ANY Swift code — including small edits, additions, and
+  extensions to existing files. Load the skill and read its reference
+  material first, then keep applying it while you write. WHY THIS IS
+  NON-NEGOTIABLE: this skill defines what NEW code must look like; it is not
+  optional background you merely read. Loading it is necessary but NOT
+  sufficient — the point is to APPLY it. Existing code in this repo may
+  predate the standards. The code you ADD or CHANGE must conform to the
+  standards even when it sits inside a legacy file that does not. Never
+  mirror or copy the patterns of surrounding code just because they are
+  there — matching a legacy file's style is not a goal; conforming to the
+  standard is. If a task says new code should "behave like" an existing
+  feature, that means match the observable BEHAVIOR (what persists, what the
+  rest of the app sees), NOT the legacy implementation. TRANSLATE LEGACY →
+  MODERN whenever you touch it. These deprecated patterns must NOT appear in
+  code you add, and here is what to write instead: - ObservableObject +
+  @Published stored properties → an @Observable class (Observation
+  framework) with plain stored properties. No `@Published`, no
+  `ObservableObject`. - Broadcasting state changes with
+  `NotificationCenter.default.post` (and matching observers) → make the
+  state reactive: hold it in an @Observable type and let the rest of the app
+  read the property directly so views/consumers react automatically. No
+  manual posts, no custom Notification.Name, no observer registration. -
+  Hand-rolled `Binding(get:set:)` wrappers → use `@Bindable` and the `$`
+  projection for two-way binding (e.g. `Toggle("Show Previews", isOn:
+  $settings.showPreviews)`). - Scattered `UserDefaults.standard`
+  reads/writes in initializers and setters → persist through `@AppStorage`
+  or the skill's centralized/reactive persistence pattern, not raw
+  `UserDefaults.standard.bool(forKey:)` / `.set(_:forKey:)` calls sprinkled
+  through the store. - DispatchQueue / completion handlers → async/await,
+  with `@MainActor` isolation where UI state is involved. MIGRATE WHEN
+  SMALL: if the surrounding legacy is small and self-contained, bring it up
+  to standard while you are there rather than layering more legacy on top.
+  If a full migration would be too large or risky, still write your NEW
+  addition to the standard and keep it internally consistent — do NOT
+  regress to `@Published` / `NotificationCenter` posts / hand-rolled
+  `Binding` / raw `UserDefaults` in order to "match" the file. BEFORE
+  FINISHING: re-read the diff of what you added and confirm it contains none
+  of the deprecated patterns above. If any slipped in from mirroring
+  neighbors, rewrite them to the modern equivalent before you report the
+  change as done.
 metadata:
   author: jlreyes
 ---

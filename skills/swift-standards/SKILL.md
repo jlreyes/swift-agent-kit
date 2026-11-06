@@ -1,9 +1,10 @@
 ---
 name: swift-standards
 description: >-
-  House Swift coding standards, in force for all Swift work — Swift 6 strict
-  concurrency, the Observation framework (@Observable/@State), SwiftUI
-  performance and invalidation discipline, reactive-over-imperative state,
+  House Swift coding standards, in force for all Swift work — project
+  organization, Swift 6 strict concurrency, the Observation framework
+  (@Observable/@State), SwiftUI performance and invalidation discipline,
+  reactive-over-imperative state,
   SwiftUI preview pitfalls, SwiftData actor-safety, and Apple's agent
   conventions. Load whenever writing, editing, reviewing, or refactoring any
   Swift (.swift) code, SwiftUI view, Swift test, or SwiftPM package — not
@@ -59,6 +60,10 @@ guess at post-cutoff APIs — look them up (`apple-docs`,
 
 ## References
 
+- `references/project-organization.md` — six principles for where app code
+  goes and what to call it, each shown in a shipping app's real file tree,
+  plus where those apps strained. Read when adding a feature, screen, or
+  module, or when deciding where a file belongs.
 - `references/old-swift-patterns.md` — the replace-at-a-glance table for
   legacy patterns (ObservableObject, DispatchQueue, completion handlers,
   SwiftData model passing), with adapters and snippets. Read when

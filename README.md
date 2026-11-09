@@ -21,7 +21,7 @@ tooling badly. This kit bundles the fixes.
    Apple's API-update guides — plus when each beats Xcode's built-in
    `DocumentationSearch` (measured, not guessed: semantic search can never
    say "no such API").
-3. **Exposes Xcode's built-in skills** — materializes the 15 Apple Xcode 27
+3. **Exposes Xcode's built-in skills** — materializes the Apple Xcode 27
    skills from *your* Xcode, while retaining this kit's Dynamic Type
    implementation guide. Apple’s license doesn't permit shipping that
    content, so the installer uses your local Xcode as the source and keeps

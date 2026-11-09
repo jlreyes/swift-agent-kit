@@ -31,7 +31,10 @@ def snapshot(root):
 
 def verify_official_files(source, destination, namespace):
     counts = {"official_files": 0, "references": 0, "scripts": 0}
-    for official, public in installer.SKILLS.items():
+    exported = {path.name for path in (source / "skills").iterdir() if path.is_dir()}
+    for official, public in installer.installs_for(exported):
+        if public == "ios-dynamic-text":
+            continue  # Built from a reference guide; verified separately.
         original = source / "skills" / official
         installed = destination / public
         expected = {str(path.relative_to(original)) for path in original.rglob("*") if path.is_file()}
@@ -70,7 +73,7 @@ def verify_layout(layout, source, documents, build, environment):
         destination = root / "skills"
         destination.mkdir()
         names = {public for _, public in installer.INSTALLS} | {"apple-api-updates"}
-        for name in sorted(names):
+        for name in sorted(name for name in names if (REPOSITORY / "skills" / name).is_dir()):
             shutil.copytree(REPOSITORY / "skills" / name, destination / name,
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         if layout == "plugin":

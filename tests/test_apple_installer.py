@@ -98,7 +98,10 @@ class InstallerTests(unittest.TestCase):
 
     def test_curated_manifest_matches_repository_stubs(self):
         descriptions = json.loads(MODULE.with_name("descriptions.json").read_text())
-        for _, public in installer.INSTALLS:
+        for official, public in installer.INSTALLS:
+            if official in installer.ADDED_AFTER_27_0:
+                self.assertLessEqual(len(descriptions[public]), 1024)
+                continue  # No stub: these exist only when the local Xcode exports them.
             stub = MODULE.parents[2] / public / "SKILL.md"
             self.assertEqual(descriptions[public], installer.field(installer.frontmatter(stub.read_text())[0], "description")[0])
             self.assertLessEqual(len(descriptions[public]), 1024)
@@ -110,6 +113,23 @@ class InstallerTests(unittest.TestCase):
         installer.install(self.source, self.docs, minimal, "27A266a")
         self.assertTrue(installer.fresh(minimal, "27A266a"))
         self.assertIn("`translation`", (minimal / "translation/SKILL.md").read_text())
+
+    def test_xcode_27_0_export_installs_without_later_skills(self):
+        for name in installer.ADDED_AFTER_27_0:
+            shutil.rmtree(self.source / "skills" / name)
+            shutil.rmtree(self.skills / name)
+        self.install()
+        self.assertFalse((self.skills / "xctrace").exists())
+        self.assertTrue(installer.fresh(self.skills, "27A266a"))
+
+    def test_xcode_27_2_export_serves_replaced_skill_from_its_successor(self):
+        shutil.rmtree(self.source / "skills/uikit-app-modernization")
+        self.install()
+        text = (self.skills / "uikit-app-modernization/SKILL.md").read_text()
+        self.assertIn('name: "uikit-app-modernization"', text)
+        self.assertIn("Official app-resizability", text)
+        self.assertNotIn('stub: "true"', text)
+        self.assertTrue(installer.fresh(self.skills, "27A266a"))
 
     def test_unexpected_official_skill_fails_before_mutation(self):
         before = snapshot(self.skills)

@@ -28,9 +28,26 @@ SKILLS = {
     "app-intents-specialist": "app-intents-specialist",
     "app-intents-whats-new-27": "app-intents-whats-new-27",
     "building-document-based-swiftui-applications": "building-document-based-swiftui-applications",
+    "app-resizability": "app-resizability",
+    "xctrace": "xctrace",
 }
 INSTALLS = list(SKILLS.items()) + [("accessibility-dynamic-type-specialist", "ios-dynamic-text")]
 MARKER = ".apple-content-extracted"
+# Apple added these after Xcode 27.0, so older exports do not include them.
+ADDED_AFTER_27_0 = {"app-resizability", "xctrace"}
+# Apple later replaced these; the successor serves the old public name.
+REPLACED_BY = {"uikit-app-modernization": "app-resizability"}
+
+
+def installs_for(exported):
+    """Return the (official, public) pairs this Xcode export can provide."""
+    plan = []
+    for official, public in INSTALLS:
+        if official in exported:
+            plan.append((official, public))
+        elif official not in ADDED_AFTER_27_0:
+            plan.append((REPLACED_BY.get(official, official), public))
+    return plan
 
 
 def frontmatter(text):
@@ -105,7 +122,7 @@ def fresh(skills, build):
         docs = json.loads(marker["documentation"])
         files = json.loads(marker["files"])
         return (marker.get("schema") == SCHEMA and marker.get("xcode_build") == build
-                and all((skills / name / "SKILL.md").is_file() and 'stub: "true"' not in (skills / name / "SKILL.md").read_text() for _, name in INSTALLS)
+                and all((skills / name / "SKILL.md").is_file() and 'stub: "true"' not in (skills / name / "SKILL.md").read_text() for official, name in INSTALLS if official not in ADDED_AFTER_27_0)
                 and bool(files) and all((skills / name).is_file() for name in files)
                 and len(docs) >= 20 and all((skills / "apple-api-updates/references" / name).is_file() for name in docs))
     except (OSError, ValueError, KeyError):
@@ -119,7 +136,8 @@ def install(source, docs, skills, build):
     namespace = "swift-agent-kit:" if (skills.parent / ".claude-plugin/plugin.json").exists() else ""
     notes = json.loads(Path(__file__).with_name("integration-notes.json").read_text())
     fallback_descriptions = json.loads(Path(__file__).with_name("descriptions.json").read_text())
-    unexpected = sorted(path.name for path in (source / "skills").iterdir() if path.is_dir() and path.name not in SKILLS)
+    exported = {path.name for path in (source / "skills").iterdir() if path.is_dir()}
+    unexpected = sorted(exported - set(SKILLS))
     if unexpected:
         raise ValueError("Xcode exports additional skills; update Swift Agent Kit before extraction: " + ", ".join(unexpected))
     documents = sorted(docs.glob("*.md"))
@@ -130,7 +148,8 @@ def install(source, docs, skills, build):
         stage = Path(temporary)
         replacements = []
         installed_files = []
-        for official, public in INSTALLS:
+        plan = installs_for(exported)
+        for official, public in plan:
             src = source / "skills" / official
             if not (src / "SKILL.md").is_file():
                 raise ValueError("Official Xcode plugin is missing skill: " + official)
@@ -195,6 +214,7 @@ def install(source, docs, skills, build):
                 if backup.exists() or backup.is_symlink():
                     backup.rename(target)
             raise
+        return len(plan)
 
 
 def main():
@@ -211,8 +231,8 @@ def main():
         if not source.is_dir():
             raise ValueError("Xcode did not return an official plugin directory")
         docs = developer.parent / "PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation"
-        install(source, docs, args.skills_dir, build)
-        print("Installed 16 Apple skill entries (15 official skills plus ios-dynamic-text) and AdditionalDocumentation from Xcode build " + build + ".")
+        count = install(source, docs, args.skills_dir, build)
+        print("Installed " + str(count) + " Apple skill entries and AdditionalDocumentation from Xcode build " + build + ".")
         print("Reload plugins or start a new session to refresh cached skill bodies.")
         return 0
     except (OSError, ValueError, subprocess.SubprocessError) as error:

@@ -37,6 +37,11 @@ tooling badly. This kit bundles the fixes.
    DuckDB and let the agent diagnose hitches, hangs, and dropped frames
    with SQL.
 
+For standalone native Mac debugging, see the
+[LLDB MCP how-to](skills/xcode-tools/references/native-debugging.md), including
+SwiftUI model inspection, and the
+[session ownership explanation](skills/xcode-tools/references/lldb-session-ownership.md).
+
 ## Install
 
 ### Claude Code (recommended)

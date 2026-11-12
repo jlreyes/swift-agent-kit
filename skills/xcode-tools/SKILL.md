@@ -9,11 +9,12 @@ description: >-
   Use whenever xcode-tools MCP tools are available and an Xcode project is
   involved — including building, running, testing, debugging, rendering
   previews, or driving the simulator — before reaching for any
-  mcp__xcode-tools__* tool, or when those tools are missing or erroring.
-compatibility: Requires macOS with Xcode 27+ and the xcode-tools MCP server registered with the agent. Xcode 27's service can start on demand; project-scoped operations require a workspace and may request agent or folder approval.
+  mcp__xcode-tools__* tool, or when those tools are missing or erroring. Also
+  use for standalone native Mac LLDB MCP sessions and SwiftUI model inspection.
+compatibility: Requires macOS with Xcode 27+. Xcode MCP workflows need its server registered with the agent; standalone LLDB MCP uses the bundled lldb-mcp adapter. Xcode project operations require a workspace and may request agent or folder approval.
 metadata:
   author: jlreyes
-  source: Xcode 27.0 (27A266a) headless schema inventory, 2026-09; retained beta probes from 27A5194q, 2026-06
+  source: Xcode 27.0 (27A266a) headless schema inventory, 2026-09; native LLDB MCP follow-up on Xcode 27.2 (27B52), 2026-11; retained beta probes from 27A5194q, 2026-06
 ---
 
 # Driving Xcode from Claude Code
@@ -158,10 +159,17 @@ plan persists in the scheme.
 
 ## LLDB MCP and device CLI
 
-The installed LLDB MCP listener and `devicectl` command surfaces are documented
-in [LLDB and device CLI](references/lldb-and-device-cli.md). The LLDB probe was
-target-free, and the device commands are help-verified only; use the live
-schemas and command help before depending on either in an automated flow.
+For an LLDB-owned native Mac app, use the
+[native debugging how-to](references/native-debugging.md) for breakpoints,
+SwiftUI model state, stepping, and reconnecting. The
+[LLDB MCP reference](references/lldb-mcp-reference.md) records the tested
+Xcode 27.2 contract and troubleshooting; the
+[session ownership explanation](references/lldb-session-ownership.md) covers
+how it fits beside Xcode's debugger. This native follow-up tested the standalone
+LLDB path, not Xcode's `InvokeDebuggerCommand`.
+
+[Device CLI commands](references/lldb-and-device-cli.md) remain help-verified
+only. Use live schemas and command help for the installed version.
 
 ## Failure modes & repair
 

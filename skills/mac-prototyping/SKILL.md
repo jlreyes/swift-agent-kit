@@ -1,6 +1,12 @@
 ---
 name: mac-prototyping
-description: Builds native-macOS-style app prototypes on the web using the bundled mac-chrome React/TypeScript toolkit — managed apps and windows, desktop shell, Dock, navigation split views, source lists, forms, controls, menus, window recipes, tokens, and composable new/fork/serve command recipes. Use when creating, forking, changing, or reviewing a macOS-look prototype, or when asked to make a web UI look and behave like a Mac app.
+description: >-
+  Web prototypes (React and TypeScript, served in a browser) that look and
+  behave like macOS apps, built with the bundled mac-chrome toolkit: windows,
+  desktop shell, Dock, split views, source lists, forms, menus. Use when
+  creating, forking, changing or reviewing such a web prototype. Not for real
+  native apps: for SwiftUI, AppKit or an installable .app, use
+  swift-standards and xcode-tools.
 metadata:
   author: jlreyes
 ---

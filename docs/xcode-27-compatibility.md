@@ -85,3 +85,12 @@ Before changing this integration for a later Xcode release, rerun the skill
 materialization and MCP inventory checks. Treat any changed schema or skill
 layout as the authority, then update this document and the `xcode-tools`
 guide together.
+
+## Native debugging follow-up: Xcode 27.2
+
+The November 12, 2026 follow-up exercised a real SwiftUI Mac app through the
+standalone LLDB MCP listener and bundled adapter: breakpoint stops from UI
+actions, Swift model expressions, stepping, resume, and adapter reconnection.
+See the [native debugging how-to](../skills/xcode-tools/references/native-debugging.md)
+and [tested tool contract](../skills/xcode-tools/references/lldb-mcp-reference.md).
+The device CLI evidence above remains help-only.

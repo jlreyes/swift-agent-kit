@@ -1,5 +1,5 @@
 {
-  "description": "Nudges until Apple skill content has been extracted from the local Xcode",
+  "description": "Nudges until Apple skill content has been extracted from the local Xcode; asks once for swift-standards and swiftui-specialist before Swift is written",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,18 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/check-apple-content.sh\"",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill|Write|Edit|MultiEdit|Bash|mcp__.*__Xcode(Write|Update)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/swift-standards-gate.py\"",
+            "timeout": 5
           }
         ]
       }

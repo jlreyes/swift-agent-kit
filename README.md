@@ -42,6 +42,13 @@ For standalone native Mac debugging, see the
 SwiftUI model inspection, and the
 [session ownership explanation](skills/xcode-tools/references/lldb-session-ownership.md).
 
+For other native Mac tasks, see the
+[tool-selection guide](skills/xcode-tools/references/native-tool-selection.md),
+the [network inspection how-to](skills/xcode-tools/references/network-inspection.md),
+and the [dated spike results](docs/native-mac-tooling-spike-2026-11-12.md).
+The guides ship with `xcode-tools`; use your environment’s machine-access skill
+for its routes and credentials.
+
 ## Install
 
 ### Claude Code (recommended)
@@ -155,9 +162,10 @@ containing Apple-authored skill bodies will be closed.
 - Installer fixtures: `python3 -m unittest discover -s tests -v`. With Xcode
   27 installed, `python3 tests/verify_local_xcode.py` also materializes both
   supported layouts in temporary directories and checks their local parity.
-- Updating a skills.sh install: `npx skills add` does NOT refresh skill
-  directories that already exist — remove the kit's skill dirs from
-  `~/.agents/skills/` (or your agent's skills dir) first, then re-add and
-  re-run the extraction script.
+- Refresh `xcode-tools` from its recorded source on each agent host:
+  `DISABLE_TELEMETRY=1 npx --yes skills@1.5.23 update xcode-tools --global --yes`
+  Run the extraction script again after Xcode or plugin
+  updates to re-materialize Apple-authored skills; do not delete those
+  installed skill directories as a routine refresh step.
 - Pull instruments-analyzer upstream:
   `git subtree pull --prefix=skills/instruments-analyzer https://github.com/jlreyes/instruments-analyzer.git main --squash`

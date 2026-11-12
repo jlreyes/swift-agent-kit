@@ -10,7 +10,9 @@ description: >-
   involved — including building, running, testing, debugging, rendering
   previews, or driving the simulator — before reaching for any
   mcp__xcode-tools__* tool, or when those tools are missing or erroring. Also
-  use for standalone native Mac LLDB MCP sessions and SwiftUI model inspection.
+  use for standalone native Mac LLDB MCP sessions, SwiftUI model inspection,
+  choosing native Mac development tools, or external HTTP/HTTPS inspection
+  with Proxyman MCP.
 compatibility: Requires macOS with Xcode 27+. Xcode MCP workflows need its server registered with the agent; standalone LLDB MCP uses the bundled lldb-mcp adapter. Xcode project operations require a workspace and may request agent or folder approval.
 metadata:
   author: jlreyes
@@ -27,6 +29,12 @@ asked about it, and remember some calls mutate state the *human* also sees
 (run destination, debugger, simulator).
 
 Per-tool verdicts and nuances: `references/tool-reference.md`.
+
+For native Mac work beyond Xcode's own tools, use the
+[tool-selection guide](references/native-tool-selection.md). To inspect HTTP
+requests and responses without an app SDK, use the
+[Proxyman how-to](references/network-inspection.md). For machine addresses, VM
+transport and credentials, use the environment's machine-access skill.
 
 ## Session bootstrap (once per workspace)
 

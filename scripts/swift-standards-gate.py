@@ -7,6 +7,12 @@ that contains `import SwiftUI` gets the same check for swiftui-specialist.
 Each skill is asked for once: later writes go through whether or not it was
 loaded. SWIFT_AGENT_KIT_GATE=off turns the check off, and any error lets the
 tool call through.
+
+A skill counts as loaded when the Skill tool loads it or a shell command reads
+its SKILL.md, which is how Codex loads skills. Codex sends the same hook input,
+with its file writes arriving as `apply_patch` or as shell redirects.
+swift-write-check.sh runs first and starts this script only for calls that
+mention a .swift path or one of the two skills.
 """
 import json
 import os
@@ -29,6 +35,8 @@ MESSAGES = {
 SAME_TURN_SECONDS = 15
 FILE_TOOLS = ("Write", "Edit", "MultiEdit")
 XCODE_FILE_TOOLS = ("__XcodeWrite", "__XcodeUpdate")
+# Codex's patch tool names each file on its own line.
+PATCH_SWIFT_WRITE = re.compile(r"^\*\*\* (?:Add|Update) File: .*\.swift[ \t]*$", re.MULTILINE)
 # A redirect or `tee` into a path that ends in `.swift`. The lookbehind keeps
 # `->` and `=>` in prose from reading as redirects; the lookahead keeps
 # `.swift-version` and `.swiftlint.yml` from reading as Swift files.
@@ -48,6 +56,9 @@ def swift_written(tool, tool_input):
     if tool == "Bash":
         command = str(tool_input.get("command", ""))
         return command if SHELL_SWIFT_WRITE.search(command) else None
+    if tool == "apply_patch":
+        patch = str(tool_input.get("command") or tool_input.get("input") or "")
+        return patch if PATCH_SWIFT_WRITE.search(patch) else None
     return None
 
 
@@ -82,6 +93,11 @@ def main():
         if name in (STANDARDS, SWIFTUI):
             marker(call, name, "loaded").touch()
         return
+    if tool == "Bash":
+        command = str(tool_input.get("command", ""))
+        for skill in (STANDARDS, SWIFTUI):
+            if skill + "/SKILL.md" in command:
+                marker(call, skill, "loaded").touch()
     text = swift_written(tool, tool_input)
     if text is None:
         return

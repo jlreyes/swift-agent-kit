@@ -64,10 +64,35 @@ class GateTests(unittest.TestCase):
     def test_registration_adds_the_check_and_keeps_the_session_start_hook(self):
         self.assertEqual(HOOKS["hooks"]["SessionStart"], [{"matcher": "startup|resume", "hooks": [
             {"type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/check-apple-content.sh\"", "timeout": 10}]}])
-        (entry,) = HOOKS["hooks"]["PreToolUse"]
-        self.assertEqual(entry["matcher"], "Skill|Write|Edit|MultiEdit|Bash|mcp__.*__Xcode(Write|Update)")
+        entries = {entry["matcher"]: entry["hooks"] for entry in HOOKS["hooks"]["PreToolUse"]}
+        self.assertEqual(sorted(entries), ["Bash|Skill|MultiEdit|mcp__.*__Xcode(Write|Update)", "Edit", "Write"])
+        for hooks in entries.values():
+            (hook,) = hooks
+            self.assertEqual(hook["command"], "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"")
+        # Claude Code filters file writes by path, so the check does not start for other files.
+        self.assertEqual(entries["Write"][0]["if"], "Write(**/*.swift)")
+        self.assertEqual(entries["Edit"][0]["if"], "Edit(**/*.swift)")
+        self.assertTrue(os.access(REPOSITORY / "scripts/swift-write-check.sh", os.X_OK))
         self.assertTrue((REPOSITORY / "scripts/swift-standards-gate.py").is_file())
-        self.assertIn("\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-standards-gate.py\"", entry["hooks"][0]["command"])
+
+    def test_calls_that_mention_neither_swift_nor_the_skills_never_reach_python(self):
+        # The entry script decides these itself: even input that is not JSON gets no output and no error.
+        for stdin in ("not json at all", json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls -la && git status"}}),
+                      json.dumps({"tool_name": "Skill", "tool_input": {"skill": "agent-writing:writing"}})):
+            self.assertEqual(self.run_hook(stdin), "")
+
+    def test_reading_a_skill_file_counts_as_loading_it(self):
+        # Codex loads a skill by reading its SKILL.md with a shell command.
+        self.assertIsNone(self.call(*bash("cat /Users/me/.agents/skills/swift-standards/SKILL.md")))
+        self.assertEqual(self.call(*write("ContentView.swift", VIEW)), SWIFTUI)
+        self.assertIsNone(self.call(*bash("sed -n '1,80p' ~/.agents/skills/swiftui-specialist/SKILL.md")))
+        self.assertIsNone(self.call(*write("ContentView.swift", VIEW), session="session-1"))
+
+    def test_codex_patches_that_add_or_update_swift_files_are_checked(self):
+        patch = "*** Begin Patch\n*** Add File: Hello.swift\n+import SwiftUI\n+\n+struct Hello: View {}\n*** End Patch"
+        self.assertEqual(self.call("apply_patch", {"command": patch}), BOTH)
+        self.assertEqual(self.call("apply_patch", {"command": "*** Begin Patch\n*** Update File: Sources/Point.swift\n@@\n-let x = 0\n+let x = 1\n*** End Patch"}, session="session-2"), STANDARDS)
+        self.assertIsNone(self.call("apply_patch", {"command": "*** Begin Patch\n*** Add File: notes/swift.md\n+About .swift files\n*** End Patch"}, session="session-3"))
 
     def test_first_swift_write_is_refused_until_swift_standards_is_loaded(self):
         self.assertEqual(self.call(*write()), STANDARDS)

@@ -15,11 +15,33 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Skill|Write|Edit|MultiEdit|Bash|mcp__.*__Xcode(Write|Update)",
+        "matcher": "Write",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/swift-standards-gate.py\"",
+            "if": "Write(**/*.swift)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(**/*.swift)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Skill|MultiEdit|mcp__.*__Xcode(Write|Update)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
             "timeout": 5
           }
         ]

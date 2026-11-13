@@ -72,8 +72,16 @@ In Claude Code, the plugin refuses the first Swift write of a session if
 the retry goes through. The first SwiftUI write gets the same check for
 `swiftui-specialist`. Each skill is asked for once per session. If the
 check itself hits an error, the write goes through. Set
-`SWIFT_AGENT_KIT_GATE=off` to turn the check off. Codex installs get the
-skills but no hooks.
+`SWIFT_AGENT_KIT_GATE=off` to turn the check off.
+
+Claude Code starts the check only for writes to `.swift` paths, shell
+commands and skill loads. For the last two, a few lines of shell exit at
+once unless the call mentions a `.swift` path or one of the two skills, so
+Python starts only then.
+
+Codex installs get the skills but no hooks. The script accepts Codex's hook
+input (its `Bash` and `apply_patch` calls, and skills loaded by reading
+`SKILL.md`), but the kit does not register it for Codex.
 
 ### Any agent, via skills.sh
 

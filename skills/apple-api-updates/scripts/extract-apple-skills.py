@@ -129,9 +129,19 @@ def fresh(skills, build):
         return False
 
 
+def is_codex_cache(plugin_root):
+    """Codex Git installs retain a .git directory in their private cache."""
+    codex_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").resolve()
+    try:
+        _, plugin, _ = plugin_root.relative_to(codex_home / "plugins/cache").parts
+    except ValueError:
+        return False
+    return plugin == "swift-agent-kit" and (plugin_root / ".claude-plugin/plugin.json").is_file()
+
+
 def install(source, docs, skills, build):
     skills = skills.resolve()
-    if (skills.parent / ".git").exists():
+    if (skills.parent / ".git").exists() and not is_codex_cache(skills.parent):
         raise ValueError("Refusing to overwrite a Git checkout with Apple content. Install the kit first, or use --skills-dir with a separate local copy of its skills directory.")
     namespace = "swift-agent-kit:" if (skills.parent / ".claude-plugin/plugin.json").exists() else ""
     notes = json.loads(Path(__file__).with_name("integration-notes.json").read_text())

@@ -58,11 +58,30 @@ for its routes and credentials.
 /plugin install swift-agent-kit@swift-agent-kit
 ```
 
-Recommended because this route also ships a SessionStart hook: until
-Apple's skills have been extracted, every session starts with the exact
-command to run (ask the agent to run it — Xcode 27+, ~5s). The
+Recommended because this route also ships two hooks. The SessionStart
+hook: until Apple's skills have been extracted, every session starts with
+the exact command to run (ask the agent to run it — Xcode 27+, ~5s). The
+PreToolUse hook runs the Swift standards check described below. The
 `marketplace.json` here is just Claude Code's mechanism for making a repo
 directly installable; there is no marketplace to maintain.
+
+### Swift standards check
+
+In Claude Code, the plugin refuses the first Swift write of a session if
+`swift-standards` has not been loaded. The refusal names the skill, and
+the retry goes through. The first SwiftUI write gets the same check for
+`swiftui-specialist`. Each skill is asked for once per session. If the
+check itself hits an error, the write goes through. Set
+`SWIFT_AGENT_KIT_GATE=off` to turn the check off.
+
+Claude Code starts the check only for writes to `.swift` paths, shell
+commands and skill loads. For the last two, a few lines of shell exit at
+once unless the call mentions a `.swift` path or one of the two skills, so
+Python starts only then.
+
+Codex installs get the skills but no hooks. The script accepts Codex's hook
+input (its `Bash` and `apply_patch` calls, and skills loaded by reading
+`SKILL.md`), but the kit does not register it for Codex.
 
 ### Any agent, via skills.sh
 
@@ -72,8 +91,8 @@ npx skills add jlreyes/swift-agent-kit
 ```
 
 Hooks aren't part of the open skills standard, so there's no automatic
-nudge on this route — but the stub skills carry the same instructions, so
-an agent that triggers one self-heals.
+nudge and no Swift standards check on this route — but the stub skills
+carry the nudge's instructions, so an agent that triggers one self-heals.
 
 Running Claude Code AND another agent on one machine? Install the plugin
 for Claude Code and skills.sh for the others — but note recent Claude Code
@@ -85,11 +104,11 @@ via `skillOverrides` in `~/.claude/settings.json`, or pick one route.
 
 The skills — including the stub + extraction flow — follow the Agent
 Skills open standard and work in Codex, Cursor, and friends via the
-skills.sh route. Claude-Code-only pieces: the SessionStart hook and the
-one-command plugin install. Xcode's MCP server works in any MCP-capable
-harness (point your harness's MCP config at `mcpbridge`); note that our
-docs print tool names in Claude Code's `mcp__xcode-tools__*` convention —
-adjust the prefix for yours.
+skills.sh route. Claude-Code-only pieces: the two hooks (the SessionStart
+nudge and the Swift standards check) and the one-command plugin install.
+Xcode's MCP server works in any MCP-capable harness (point your harness's
+MCP config at `mcpbridge`); note that our docs print tool names in Claude
+Code's `mcp__xcode-tools__*` convention — adjust the prefix for yours.
 
 After extraction, run `/reload-plugins` (or start a new session) — skill
 bodies are cached per session, and agents can't run slash commands, so the
@@ -141,7 +160,7 @@ Recommended companions:
 | `skills/apple-api-updates/` | Routing wrapper + the extraction script (`scripts/extract-apple-skills.sh`) |
 | `skills/instruments-analyzer/` | Instruments → DuckDB trace analysis (embedded upstream, MIT) |
 | `skills/<Apple skills>/` | Stubs with our trigger descriptions until materialized from Xcode |
-| `scripts/`, `hooks/` | Plugin-root wrapper + SessionStart nudge (Claude Code route) |
+| `scripts/`, `hooks/` | Plugin-root wrapper, SessionStart nudge, and the Swift standards check (Claude Code route) |
 
 ## Licensing
 
@@ -159,7 +178,8 @@ containing Apple-authored skill bodies will be closed.
   Xcode updates.
 - [Xcode 27 compatibility](docs/xcode-27-compatibility.md) records the
   release schema, skill parity, and the limits of the local verification.
-- Installer fixtures: `python3 -m unittest discover -s tests -v`. With Xcode
+- Installer fixtures and the Swift standards check's tests:
+  `python3 -m unittest discover -s tests -v`. With Xcode
   27 installed, `python3 tests/verify_local_xcode.py` also materializes both
   supported layouts in temporary directories and checks their local parity.
 - Refresh `xcode-tools` from its recorded source on each agent host:

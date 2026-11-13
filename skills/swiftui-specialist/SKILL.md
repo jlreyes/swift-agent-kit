@@ -1,13 +1,12 @@
 ---
 name: swiftui-specialist
 description: >-
-  Apple's reference set for writing idiomatic, performant SwiftUI: view
-  structure and decomposition, data flow and invalidation behavior
-  (@State, @Observable, bindings, environment), conditional modifiers,
-  ForEach identity rules, localization of user-facing text, custom
-  animatable types, and identifying soft-deprecated SwiftUI APIs with
-  their replacements. Use when writing, reviewing, or editing SwiftUI
-  code. (Content extracted from your local Xcode on install.)
+  Load before writing or changing SwiftUI views, together with
+  swift-standards. Apple's current SwiftUI reference set, extracted from
+  the local Xcode: view structure, data flow and invalidation (@State,
+  @Observable, bindings, environment), ForEach and List identity,
+  localization, custom animation, and soft-deprecated APIs with their
+  replacements. It supersedes training-era SwiftUI habits.
 metadata:
   stub: "true"
   content: Apple-authored; extracted locally from Xcode by scripts/extract-apple-skills.sh

@@ -1,18 +1,13 @@
 ---
 name: xcode-tools
 description: >-
-  Operating guide for Xcode 27's bundled MCP server (mcpbridge): when to use
-  each mcp__xcode-tools__* tool versus the agent's native tools or the CLI,
-  connection setup and repair, output-noise control, and the tools that are
-  genuinely unique (live per-file diagnostics, the shared lldb session,
-  preview rendering, project-membership file operations, device driving).
-  Use whenever xcode-tools MCP tools are available and an Xcode project is
-  involved — including building, running, testing, debugging, rendering
-  previews, or driving the simulator — before reaching for any
-  mcp__xcode-tools__* tool, or when those tools are missing or erroring. Also
-  use for standalone native Mac LLDB MCP sessions, SwiftUI model inspection,
-  choosing native Mac development tools, or external HTTP/HTTPS inspection
-  with Proxyman MCP.
+  Load when building, running, testing, debugging or profiling a Swift or
+  Xcode-built app, macOS or iOS, whether or not the Xcode MCP server is
+  connected. It says which tool to use for each job: Xcode MCP or xcodebuild
+  for builds and previews, Cua to exercise the running UI, LLDB for runtime
+  state, Proxyman for HTTP traffic, Instruments Analyzer for performance.
+  Also covers Xcode 27's MCP server: setup, repair, output control and tool
+  reference.
 compatibility: Requires macOS with Xcode 27+. Xcode MCP workflows need its server registered with the agent; standalone LLDB MCP uses the bundled lldb-mcp adapter. Xcode project operations require a workspace and may request agent or folder approval.
 metadata:
   author: jlreyes
@@ -30,9 +25,11 @@ asked about it, and remember some calls mutate state the *human* also sees
 
 Per-tool verdicts and nuances: `references/tool-reference.md`.
 
-For native Mac work beyond Xcode's own tools, use the
-[tool-selection guide](references/native-tool-selection.md). To inspect HTTP
-requests and responses without an app SDK, use the
+Choose the tool by what you need to observe: build and preview with Xcode MCP
+or `xcodebuild`, exercise the running UI with Cua, read runtime state with
+LLDB, and profile with Instruments Analyzer. The
+[tool-selection guide](references/native-tool-selection.md) has the cases and
+limits. To inspect HTTP requests and responses without an app SDK, use the
 [Proxyman how-to](references/network-inspection.md). For machine addresses, VM
 transport and credentials, use the environment's machine-access skill.
 

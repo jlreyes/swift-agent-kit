@@ -1,14 +1,13 @@
 ---
 name: swift-standards
 description: >-
-  House Swift coding standards, in force for all Swift work — project
-  organization, Swift 6 strict concurrency, the Observation framework
-  (@Observable/@State), SwiftUI performance and invalidation discipline,
-  reactive-over-imperative state,
-  SwiftUI preview pitfalls, SwiftData actor-safety, and Apple's agent
-  conventions. Load whenever writing, editing, reviewing, or refactoring any
-  Swift (.swift) code, SwiftUI view, Swift test, or SwiftPM package — not
-  only when debugging or reviewing.
+  Load before writing, editing, reviewing or refactoring any Swift: a .swift
+  file, SwiftUI view, Swift test, or SwiftPM or Xcode project, including new
+  apps, spikes and one-file snippets. House Swift standards that replace
+  training-era defaults: project setup and deployment targets, Swift 6
+  concurrency, Observation (@Observable, @State), SwiftUI invalidation and
+  performance, SwiftData actor-safety, previews, and where to look up APIs
+  newer than training data.
 metadata:
   author: jlreyes
 ---
@@ -20,7 +19,24 @@ area has a reference with the full rules, rationale, and patterns — read the
 relevant reference before working in that area, and when reviewing code
 against it.
 
+Writing or changing SwiftUI views? Load `swiftui-specialist` as well: it
+holds Apple's current SwiftUI rules, which this file only summarizes.
+
 ## Non-negotiables (always apply)
+
+**New projects** — target the current OS release (the one you are building
+with) and the host architecture, unless the request, or a machine that must
+run the app, needs an older OS. An older deployment target rules out the
+APIs these standards assume.
+
+**Run what you build** — when the task is to build an app, a successful
+compile is not a test. Load `xcode-tools` for how to build, launch and
+exercise it; it uses Cua for UI behavior. Launching an app puts its windows
+on that machine's desktop, and a test run that includes UI tests, whether
+from `xcodebuild test` or from Xcode, takes over its keyboard and pointer.
+Launch the app and run those tests in a VM or other isolated machine when
+the environment provides one (load its machine-access skill to choose it),
+not on the user's own desktop.
 
 **Modern Swift** — `@Observable` (+ `@State` in views), never
 `ObservableObject/@Published/@StateObject` except when bridging old code.

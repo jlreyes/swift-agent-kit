@@ -20,7 +20,7 @@
           {
             "type": "command",
             "if": "Write(**/*.swift)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/swift-standards/scripts/swift-write-check.sh\"",
             "timeout": 5
           }
         ]
@@ -31,7 +31,7 @@
           {
             "type": "command",
             "if": "Edit(**/*.swift)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/swift-standards/scripts/swift-write-check.sh\"",
             "timeout": 5
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/swift-standards/scripts/swift-write-check.sh\"",
             "timeout": 5
           }
         ]

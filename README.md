@@ -79,9 +79,32 @@ commands and skill loads. For the last two, a few lines of shell exit at
 once unless the call mentions a `.swift` path or one of the two skills, so
 Python starts only then.
 
-Codex installs get the skills but no hooks. The script accepts Codex's hook
-input (its `Bash` and `apply_patch` calls, and skills loaded by reading
-`SKILL.md`), but the kit does not register it for Codex.
+Codex can run the same check. Its scripts ship inside the `swift-standards`
+skill, so a skills.sh install has them. Add this to `~/.codex/hooks.json`,
+keeping any hooks already there, and approve the new hook when Codex asks you
+to review it:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash \"$HOME/.agents/skills/swift-standards/scripts/swift-write-check.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Codex loads a skill by reading its `SKILL.md`, and the check counts that as
+loading it.
 
 ### Any agent, via skills.sh
 
@@ -91,8 +114,9 @@ npx skills add jlreyes/swift-agent-kit
 ```
 
 Hooks aren't part of the open skills standard, so there's no automatic
-nudge and no Swift standards check on this route — but the stub skills
-carry the nudge's instructions, so an agent that triggers one self-heals.
+nudge on this route — but the stub skills carry the nudge's instructions,
+so an agent that triggers one self-heals. The Swift standards check runs
+here only after you register it (see above for Codex).
 
 Running Claude Code AND another agent on one machine? Install the plugin
 for Claude Code and skills.sh for the others — but note recent Claude Code
@@ -104,8 +128,9 @@ via `skillOverrides` in `~/.claude/settings.json`, or pick one route.
 
 The skills — including the stub + extraction flow — follow the Agent
 Skills open standard and work in Codex, Cursor, and friends via the
-skills.sh route. Claude-Code-only pieces: the two hooks (the SessionStart
-nudge and the Swift standards check) and the one-command plugin install.
+skills.sh route. Claude-Code-only pieces: the SessionStart nudge and the
+one-command plugin install. The Swift standards check works in Codex once
+registered (see above).
 Xcode's MCP server works in any MCP-capable harness (point your harness's
 MCP config at `mcpbridge`); note that our docs print tool names in Claude
 Code's `mcp__xcode-tools__*` convention — adjust the prefix for yours.
@@ -160,7 +185,7 @@ Recommended companions:
 | `skills/apple-api-updates/` | Routing wrapper + the extraction script (`scripts/extract-apple-skills.sh`) |
 | `skills/instruments-analyzer/` | Instruments → DuckDB trace analysis (embedded upstream, MIT) |
 | `skills/<Apple skills>/` | Stubs with our trigger descriptions until materialized from Xcode |
-| `scripts/`, `hooks/` | Plugin-root wrapper, SessionStart nudge, and the Swift standards check (Claude Code route) |
+| `scripts/`, `hooks/` | Plugin-root wrapper, SessionStart nudge, and the hook registration for the Swift standards check (Claude Code route); the check's scripts are in `skills/swift-standards/scripts/` |
 
 ## Licensing
 

@@ -68,12 +68,12 @@ class GateTests(unittest.TestCase):
         self.assertEqual(sorted(entries), ["Bash|Skill|MultiEdit|mcp__.*__Xcode(Write|Update)", "Edit", "Write"])
         for hooks in entries.values():
             (hook,) = hooks
-            self.assertEqual(hook["command"], "\"${CLAUDE_PLUGIN_ROOT}/scripts/swift-write-check.sh\"")
+            self.assertEqual(hook["command"], "\"${CLAUDE_PLUGIN_ROOT}/skills/swift-standards/scripts/swift-write-check.sh\"")
         # Claude Code filters file writes by path, so the check does not start for other files.
         self.assertEqual(entries["Write"][0]["if"], "Write(**/*.swift)")
         self.assertEqual(entries["Edit"][0]["if"], "Edit(**/*.swift)")
-        self.assertTrue(os.access(REPOSITORY / "scripts/swift-write-check.sh", os.X_OK))
-        self.assertTrue((REPOSITORY / "scripts/swift-standards-gate.py").is_file())
+        self.assertTrue(os.access(REPOSITORY / "skills/swift-standards/scripts/swift-write-check.sh", os.X_OK))
+        self.assertTrue((REPOSITORY / "skills/swift-standards/scripts/swift-standards-gate.py").is_file())
 
     def test_calls_that_mention_neither_swift_nor_the_skills_never_reach_python(self):
         # The entry script decides these itself: even input that is not JSON gets no output and no error.
@@ -93,6 +93,24 @@ class GateTests(unittest.TestCase):
         self.assertEqual(self.call("apply_patch", {"command": patch}), BOTH)
         self.assertEqual(self.call("apply_patch", {"command": "*** Begin Patch\n*** Update File: Sources/Point.swift\n@@\n-let x = 0\n+let x = 1\n*** End Patch"}, session="session-2"), STANDARDS)
         self.assertIsNone(self.call("apply_patch", {"command": "*** Begin Patch\n*** Add File: notes/swift.md\n+About .swift files\n*** End Patch"}, session="session-3"))
+
+    def test_codex_registration_in_the_readme_runs_the_shipped_script(self):
+        # Codex users copy this entry into ~/.codex/hooks.json, so it has to name the script a skills.sh install carries.
+        readme = (REPOSITORY / "README.md").read_text()
+        block = readme[readme.index("```json", readme.index("~/.codex/hooks.json")) + len("```json"):]
+        entry = json.loads(block[:block.index("```")])["hooks"]["PreToolUse"][0]
+        self.assertEqual(entry["matcher"], "Bash|apply_patch")
+        command = entry["hooks"][0]["command"]
+        self.assertEqual(command, '/bin/bash "$HOME/.agents/skills/swift-standards/scripts/swift-write-check.sh"')
+        installed = Path(self.temporary.name) / "home/.agents/skills"
+        installed.mkdir(parents=True)
+        (installed / "swift-standards").symlink_to(REPOSITORY / "skills/swift-standards")
+        environment = dict(self.environment, HOME=str(Path(self.temporary.name) / "home"))
+        payload = {"session_id": "codex-1", "hook_event_name": "PreToolUse", "tool_name": "apply_patch",
+                   "tool_input": {"command": "*** Begin Patch\n*** Add File: A.swift\n+let a = 1\n*** End Patch"}}
+        result = subprocess.run(command, shell=True, input=json.dumps(payload), env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"], STANDARDS)
 
     def test_first_swift_write_is_refused_until_swift_standards_is_loaded(self):
         self.assertEqual(self.call(*write()), STANDARDS)

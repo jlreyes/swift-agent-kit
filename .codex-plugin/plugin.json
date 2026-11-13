@@ -1,0 +1,6 @@
+{
+  "name": "swift-agent-kit",
+  "description": "Swift standards, Apple documentation, Xcode tools, and Instruments analysis.",
+  "skills": "./skills/",
+  "hooks": "./hooks/codex.json"
+}

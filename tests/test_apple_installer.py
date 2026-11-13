@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import json
+import os
 import shutil
 import unittest
 from unittest import mock
@@ -251,6 +252,17 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Git checkout"):
             self.install()
         self.assertEqual(before, snapshot(self.skills))
+
+    def test_git_backed_codex_cache_allows_local_extraction(self):
+        codex_home = self.skills.parent / "codex"
+        cache = codex_home / "plugins/cache/jlreyes/swift-agent-kit/local"
+        (cache / ".git").mkdir(parents=True)
+        (cache / ".claude-plugin").mkdir()
+        (cache / ".claude-plugin/plugin.json").write_text('{"name":"swift-agent-kit"}')
+        shutil.copytree(self.skills, cache / "skills")
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+            installer.install(self.source, self.docs, cache / "skills", "27A266a")
+        self.assertTrue(installer.fresh(cache / "skills", "27A266a"))
 
     def test_stale_managed_references_removed(self):
         old = self.skills / "swiftui-specialist/references/obsolete.md"

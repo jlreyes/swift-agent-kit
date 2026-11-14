@@ -36,7 +36,10 @@ on that machine's desktop, and a test run that includes UI tests, whether
 from `xcodebuild test` or from Xcode, takes over its keyboard and pointer.
 Launch the app and run those tests in a VM or other isolated machine when
 the environment provides one (load its machine-access skill to choose it),
-not on the user's own desktop.
+not on the user's own desktop. A development-signed app runs in a VM only when
+its provisioning profile lists the VM as a device. If macOS refuses to launch
+it there, ask whoever manages the developer account to add the VM; do not move
+the run to the user's desktop. Report which steps could not run until then.
 
 **Modern Swift** — `@Observable` (+ `@State` in views), never
 `ObservableObject/@Published/@StateObject` except when bridging old code.
